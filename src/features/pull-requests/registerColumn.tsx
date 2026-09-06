@@ -2,17 +2,10 @@
 
 import { useLayoutEffect } from 'react';
 import { tabContaining, useCentralLayout, usePaneMode } from './centralLayout';
+import { COLUMN_COMMANDS } from './columnCommands';
 import { useNavRegistry } from './columnNav';
 import type { ColumnId, NavColumn } from './navColumn';
-import { useCommand, type CommandSpec } from '@/features/hotkeys/commandStore';
-
-const COLUMN_COMMANDS: Partial<Record<ColumnId, CommandSpec>> = {
-  pulls: { id: 'column:pulls', label: 'pull requests column', keys: ['1', 'p'] },
-  discussion: { id: 'column:discussion', label: 'discussion column', keys: ['2', 'd'] },
-  commits: { id: 'column:commits', label: 'commits column', keys: ['3', 'c'] },
-  files: { id: 'column:files', label: 'files column', keys: ['4', 'f'] },
-  'ai-chat': { id: 'column:ai-chat', label: 'ai chat column', keys: ['5', 'a'] },
-};
+import { useCommand } from '@/features/hotkeys/commandStore';
 
 export function useRegisterColumn(id: ColumnId, column: NavColumn, available = true) {
   const { register, toggle } = useNavRegistry();

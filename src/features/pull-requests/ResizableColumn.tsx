@@ -2,8 +2,10 @@
 
 import { useCallback, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { PANE_WIDTH, usePaneMode, type PaneFrame } from './centralLayout';
+import { columnHotkeyHint } from './columnCommands';
 import { useColumnNav, type ColumnRow } from './columnNav';
 import { COLUMN_HEADER, type ColumnId } from './navColumn';
+import { HotkeyCap } from '@/features/hotkeys/HotkeyCap';
 import { ColumnBoundary } from '@/features/surface-ui/ColumnBoundary';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
@@ -88,6 +90,7 @@ export function SectionHeader({
   title,
   titleTone,
   note,
+  hotkey,
   chevron,
   className,
   label,
@@ -100,6 +103,7 @@ export function SectionHeader({
   title: string;
   titleTone: string;
   note?: string;
+  hotkey?: string;
   chevron: ReactNode;
   className: string;
   label: string;
@@ -120,7 +124,10 @@ export function SectionHeader({
       <span aria-hidden className="shrink-0 text-[11px] leading-4 text-ink-dim">{icon}</span>
       <span className={`shrink-0 text-[10px] uppercase tracking-[0.18em] ${titleTone}`}>{title}</span>
       {note && <span className="min-w-0 flex-1 truncate text-[10px] text-ink-dim">{note}</span>}
-      <span aria-hidden className="ml-auto shrink-0 px-1 text-[14px] leading-none text-ink-dim">{chevron}</span>
+      <span className="ml-auto flex shrink-0 items-center">
+        {hotkey && <HotkeyCap hotkey={hotkey} hidden />}
+        <span aria-hidden className="px-1 text-[14px] leading-none text-ink-dim">{chevron}</span>
+      </span>
     </SelectableRow>
   );
 }
@@ -150,6 +157,7 @@ function ColumnHeader({
         title={title}
         titleTone={nav.focused ? 'text-accent' : 'text-ink-dim'}
         note={note}
+        hotkey={columnHotkeyHint(navId)}
         chevron={onCollapse === null ? null : <span className="inline-block max-md:-rotate-90">‹</span>}
         className="min-w-0 flex-1"
         label={onCollapse === null ? title : `Collapse ${title}`}
