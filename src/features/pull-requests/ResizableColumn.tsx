@@ -2,6 +2,7 @@
 
 import { useCallback, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { PANE_WIDTH, usePaneMode, type PaneFrame } from './centralLayout';
+import { columnHotkeyHint } from './columnCommands';
 import { useColumnNav, type ColumnRow } from './columnNav';
 import { COLUMN_HEADER, type ColumnId } from './navColumn';
 import { ColumnBoundary } from '@/features/surface-ui/ColumnBoundary';
@@ -14,6 +15,8 @@ const STRIP =
 // Buttons don't inherit text-transform, so the strip's uppercase repeats here.
 const STRIP_EXPAND =
   'flex shrink-0 items-center gap-1.5 overflow-hidden rounded-[3px] uppercase outline-none focus-visible:ring-1 focus-visible:ring-accent md:max-h-[40%] md:flex-col md:gap-2.5';
+
+const HOTKEY_HINT = 'shrink-0 font-mono text-[9px] leading-none tracking-tight text-ink-dim/60';
 
 const MIN_WIDTH = 140;
 const MAX_WIDTH = 900;
@@ -88,6 +91,7 @@ export function SectionHeader({
   title,
   titleTone,
   note,
+  hotkey,
   chevron,
   className,
   label,
@@ -100,6 +104,7 @@ export function SectionHeader({
   title: string;
   titleTone: string;
   note?: string;
+  hotkey?: string | null;
   chevron: ReactNode;
   className: string;
   label: string;
@@ -120,8 +125,20 @@ export function SectionHeader({
       <span aria-hidden className="shrink-0 text-[11px] leading-4 text-ink-dim">{icon}</span>
       <span className={`shrink-0 text-[10px] uppercase tracking-[0.18em] ${titleTone}`}>{title}</span>
       {note && <span className="min-w-0 flex-1 truncate text-[10px] text-ink-dim">{note}</span>}
-      <span aria-hidden className="ml-auto shrink-0 px-1 text-[14px] leading-none text-ink-dim">{chevron}</span>
+      <span className="ml-auto flex shrink-0 items-center">
+        <HotkeyHint keys={hotkey} />
+        <span aria-hidden className="px-1 text-[14px] leading-none text-ink-dim">{chevron}</span>
+      </span>
     </SelectableRow>
+  );
+}
+
+function HotkeyHint({ keys }: { keys?: string | null }) {
+  if (!keys) return null;
+  return (
+    <kbd aria-hidden className={HOTKEY_HINT}>
+      [{keys}]
+    </kbd>
   );
 }
 
@@ -150,6 +167,7 @@ function ColumnHeader({
         title={title}
         titleTone={nav.focused ? 'text-accent' : 'text-ink-dim'}
         note={note}
+        hotkey={columnHotkeyHint(navId)}
         chevron={onCollapse === null ? null : <span className="inline-block max-md:-rotate-90">‹</span>}
         className="min-w-0 flex-1"
         label={onCollapse === null ? title : `Collapse ${title}`}
