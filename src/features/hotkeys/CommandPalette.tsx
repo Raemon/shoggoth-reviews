@@ -2,12 +2,12 @@
 
 import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useCommands, type Command } from './commandStore';
+import { HotkeyCap } from './HotkeyCap';
 import { ARROW_STEPS } from '@/features/surface-ui/focusables';
 import { FilterField } from '@/features/surface-ui/FilterField';
 import { ModalShell } from '@/features/surface-ui/ModalShell';
 
 const ROW = 'flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[11px] leading-4';
-const KEY = 'rounded bg-btn px-1 py-[1px] font-mono text-[9px] uppercase tracking-[0.18em] text-ink-dim';
 
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
@@ -82,9 +82,7 @@ function CommandRow({ command, current, onHover, onRun }: { command: Command; cu
       >
         <span className="min-w-0 flex-1 truncate">{command.label}</span>
         {command.keys.map((key) => (
-          <kbd key={key} className={KEY}>
-            {key}
-          </kbd>
+          <HotkeyCap key={key} hotkey={key} />
         ))}
       </button>
     </li>
