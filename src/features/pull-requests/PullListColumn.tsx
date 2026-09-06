@@ -10,7 +10,7 @@ import { PullFilterMenu } from './PullFilterMenu';
 import { PullRequestList } from './PullRequestList';
 import { collapsePullList, type PullListColumnName } from './collapsePullList';
 import { ResizableColumn, useCollapsibleColumn, type ColumnSize } from './ResizableColumn';
-import { branchRoute, allPullsRoute, pullRoute } from './pullPaths';
+import { branchListingRoute, allPullsRoute, pullRoute } from './pullPaths';
 import type { PullRequestSummary } from './pullRequests';
 import type { BranchSummary } from './branches';
 import { useStickyOpen } from './stickyColumns';
@@ -131,7 +131,7 @@ function repoTargets(owner: string, repo: string, pulls: PullRequestSummary[], b
 }
 
 function branchTarget(owner: string, repo: string, branch: BranchSummary): PullNavTarget {
-  const route = branchRoute(owner, repo, branch.name);
+  const route = branchListingRoute(owner, repo, branch);
   const leaf = branch.name.split('/').pop() ?? branch.name;
   return { route, href: route, label: leaf.slice(0, 2), title: `${owner}/${repo} · ${branch.name}`, pull: false };
 }

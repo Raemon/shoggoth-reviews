@@ -7,7 +7,8 @@ import { AllFilesSection } from './AllFilesSection';
 import { CentralTabBar, useCentralLayout, useShowsColumn } from './centralLayout';
 import { ColumnPreview, type PreviewToken } from './ColumnPreview';
 import { DiffPanes, type DiffPanesHandle } from './DiffPanes';
-import { PullCommitColumn, WHOLE_CHANGE, commitItems, commitTokens } from './PullCommitColumn';
+import { CommitsColumn } from './CommitsColumn';
+import { WHOLE_CHANGE } from './PullCommitColumn';
 import { PullFilesColumn, fileTokens } from './PullFilesColumn';
 import { isTreeItem } from './fileTreeNodes';
 import { RepoBrowseReader } from './RepoBrowseReader';
@@ -29,6 +30,7 @@ import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
 import { errorMessage } from '@/features/sources/errorMessage';
+import { plural } from '@/features/surface-ui/plural';
 
 interface ReviewWorkspaceProps {
   owner: string;
@@ -166,15 +168,6 @@ function Workspace({
     discussion !== null,
   );
   useRegisterColumn(
-    'commits',
-    {
-      ...useCollapsibleColumn('commits', commitSize, setCommitSize),
-      items: commitItems(change),
-      selected: selection,
-      onSelect: setSelection,
-    },
-  );
-  useRegisterColumn(
     'files',
     {
       ...useCollapsibleColumn('files', fileSize, setFileSize),
@@ -225,17 +218,15 @@ function Workspace({
         )}
         {showsDiff && (
           <div ref={reviewRow} className={stacked ? STACKED_ROW : COLUMNS_ROW}>
-            <ResizableColumn
-              navId="commits"
-              icon="◆"
-              title="commits"
-              note={countNote(change.commits.length, 'commit')}
-              preview={<ColumnPreview column="commits" tokens={commitTokens(change, selection)} />}
+            <CommitsColumn
+              owner={owner}
+              repo={repo}
+              change={change}
+              selection={selection}
+              onSelect={setSelection}
               size={commitSize}
               onSize={setCommitSize}
-            >
-              <PullCommitColumn owner={owner} repo={repo} change={change} selection={selection} onSelect={setSelection} />
-            </ResizableColumn>
+            />
             <ResizableColumn
               navId="files"
               icon="▤"
@@ -313,13 +304,9 @@ const STACKED_ROW = 'flex h-full min-w-0 shrink-0 max-md:h-auto max-md:flex-col'
 
 const DISCUSSION_TOKENS: PreviewToken[] = [{ key: 'discussion', label: '❝', title: 'discussion' }];
 
-function countNote(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
-
 function filesNote(loaded: ChangedFile[] | null, showingWhole: boolean): string | undefined {
   if (!showingWhole) return 'read-only · historical commit';
-  return loaded === null ? undefined : countNote(loaded.length, 'file');
+  return loaded === null ? undefined : plural(loaded.length, 'file');
 }
 
 function remaining(files: ChangedFile[], deleted: string[]): ChangedFile[] {

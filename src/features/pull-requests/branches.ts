@@ -1,4 +1,5 @@
 import { githubJson } from '@/features/codebases/githubRequest';
+import { defaultBranch } from '@/features/codebases/repoDirectory';
 import {
   changedFile,
   summarizeCommits,
@@ -7,6 +8,7 @@ import {
   type GithubChangedFile,
   type GithubCommit,
 } from './pullRequests';
+import { encodePath } from './repoFiles';
 import { mapWithWorkers } from './workerPool';
 
 export interface BranchPull {
@@ -26,6 +28,7 @@ export interface BranchSummary {
   updatedAt: string;
   pull: BranchPull | null;
   mergedAndUnchanged: boolean;
+  isDefault: boolean;
 }
 
 interface GithubBranch {
@@ -60,21 +63,20 @@ const BRANCH_DATE_WORKERS = 8;
 const COMMIT_LIMIT = 100;
 
 export async function listBranches(owner: string, name: string): Promise<BranchSummary[]> {
-  const [branches, pulls] = await Promise.all([datedBranches(owner, name, nonDefaultBranches), recentPulls(owner, name)]);
-  return branches.map((branch) => summarizeBranch(branch, pulls.get(branch.name) ?? null)).sort(byUnsettledThenRecent);
+  const trunk = await defaultBranch(owner, name);
+  const [branches, pulls] = await Promise.all([datedBranches(owner, name, trunk), recentPulls(owner, name)]);
+  return branches
+    .map((branch) => summarizeBranch(branch, pulls.get(branch.name) ?? null, trunk))
+    .sort(byTrunkThenUnsettledThenRecent);
 }
 
 export async function listBranchOptions(owner: string, name: string): Promise<BranchOption[]> {
-  const branches = await datedBranches(owner, name, allBranches);
+  const branches = await datedBranches(owner, name, await defaultBranch(owner, name));
   return branches.map(({ name: branch, updatedAt }) => ({ name: branch, updatedAt })).sort(byRecent);
 }
 
-async function datedBranches(
-  owner: string,
-  name: string,
-  list: (owner: string, name: string) => Promise<GithubBranch[]>,
-): Promise<DatedBranch[]> {
-  const branches = await list(owner, name);
+async function datedBranches(owner: string, name: string, trunk: string): Promise<DatedBranch[]> {
+  const branches = await withTrunk(owner, name, trunk, await allBranches(owner, name));
   const dates = await branchDates(owner, name, branches);
   return branches.map((branch) => ({ ...branch, updatedAt: dates.get(branch.commit.sha) ?? '' }));
 }
@@ -83,22 +85,33 @@ function allBranches(owner: string, name: string): Promise<GithubBranch[]> {
   return githubJson<GithubBranch[]>(`${API}/repos/${owner}/${name}/branches?per_page=${BRANCH_LIMIT}`);
 }
 
-async function nonDefaultBranches(owner: string, name: string): Promise<GithubBranch[]> {
-  const [all, repo] = await Promise.all([
-    allBranches(owner, name),
-    githubJson<{ default_branch: string }>(`${API}/repos/${owner}/${name}`),
-  ]);
-  return all.filter((branch) => branch.name !== repo.default_branch);
+// /branches pages alphabetically, so past 100 branches the trunk falls off the page.
+async function withTrunk(owner: string, name: string, trunk: string, listed: GithubBranch[]): Promise<GithubBranch[]> {
+  if (listed.some((branch) => branch.name === trunk)) return listed;
+  const held = await githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(trunk)}`);
+  return [held, ...listed];
 }
 
 export async function describeBranch(owner: string, name: string, branch: string, fresh = false): Promise<ChangeSummary> {
   const compare = await compareWithDefault(owner, name, branch, fresh);
   const files = compare.files ?? [];
+  const commits = await branchCommits(owner, name, branch, compare);
   return {
     additions: totalOf(files, (file) => file.additions),
     deletions: totalOf(files, (file) => file.deletions),
-    commits: await summarizeCommits(owner, name, compare.commits.slice(0, COMMIT_LIMIT)),
+    commits: await summarizeCommits(owner, name, commits),
   };
+}
+
+// The trunk is never ahead of itself, so show its own history rather than nothing.
+async function branchCommits(owner: string, name: string, branch: string, compare: GithubCompare): Promise<GithubCommit[]> {
+  const ahead = compare.commits.slice(0, COMMIT_LIMIT);
+  return ahead.length > 0 ? ahead : branchHistory(owner, name, branch);
+}
+
+function branchHistory(owner: string, name: string, branch: string): Promise<GithubCommit[]> {
+  const query = `sha=${encodeURIComponent(branch)}&per_page=${COMMIT_LIMIT}`;
+  return githubJson<GithubCommit[]>(`${API}/repos/${owner}/${name}/commits?${query}`);
 }
 
 export async function listBranchFiles(owner: string, name: string, branch: string, fresh = false): Promise<ChangedFileSet> {
@@ -111,8 +124,8 @@ export async function listBranchFiles(owner: string, name: string, branch: strin
 }
 
 async function compareWithDefault(owner: string, name: string, branch: string, fresh: boolean): Promise<GithubCompare> {
-  const repo = await githubJson<{ default_branch: string }>(`${API}/repos/${owner}/${name}`, fresh);
-  const range = `${encodeURIComponent(repo.default_branch)}...${encodeURIComponent(branch)}`;
+  const trunk = await defaultBranch(owner, name, fresh);
+  const range = `${encodeURIComponent(trunk)}...${encodeURIComponent(branch)}`;
   return githubJson<GithubCompare>(`${API}/repos/${owner}/${name}/compare/${range}`, fresh);
 }
 
@@ -144,7 +157,7 @@ async function commitDate(owner: string, name: string, sha: string): Promise<str
   }
 }
 
-function summarizeBranch(branch: DatedBranch, pull: GithubRefPull | null): BranchSummary {
+function summarizeBranch(branch: DatedBranch, pull: GithubRefPull | null, trunk: string): BranchSummary {
   const merged = pull?.merged_at != null;
   return {
     name: branch.name,
@@ -152,7 +165,12 @@ function summarizeBranch(branch: DatedBranch, pull: GithubRefPull | null): Branc
     updatedAt: branch.updatedAt,
     pull: pull && { number: pull.number, state: pull.state, merged },
     mergedAndUnchanged: merged && pull?.head.sha === branch.commit.sha,
+    isDefault: branch.name === trunk,
   };
+}
+
+function byTrunkThenUnsettledThenRecent(a: BranchSummary, b: BranchSummary): number {
+  return Number(b.isDefault) - Number(a.isDefault) || byUnsettledThenRecent(a, b);
 }
 
 function byUnsettledThenRecent(a: BranchSummary, b: BranchSummary): number {
