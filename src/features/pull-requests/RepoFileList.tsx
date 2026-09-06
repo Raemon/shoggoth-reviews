@@ -30,7 +30,6 @@ export function RepoFileList({
           onChange={onQuery}
           placeholder="filter files"
           aria-label="Filter files"
-          className="w-full"
         />
       </div>
       <FileRows repoFiles={repoFiles} tree={tree} selected={selected} onSelect={onSelect} />
