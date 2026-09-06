@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { RepoSummary, ViewerRepos } from './repoDirectory';
+import { repoSummaryPath } from '@/features/pull-requests/pullPaths';
 import type { SourceResult } from './sidebarGroups';
 import type { GithubAccess } from '@/features/github-auth/githubAccess';
 import { apiJson } from '@/features/sources/apiClient';
@@ -81,10 +82,11 @@ function fetchSource(source: CodebaseSource, token: string | null, access: Githu
         (repos) => ({ state: 'ready', repos, login: null }),
       );
     case 'repo':
-      return apiJson<RepoSummary>(
-        `/api/github/repo?owner=${encodeURIComponent(source.owner)}&name=${encodeURIComponent(source.name)}`,
-        token,
-      ).then((repo) => ({ state: 'ready', repos: [repo], login: null }));
+      return apiJson<RepoSummary>(repoSummaryPath(source.owner, source.name), token).then((repo) => ({
+        state: 'ready',
+        repos: [repo],
+        login: null,
+      }));
     case 'viewer':
       return apiJson<ViewerRepos>(`/api/github/viewer?access=${access}`, token).then((viewer) => ({
         state: 'ready',

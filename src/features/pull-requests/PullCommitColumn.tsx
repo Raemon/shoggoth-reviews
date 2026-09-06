@@ -18,6 +18,7 @@ const HASH_BUTTON = 'w-[3ch] text-left hover:text-accent';
 const COMMIT_LINK = 'text-ink-dim/50 opacity-0 transition-opacity hover:text-accent focus-visible:opacity-100 group-hover:opacity-100';
 const HASH_CHARS = 3;
 export const WHOLE_CHANGE = 'all';
+const WHOLE_CHANGES_ROW = { title: 'all changes', counts: true };
 
 export function PullCommitColumn({
   owner,
@@ -25,20 +26,22 @@ export function PullCommitColumn({
   change,
   selection,
   onSelect,
+  whole = WHOLE_CHANGES_ROW,
 }: {
   owner: string;
   repo: string;
   change: ChangeSummary;
   selection: string;
   onSelect: (selection: string) => void;
+  whole?: { title: string; counts: boolean };
 }) {
   const nav = useColumnNav('commits');
   const rowFor = (item: string) => nav.row(item, item === selection);
   return (
     <>
-      <CommitRow row={rowFor(WHOLE_CHANGE)} onActivate={() => onSelect(WHOLE_CHANGE)} title="all changes" hash={<span aria-hidden className={HASH_CELL} />}>
+      <CommitRow row={rowFor(WHOLE_CHANGE)} onActivate={() => onSelect(WHOLE_CHANGE)} title={whole.title} hash={<span aria-hidden className={HASH_CELL} />}>
         <span className="flex-1" />
-        <ChangeCountCells additions={change.additions} deletions={change.deletions} />
+        {whole.counts && <ChangeCountCells additions={change.additions} deletions={change.deletions} />}
       </CommitRow>
       {change.commits.map((commit) => (
         <CommitEntry

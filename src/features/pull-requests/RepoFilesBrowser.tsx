@@ -2,23 +2,34 @@
 
 import { useState } from 'react';
 import { ColumnPreview, type PreviewToken } from './ColumnPreview';
+import { CommitDiffReader } from './CommitDiffReader';
 import { useRegisterColumn } from './registerColumn';
 import { rowKey } from './fileTreeNodes';
+import { CommitsColumn } from './CommitsColumn';
+import { WHOLE_CHANGE } from './PullCommitColumn';
 import { RepoBrowseReader } from './RepoBrowseReader';
 import { RepoFileList } from './RepoFileList';
 import { RepoPullsColumn } from './PullListColumn';
+import type { RepoFileSet } from './repoFiles';
+import type { ChangeSummary } from './pullRequests';
 import { useRepoFiles } from './repoFileStore';
 import { ResizableColumn, useCollapsibleColumn } from './ResizableColumn';
 import { useStickyColumn } from './stickyColumns';
+import { useDefaultBranchChange } from './useDefaultBranch';
 import { useRepoFileTree, type RepoFileTree } from './useRepoFileTree';
+
+const BROWSE_ROW = { title: 'browse files', counts: false };
+const NO_COMMITS: ChangeSummary = { additions: 0, deletions: 0, commits: [] };
 
 export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string }) {
   const [pullSize, setPullSize] = useStickyColumn('repo-pulls');
+  const [commitSize, setCommitSize] = useStickyColumn('commits');
   const [fileSize, setFileSize] = useStickyColumn('repo-files');
-  const [browsed, setBrowsed] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const { browsed, commit, browseFile, showCommit } = useBrowseSelection();
   const repoFiles = useRepoFiles(owner, repo, true);
-  const tree = useRepoFileTree({ repoFiles, query, selected: browsed, onSelect: setBrowsed });
+  const change = useDefaultBranchChange(owner, repo) ?? NO_COMMITS;
+  const tree = useRepoFileTree({ repoFiles, query, selected: browsed, onSelect: browseFile });
   useRegisterColumn('files', {
     ...useCollapsibleColumn('files', fileSize, setFileSize),
     items: tree.navItems,
@@ -36,6 +47,16 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
         size={pullSize}
         onSize={setPullSize}
       />
+      <CommitsColumn
+        owner={owner}
+        repo={repo}
+        change={change}
+        selection={commit}
+        onSelect={showCommit}
+        size={commitSize}
+        onSize={setCommitSize}
+        whole={BROWSE_ROW}
+      />
       <ResizableColumn
         navId="files"
         icon="▤"
@@ -49,20 +70,50 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
           repoFiles={repoFiles}
           tree={tree}
           selected={browsed}
-          onSelect={setBrowsed}
+          onSelect={browseFile}
           query={query}
           onQuery={setQuery}
         />
       </ResizableColumn>
       <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
-        {browsed !== null && fileSet !== null ? (
-          <RepoBrowseReader owner={owner} repo={repo} fileSet={fileSet} tree={tree} item={browsed} />
-        ) : (
-          <p className="px-2 py-1 text-[11px] text-ink-dim">Pick a file or folder to read it here.</p>
-        )}
+        <BrowsePane owner={owner} repo={repo} commit={commit} fileSet={fileSet} tree={tree} item={browsed} />
       </div>
     </div>
   );
+}
+
+function useBrowseSelection() {
+  const [browsed, setBrowsed] = useState<string | null>(null);
+  const [commit, setCommit] = useState<string>(WHOLE_CHANGE);
+  const browseFile = (item: string) => {
+    setBrowsed(item);
+    setCommit(WHOLE_CHANGE);
+  };
+  const showCommit = (sha: string) => {
+    setCommit(sha);
+    setBrowsed(null);
+  };
+  return { browsed, commit, browseFile, showCommit };
+}
+
+function BrowsePane({
+  owner,
+  repo,
+  commit,
+  fileSet,
+  tree,
+  item,
+}: {
+  owner: string;
+  repo: string;
+  commit: string;
+  fileSet: RepoFileSet | null;
+  tree: RepoFileTree;
+  item: string | null;
+}) {
+  if (commit !== WHOLE_CHANGE) return <CommitDiffReader owner={owner} repo={repo} sha={commit} />;
+  if (item === null || fileSet === null) return <p className="px-2 py-1 text-[11px] text-ink-dim">Pick a file or folder to read it here.</p>;
+  return <RepoBrowseReader owner={owner} repo={repo} fileSet={fileSet} tree={tree} item={item} />;
 }
 
 function treeTokens(tree: RepoFileTree, selected: string | null): PreviewToken[] {

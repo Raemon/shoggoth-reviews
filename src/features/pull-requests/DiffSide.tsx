@@ -19,6 +19,7 @@ import { lineHeight, type RowHeights } from './diffMetrics';
 import { ROW_ATTR } from './litRow';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { plural } from '@/features/surface-ui/plural';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
 const ROW = 'flex h-[15px] items-center gap-1 leading-[15px]';
@@ -414,10 +415,6 @@ function FoldBadge({ anchor }: { anchor: CollapseAnchor }) {
       {anchor.hiddenThreads > 0 && <span> · {plural(anchor.hiddenThreads, 'thread')}</span>}
     </button>
   );
-}
-
-function plural(count: number, word: string): string {
-  return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
 function GutterCell({

@@ -9,6 +9,7 @@ export interface RepoSummary {
   language: string;
   updatedAt: string;
   private: boolean;
+  defaultBranch: string;
 }
 
 export interface ViewerRepos {
@@ -23,6 +24,7 @@ interface GithubRepo {
   language: string | null;
   pushed_at: string;
   private: boolean;
+  default_branch: string;
 }
 
 const API = 'https://api.github.com';
@@ -52,6 +54,11 @@ export async function describeRepo(owner: string, name: string): Promise<RepoSum
   return summarize(await githubJson<GithubRepo>(`${API}/repos/${owner}/${name}`));
 }
 
+export async function defaultBranch(owner: string, name: string, fresh = false): Promise<string> {
+  const repo = await githubJson<{ default_branch: string }>(`${API}/repos/${owner}/${name}`, fresh);
+  return repo.default_branch;
+}
+
 async function fetchPages(source: string): Promise<RepoSummary[]> {
   const repos: RepoSummary[] = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -77,5 +84,6 @@ function summarize(repo: GithubRepo): RepoSummary {
     language: repo.language ?? '',
     updatedAt: repo.pushed_at,
     private: repo.private,
+    defaultBranch: repo.default_branch,
   };
 }

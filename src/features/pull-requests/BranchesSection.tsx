@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import type { BranchSummary } from './branches';
 import { NavListRow } from './NavListRow';
-import { branchRoute, repoBranchesPath } from './pullPaths';
+import { branchListingRoute, repoBranchesPath } from './pullPaths';
 import { SectionHeader } from './ResizableColumn';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
@@ -59,7 +59,7 @@ function BranchList({ owner, repo, listing }: { owner: string; repo: string; lis
   return (
     <nav className="min-h-0 flex-1 overflow-auto py-[1px]">
       {listing.branches.map((branch) => {
-        const href = branchRoute(owner, repo, branch.name);
+        const href = branchListingRoute(owner, repo, branch);
         return <BranchRow key={branch.name} branch={branch} href={href} current={pathname === href} />;
       })}
     </nav>
