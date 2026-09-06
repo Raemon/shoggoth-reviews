@@ -16,7 +16,7 @@ const STRIP =
 const STRIP_EXPAND =
   'flex shrink-0 items-center gap-1.5 overflow-hidden rounded-[3px] uppercase outline-none focus-visible:ring-1 focus-visible:ring-accent md:max-h-[40%] md:flex-col md:gap-2.5';
 
-const HOTKEY_HINT = 'shrink-0 font-mono text-[9px] leading-none tracking-tight text-ink-dim/60';
+const HOTKEY_HINT = 'shrink-0 font-mono text-[9px] uppercase leading-none tracking-tight text-ink-dim/60';
 
 const MIN_WIDTH = 140;
 const MAX_WIDTH = 900;
@@ -104,7 +104,7 @@ export function SectionHeader({
   title: string;
   titleTone: string;
   note?: string;
-  hotkey?: string | null;
+  hotkey?: string;
   chevron: ReactNode;
   className: string;
   label: string;
@@ -126,19 +126,10 @@ export function SectionHeader({
       <span className={`shrink-0 text-[10px] uppercase tracking-[0.18em] ${titleTone}`}>{title}</span>
       {note && <span className="min-w-0 flex-1 truncate text-[10px] text-ink-dim">{note}</span>}
       <span className="ml-auto flex shrink-0 items-center">
-        <HotkeyHint keys={hotkey} />
+        {hotkey && <kbd aria-hidden className={HOTKEY_HINT}>[{hotkey}]</kbd>}
         <span aria-hidden className="px-1 text-[14px] leading-none text-ink-dim">{chevron}</span>
       </span>
     </SelectableRow>
-  );
-}
-
-function HotkeyHint({ keys }: { keys?: string | null }) {
-  if (!keys) return null;
-  return (
-    <kbd aria-hidden className={HOTKEY_HINT}>
-      [{keys}]
-    </kbd>
   );
 }
 

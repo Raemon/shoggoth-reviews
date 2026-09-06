@@ -9,7 +9,6 @@ export const COLUMN_COMMANDS: Partial<Record<ColumnId, CommandSpec>> = {
   'ai-chat': { id: 'column:ai-chat', label: 'ai chat column', keys: ['5', 'a'] },
 };
 
-export function columnHotkeyHint(id: ColumnId): string | null {
-  const keys = COLUMN_COMMANDS[id]?.keys;
-  return keys === undefined ? null : keys.join(' / ').toUpperCase();
+export function columnHotkeyHint(id: ColumnId): string | undefined {
+  return COLUMN_COMMANDS[id]?.keys.join(' / ');
 }
