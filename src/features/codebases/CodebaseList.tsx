@@ -39,7 +39,6 @@ export function CodebaseList({
           onChange={setFilter}
           placeholder="filter repositories"
           aria-label="Filter repositories"
-          className="w-full"
         />
       </div>
       {children}

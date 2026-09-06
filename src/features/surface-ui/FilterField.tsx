@@ -2,17 +2,13 @@
 
 import type { ComponentProps } from 'react';
 
-const FILTER_INPUT =
-  'w-full border-none bg-transparent p-0 pl-4 font-mono text-[11px] leading-4 text-ink outline-none placeholder:text-ink-dim focus:outline-none focus:ring-0';
+const FILTER_INPUT = 'w-full pl-4 font-mono text-[11px] leading-4 text-ink outline-none placeholder:text-ink-dim';
 
 export function FilterField({
   onChange,
   className = 'w-full',
   ...rest
-}: Omit<ComponentProps<'input'>, 'onChange' | 'className' | 'type'> & {
-  onChange: (next: string) => void;
-  className?: string;
-}) {
+}: Omit<ComponentProps<'input'>, 'onChange' | 'type'> & { onChange: (next: string) => void }) {
   return (
     <span className={`relative inline-flex items-center ${className}`}>
       <SearchIcon />
@@ -26,7 +22,7 @@ function SearchIcon() {
     <svg
       aria-hidden
       viewBox="0 0 16 16"
-      className="pointer-events-none absolute left-0 h-3 w-3 text-ink-dim"
+      className="pointer-events-none absolute left-0 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-dim"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"

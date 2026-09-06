@@ -134,7 +134,6 @@ function BranchChoices({
           }}
           placeholder="filter branches"
           aria-label="Filter branches"
-          className="w-full"
         />
       </div>
       <nav className="min-h-0 flex-1 overflow-auto py-1">
