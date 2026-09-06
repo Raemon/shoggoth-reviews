@@ -34,7 +34,6 @@ export function CodebaseList({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-panel-edge px-1 py-1">
         <FilterField
-          variant="plain"
           autoFocus={autoFocusFilter}
           value={filter}
           onChange={setFilter}

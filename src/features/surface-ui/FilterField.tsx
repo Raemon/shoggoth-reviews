@@ -1,42 +1,32 @@
 'use client';
 
 import type { ComponentProps } from 'react';
-import { FIELD_FOCUS } from './fieldStyles';
 
-const VARIANTS = {
-  field: 'bg-field py-1 pl-6 text-[11px]',
-  plain: 'bg-transparent py-1.5 pl-7 text-[14px]',
-};
+const FILTER_INPUT =
+  'w-full border-none bg-transparent p-0 pl-4 font-mono text-[11px] leading-4 text-ink outline-none placeholder:text-ink-dim focus:outline-none focus:ring-0';
 
 export function FilterField({
   onChange,
-  className = 'mb-2 w-64',
-  variant = 'field',
+  className = 'w-full',
   ...rest
 }: Omit<ComponentProps<'input'>, 'onChange' | 'className' | 'type'> & {
   onChange: (next: string) => void;
   className?: string;
-  variant?: keyof typeof VARIANTS;
 }) {
   return (
     <span className={`relative inline-flex items-center ${className}`}>
-      <SearchIcon large={variant === 'plain'} />
-      <input
-        type="search"
-        onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded pr-2 font-mono text-ink placeholder:text-ink-dim ${FIELD_FOCUS} ${VARIANTS[variant]}`}
-        {...rest}
-      />
+      <SearchIcon />
+      <input type="search" onChange={(event) => onChange(event.target.value)} className={FILTER_INPUT} {...rest} />
     </span>
   );
 }
 
-function SearchIcon({ large }: { large: boolean }) {
+function SearchIcon() {
   return (
     <svg
       aria-hidden
       viewBox="0 0 16 16"
-      className={`pointer-events-none absolute left-2 text-ink-dim ${large ? 'h-3.5 w-3.5' : 'h-3 w-3'}`}
+      className="pointer-events-none absolute left-0 h-3 w-3 text-ink-dim"
       fill="none"
       stroke="currentColor"
       strokeWidth="1.5"
