@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ChatEntry } from './chatEntries';
-import { HoverCardHtml } from '@/features/surface-ui/HoverCard';
+import { MarkdownBody } from '@/features/markdown/MarkdownBody';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
 
 const ROW = 'border-b border-panel-edge px-1.5 py-1';
@@ -46,7 +46,7 @@ function UserEntry({ text }: { text: string }) {
 function AssistantEntry({ text, owner, repo }: { text: string; owner: string; repo: string }) {
   return (
     <article className={ROW}>
-      <HoverCardHtml className="markdown-body break-words text-ink" html={renderMarkdown(text, { owner, repo })} tooltipStyle />
+      <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(text, { owner, repo })} tooltipStyle />
     </article>
   );
 }
@@ -79,7 +79,7 @@ function ResultEntry({ entry, owner, repo }: { entry: Extract<ChatEntry, { kind:
   return (
     <article className={`${ROW} border-l-2 border-l-scope`}>
       <p className={LABEL}>result</p>
-      <HoverCardHtml className="markdown-body break-words text-ink" html={renderMarkdown(entry.text, { owner, repo })} tooltipStyle />
+      <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(entry.text, { owner, repo })} tooltipStyle />
       {entry.branch !== null && <p className="mt-0.5 font-mono text-[10px] text-ink-dim">pushed to {entry.branch}</p>}
       {entry.prUrl && (
         <a href={entry.prUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-accent underline">

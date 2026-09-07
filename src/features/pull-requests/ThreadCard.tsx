@@ -10,7 +10,8 @@ import { AuthorPortrait, COMMENT_ACTION, OpenOnGithub } from './CommentByline';
 import { ThreadReplyBox } from './ThreadReplyBox';
 import { useThreadAction } from './useThreadAction';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
-import { HoverCardHtml, HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { MarkdownBody } from '@/features/markdown/MarkdownBody';
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
 import { useGithubToken } from '@/features/sources/sourceStore';
 import { apiPost, apiPostJson } from '@/features/sources/apiClient';
@@ -134,7 +135,7 @@ function ThreadComment({
         <RelativeTime iso={comment.createdAt} className="shrink-0" />
       </header>
       {showBody && (
-        <HoverCardHtml
+        <MarkdownBody
           className="markdown-body break-words pr-6 text-ink"
           html={renderMarkdown(comment.body, repo)}
           tooltipStyle

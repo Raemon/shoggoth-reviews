@@ -5,7 +5,7 @@ import { AuthorPortrait, OpenOnGithub } from './CommentByline';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
 import type { PullComment } from './pullRequests';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
-import { HoverCardHtml } from '@/features/surface-ui/HoverCard';
+import { MarkdownBody } from '@/features/markdown/MarkdownBody';
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
@@ -103,7 +103,7 @@ function DiscussionEntry({
         {path && <span className="min-w-0 flex-1 truncate font-serif text-[10px]">{path}</span>}
         <OpenOnGithub url={url} className="ml-auto" />
       </header>
-      <HoverCardHtml
+      <MarkdownBody
         className={`markdown-body break-words text-ink ${bodyWidth}`}
         html={renderMarkdown(body, { owner, repo })}
         tooltipStyle
