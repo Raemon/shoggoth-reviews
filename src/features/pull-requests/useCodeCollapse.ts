@@ -156,7 +156,7 @@ function hideableComment(row: number, anchors: Map<number, CollapseAnchor>, { co
 }
 
 function expansionFrom(foldable: CollapseRegion[], region: CollapseRegion): Overrides {
-  const nested = foldable.filter((other) => other.start >= region.start && other.end <= region.end);
+  const nested = foldable.filter((other) => other.start >= region.start && other.start < region.end);
   return Object.fromEntries(nested.map((other) => [other.key, false]));
 }
 
