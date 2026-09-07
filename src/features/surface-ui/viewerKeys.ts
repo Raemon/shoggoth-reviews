@@ -35,7 +35,7 @@ function applyViewerKey(
   onClose: () => void,
 ) {
   const action = viewerKeyAction(event.key, index, count);
-  if (!action) return;
+  if (action === null) return;
   event.preventDefault();
   if (action === 'close') onClose();
   else onIndex(action);
@@ -54,8 +54,4 @@ export function useFocusOnIndex(index: number) {
     dialog.current?.focus();
   }, [index]);
   return dialog;
-}
-
-export function holdClick(event: { stopPropagation: () => void }) {
-  event.stopPropagation();
 }

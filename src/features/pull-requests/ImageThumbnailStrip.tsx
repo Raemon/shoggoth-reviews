@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { GalleryImage } from './BlobImage';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
-import { ImageViewerModal } from './ImageViewerModal';
+import { ImageViewerModal, type ImageSlide } from '@/features/surface-ui/ImageViewerModal';
+import { baseName } from './fileTree';
 import type { ChangedFile } from './pullRequests';
 import type { ImageGallery } from './imageView';
 
@@ -14,11 +15,18 @@ export function ImageThumbnailStrip(gallery: ImageGallery) {
   return (
     <>
       <ThumbnailRow gallery={gallery} active={index} onOpen={setIndex} />
-      {index !== null && index < gallery.files.length && (
-        <ImageViewerModal gallery={gallery} index={index} onIndex={setIndex} onClose={() => setIndex(null)} />
-      )}
+      {index !== null && <ImageViewerModal slides={gallerySlides(gallery)} index={index} onIndex={setIndex} onClose={() => setIndex(null)} />}
     </>
   );
+}
+
+function gallerySlides(gallery: ImageGallery): ImageSlide[] {
+  return gallery.files.map((file) => ({
+    name: baseName(file.filename),
+    detail: file.filename,
+    note: file.status,
+    image: <GalleryImage gallery={gallery} file={file} />,
+  }));
 }
 
 function useViewerIndex(baseRef: string, headRef: string) {
