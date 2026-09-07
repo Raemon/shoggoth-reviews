@@ -156,8 +156,8 @@ function hideableComment(row: number, anchors: Map<number, CollapseAnchor>, { co
 }
 
 function expansionFrom(foldable: CollapseRegion[], region: CollapseRegion): Overrides {
-  const following = foldable.filter((other) => other.start >= region.start);
-  return Object.fromEntries(following.map((other) => [other.key, false]));
+  const nested = foldable.filter((other) => other.start >= region.start && other.end <= region.end);
+  return Object.fromEntries(nested.map((other) => [other.key, false]));
 }
 
 // start < lastRow: the anchor row only bounds the block, and must keep its chevron.
