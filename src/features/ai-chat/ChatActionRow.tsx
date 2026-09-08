@@ -45,8 +45,10 @@ function ActionToggle({
       <span className={live ? 'shrink-0 animate-pulse' : 'shrink-0'}>
         <ActionIcon kind={kind} />
       </span>
-      <span className="min-w-0 flex-1 truncate">{summary}</span>
-      <ChevronIcon open={open} />
+      <span className="flex min-w-0 items-center gap-1">
+        <span className="min-w-0 truncate">{summary}</span>
+        <ChevronIcon open={open} />
+      </span>
     </button>
   );
 }
