@@ -2,9 +2,10 @@
 
 import { useMemo } from 'react';
 import { anchorThreads } from './commentAnchors';
+import { MIN_CARD_WIDTH, useCommentColumn, useCommentColumnDrag } from './commentColumnWidth';
 import type { RowHeights } from './diffMetrics';
 import type { DiffLine } from './diffLines';
-import { useNarrowViewport } from './narrowViewport';
+import { DragHandle } from './ResizableColumn';
 import type { ReviewThread } from './reviewThreads';
 import type { DiffRow } from './splitDiff';
 import { ThreadColumn } from './ThreadColumn';
@@ -23,8 +24,17 @@ export function InlineThreads({
   heights: RowHeights;
   onOverflow: (pixels: number) => void;
 }) {
-  const narrow = useNarrowViewport();
+  const { width, resizable } = useCommentColumn();
+  const startDrag = useCommentColumnDrag(width);
   const anchors = useMemo(() => anchorThreads(threads, rows, lines, heights), [threads, rows, lines, heights]);
-  if (narrow) return <ThreadMarkers anchors={anchors} onOverflow={onOverflow} />;
-  return <ThreadColumn anchors={anchors} lines={lines} heights={heights} onOverflow={onOverflow} />;
+  return (
+    <div className={`relative shrink-0 bg-shade ${width > 0 ? 'border-l border-panel-edge' : ''}`} style={{ width }}>
+      {width >= MIN_CARD_WIDTH ? (
+        <ThreadColumn anchors={anchors} lines={lines} heights={heights} onOverflow={onOverflow} />
+      ) : (
+        <ThreadMarkers anchors={anchors} collapsed={width === 0} onOverflow={onOverflow} />
+      )}
+      {resizable && <DragHandle onPointerDown={startDrag} edge="left" outside={width === 0} />}
+    </div>
+  );
 }

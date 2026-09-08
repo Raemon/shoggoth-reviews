@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom';
 import { NearViewportProvider } from './nearViewportStore';
 import { DefinitionPeek } from './DefinitionPeek';
 import { DefinitionPeekProvider } from './definitionPeekStore';
+import { DiffAreaWidthProvider } from './diffAreaWidth';
 import { DiffFileSection } from './DiffFileSection';
 import { DiffLayoutToggle } from './DiffLayoutToggle';
 import type { FolderHeading } from './fileTreeNodes';
@@ -89,24 +90,26 @@ export function DiffPanes({
               fileSet={fileSet}
               files={imageFilesOf(files)}
             />
-            <NearViewportProvider root={scroller}>
-              {files.map((file) => (
-                <Fragment key={file.filename}>
-                  {headings?.get(file.filename)?.map((heading) => <FolderHeadingBar key={heading.path} {...heading} />)}
-                  <DiffFileSection
-                    owner={owner}
-                    repo={repo}
-                    file={file}
-                    baseRef={fileSet.baseRef}
-                    headRef={fileSet.headRef}
-                    selected={file.filename === selected}
-                    open={openFile(toggled, file.filename)}
-                    onToggle={() => toggleFile(file.filename)}
-                    sectionRef={holdSection(file.filename)}
-                  />
-                </Fragment>
-              ))}
-            </NearViewportProvider>
+            <DiffAreaWidthProvider area={scroller}>
+              <NearViewportProvider root={scroller}>
+                {files.map((file) => (
+                  <Fragment key={file.filename}>
+                    {headings?.get(file.filename)?.map((heading) => <FolderHeadingBar key={heading.path} {...heading} />)}
+                    <DiffFileSection
+                      owner={owner}
+                      repo={repo}
+                      file={file}
+                      baseRef={fileSet.baseRef}
+                      headRef={fileSet.headRef}
+                      selected={file.filename === selected}
+                      open={openFile(toggled, file.filename)}
+                      onToggle={() => toggleFile(file.filename)}
+                      sectionRef={holdSection(file.filename)}
+                    />
+                  </Fragment>
+                ))}
+              </NearViewportProvider>
+            </DiffAreaWidthProvider>
           </div>
         </div>
         <DefinitionPeek />

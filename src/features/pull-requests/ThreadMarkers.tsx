@@ -2,31 +2,35 @@
 
 import { useEffect, useState } from 'react';
 import { placeThreads, type AnchoredThread } from './commentAnchors';
+import { MARKER_GAP, MARKER_SIZE } from './commentColumnWidth';
+import { AuthorPortrait } from './CommentByline';
 import { isDraftThread } from './draftThread';
 import { clearDraftThread } from './draftThreadStore';
 import { rowLighting } from './litRow';
 import type { ReviewThread } from './reviewThreads';
 import { ThreadCard } from './ThreadCard';
+import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { ModalShell } from '@/features/surface-ui/ModalShell';
 
-const MARKER = 14;
-const MARKER_GAP = 2;
+const MAX_SNIPPET_CHARS = 80;
 
 export function ThreadMarkers({
   anchors,
+  collapsed,
   onOverflow,
 }: {
   anchors: AnchoredThread[];
+  collapsed: boolean;
   onOverflow: (pixels: number) => void;
 }) {
   const [picked, setPicked] = useState<ReviewThread | null>(null);
-  const markers = placeThreads(anchors, {}, MARKER_GAP, MARKER);
+  const markers = collapsed ? [] : placeThreads(anchors, markerHeights(anchors), MARKER_GAP, MARKER_SIZE);
   const opened = anchors.find(({ thread }) => isDraftThread(thread))?.thread ?? picked;
 
   useEffect(() => onOverflow(0), [onOverflow]);
 
   return (
-    <div className="relative shrink-0 border-l border-panel-edge bg-shade" style={{ width: MARKER + MARKER_GAP * 2 }}>
+    <>
       {markers.map((marker) => (
         <MarkerButton key={marker.thread.rootId} row={marker.row} top={marker.top} thread={marker.thread} onOpen={setPicked} />
       ))}
@@ -35,8 +39,12 @@ export function ThreadMarkers({
           <ThreadCard thread={opened} />
         </ModalShell>
       )}
-    </div>
+    </>
   );
+}
+
+function markerHeights(anchors: AnchoredThread[]): Record<number, number> {
+  return Object.fromEntries(anchors.map(({ thread }) => [thread.rootId, MARKER_SIZE]));
 }
 
 function dismissThread(setPicked: (thread: ReviewThread | null) => void) {
@@ -55,19 +63,34 @@ function MarkerButton({
   thread: ReviewThread;
   onOpen: (thread: ReviewThread) => void;
 }) {
-  const count = thread.comments.length;
+  const label = markerLabel(thread);
+  const replies = thread.comments.length - 1;
   return (
-    <button
-      type="button"
-      {...rowLighting(row)}
-      onClick={() => onOpen(thread)}
-      aria-label={markerLabel(thread)}
-      style={{ top, width: MARKER, height: MARKER }}
-      className={`absolute left-[2px] flex items-center justify-center rounded border border-panel-edge bg-tip text-ink-dim hover:bg-btn-hover hover:text-ink ${thread.resolved ? 'opacity-70 hover:opacity-100' : ''}`}
-    >
-      {count > 1 ? <span className="text-[9px] leading-none">{count}</span> : <CommentIcon />}
-    </button>
+    <div {...rowLighting(row)} style={{ top }} className="absolute inset-x-0 flex justify-center">
+      <HoverCardTrigger label={label} focusable={false} tooltipStyle className="relative">
+        <button
+          type="button"
+          onClick={() => onOpen(thread)}
+          aria-label={label}
+          style={{ width: MARKER_SIZE, height: MARKER_SIZE }}
+          className={`flex items-center justify-center overflow-hidden rounded-full border border-panel-edge bg-tip text-ink-dim hover:border-accent hover:text-ink ${thread.resolved ? 'opacity-60 hover:opacity-100' : ''}`}
+        >
+          <MarkerFace thread={thread} />
+        </button>
+        {replies > 0 && (
+          <span aria-hidden className="absolute -bottom-px -right-px min-w-[9px] rounded-full bg-accent px-[2px] text-center text-[7px] leading-[9px] text-tooltip-ink">
+            {replies + 1}
+          </span>
+        )}
+      </HoverCardTrigger>
+    </div>
   );
+}
+
+function MarkerFace({ thread }: { thread: ReviewThread }) {
+  const first = thread.comments[0];
+  if (!first) return <span className="text-[13px] leading-none">+</span>;
+  return <AuthorPortrait avatarUrl={first.avatarUrl} className="h-full w-full" />;
 }
 
 function threadLabel(thread: ReviewThread): string {
@@ -75,14 +98,14 @@ function threadLabel(thread: ReviewThread): string {
 }
 
 function markerLabel(thread: ReviewThread): string {
-  const count = thread.comments.length > 1 ? `, ${thread.comments.length} comments` : '';
-  return `${threadLabel(thread)}${thread.resolved ? ', resolved' : ''}${count}`;
+  const first = thread.comments[0];
+  if (!first) return 'New comment';
+  const state = thread.resolved ? 'resolved · ' : '';
+  const more = thread.comments.length > 1 ? ` +${thread.comments.length - 1}` : '';
+  return `${state}${first.author}${more}: ${snippet(first.body)}`;
 }
 
-function CommentIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-      <path d="M4 5.5h16v11H12l-5 4v-4H4z" strokeLinejoin="round" />
-    </svg>
-  );
+function snippet(body: string): string {
+  const line = body.trim().split('\n')[0] ?? '';
+  return line.length > MAX_SNIPPET_CHARS ? `${line.slice(0, MAX_SNIPPET_CHARS)}…` : line;
 }

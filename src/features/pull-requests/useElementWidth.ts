@@ -1,15 +1,14 @@
 'use client';
 
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
-export function useElementWidth(node: RefObject<HTMLElement | null>, initial = 0): number {
-  const [width, setWidth] = useState(initial);
+export function useElementWidth(element: HTMLElement | null): number {
+  const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
-    const element = node.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => setWidth(element.offsetWidth));
+    const observer = new ResizeObserver(() => setWidth(element.clientWidth));
     observer.observe(element);
     return () => observer.disconnect();
-  }, [node]);
+  }, [element]);
   return width;
 }

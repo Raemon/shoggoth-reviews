@@ -40,14 +40,19 @@ export type ColumnSide = 'left' | 'right';
 
 const OUTER_EDGE: Record<ColumnSide, string> = { left: 'md:border-r', right: 'md:border-l' };
 
-export function useDragWidth(size: ColumnSize, onSize: (next: ColumnSize) => void, edge: DragEdge = 'right') {
+export function useDragWidth(
+  size: ColumnSize,
+  onSize: (next: ColumnSize) => void,
+  edge: DragEdge = 'right',
+  clamp: (width: number) => number = clampWidth,
+) {
   return useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       event.preventDefault();
       const startX = event.clientX;
       const startWidth = size.width;
       const move = (moved: PointerEvent) => {
-        onSize({ width: clampWidth(startWidth + grownBy(moved.clientX - startX, edge)), open: true });
+        onSize({ width: clamp(startWidth + grownBy(moved.clientX - startX, edge)), open: true });
       };
       const stop = () => {
         window.removeEventListener('pointermove', move);
@@ -58,7 +63,7 @@ export function useDragWidth(size: ColumnSize, onSize: (next: ColumnSize) => voi
       window.addEventListener('pointerup', stop);
       window.addEventListener('pointercancel', stop);
     },
-    [size.width, onSize, edge],
+    [size.width, onSize, edge, clamp],
   );
 }
 
@@ -66,12 +71,19 @@ function grownBy(dragged: number, edge: DragEdge): number {
   return edge === 'left' ? -dragged : dragged;
 }
 
+const HANDLE_OFFSET: Record<DragEdge, { straddling: string; outside: string }> = {
+  left: { straddling: '-left-[3px]', outside: '-left-[6px]' },
+  right: { straddling: '-right-[3px]', outside: '-right-[6px]' },
+};
+
 export function DragHandle({
   onPointerDown,
   edge = 'right',
+  outside = false,
 }: {
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
   edge?: DragEdge;
+  outside?: boolean;
 }) {
   return (
     <div
@@ -79,7 +91,7 @@ export function DragHandle({
       role="separator"
       aria-orientation="vertical"
       className={`absolute inset-y-0 z-10 hidden w-[6px] cursor-col-resize hover:bg-btn-active md:block ${
-        edge === 'left' ? '-left-[3px]' : '-right-[3px]'
+        HANDLE_OFFSET[edge][outside ? 'outside' : 'straddling']
       }`}
     />
   );
