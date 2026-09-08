@@ -13,12 +13,13 @@ import { RelativeTime } from '@/features/surface-ui/RelativeTime';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
+import { useInlineCommentsExpanded } from './inlineCommentsStore';
 import { useRevealComment } from './revealComment';
 import { useReviewTarget } from './reviewThreadStore';
 import type { ReviewThread } from './reviewThreads';
 
 const READING_WIDTH = 'max-w-[720px]';
-const ENTRY_LINE = 'border-b border-panel-edge px-1.5 last:border-b-0';
+const ENTRY_LINE = 'border-b border-panel-edge bg-panel px-1.5 last:border-b-0';
 const INLINE_ROW = `${ENTRY_LINE} flex items-center gap-1.5 text-[9px] leading-5 text-ink-dim`;
 
 export function PullDiscussion({
@@ -117,7 +118,7 @@ interface EntryProps extends Byline {
 }
 
 function DiscussionEntry({ owner, repo, id, path, ...byline }: EntryProps) {
-  if (path) return <InlineEntry {...byline} id={id} path={path} />;
+  if (path) return <InlineEntry {...byline} owner={owner} repo={repo} id={id} path={path} />;
   return <ConversationEntry {...byline} owner={owner} repo={repo} />;
 }
 
@@ -147,7 +148,45 @@ function ConversationEntry({
   );
 }
 
-function InlineEntry({ id, author, avatarUrl = '', createdAt, path, url, body }: Byline & { id: number; path: string }) {
+function InlineEntry(entry: Byline & { owner: string; repo: string; id: number; path: string }) {
+  const { central } = useCentralLayout();
+  const expanded = useInlineCommentsExpanded();
+  if (!central && expanded) return <OpenInlineEntry {...entry} />;
+  return <ClosedInlineEntry {...entry} />;
+}
+
+function OpenInlineEntry({
+  owner,
+  repo,
+  id,
+  author,
+  avatarUrl = '',
+  createdAt,
+  path,
+  url,
+  body,
+}: Byline & { owner: string; repo: string; id: number; path: string }) {
+  const showInDiff = useShowInDiff(path, id);
+  return (
+    <article className={`${ENTRY_LINE} py-1.5`}>
+      <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
+        <EntryAuthor author={author} avatarUrl={avatarUrl} />
+        <button type="button" onClick={showInDiff} className="min-w-0 truncate text-left font-serif text-[10px]">
+          {path}
+        </button>
+        {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
+        <OpenOnGithub url={url} className="ml-auto" />
+      </header>
+      <MarkdownBody
+        className="markdown-body break-words text-ink"
+        html={renderMarkdown(body, { owner, repo })}
+        tooltipStyle
+      />
+    </article>
+  );
+}
+
+function ClosedInlineEntry({ id, author, avatarUrl = '', createdAt, path, url, body }: Byline & { id: number; path: string }) {
   const showInDiff = useShowInDiff(path, id);
   return (
     <article className={INLINE_ROW}>

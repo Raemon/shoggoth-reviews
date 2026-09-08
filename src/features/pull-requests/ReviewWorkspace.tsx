@@ -26,6 +26,7 @@ import { ReviewThreadProvider, useReviewTarget } from './reviewThreadStore';
 import { useStickyColumn, useStickyOpen } from './stickyColumns';
 import { useFileDeletion } from './useFileDeletion';
 import { useRepoFileTree } from './useRepoFileTree';
+import { InlineCommentsToggle } from './InlineCommentsToggle';
 import { usePageScrollFirst } from './usePageScrollFirst';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
@@ -213,6 +214,7 @@ function Workspace({
               preview={<ColumnPreview column="discussion" tokens={DISCUSSION_TOKENS} />}
               size={discussionSize}
               onSize={setDiscussionSize}
+              action={<InlineCommentsToggle />}
             >
               {discussion}
             </ResizableColumn>
