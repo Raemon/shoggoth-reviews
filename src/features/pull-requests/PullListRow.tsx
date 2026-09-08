@@ -9,6 +9,7 @@ import type { PullTarget } from './pullActionStore';
 import { clearPullFilters, isDefaultPullFilters, usePullFilters } from './pullFilterStore';
 import { prefetchPull } from './prefetchPull';
 import { pullRoute, pullSubject } from './pullPaths';
+import type { PullRequestSummary } from './pullRequests';
 import { WorkingSparkle } from '@/features/ai-chat/WorkingSparkle';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import { useGithubToken } from '@/features/sources/sourceStore';
@@ -29,8 +30,8 @@ interface PullRowSummary {
 export const ROW_META = 'shrink-0 font-mono text-[9px] text-ink-dim';
 export const LIST_NOTE = 'px-2 py-1 text-[11px] leading-4';
 const NO_PULLS = 'No matching pull requests.';
-export const TITLE_LINE = 'break-words px-2 pb-0.5 pt-1 font-serif text-[14px] leading-[1.2]';
-export const META_LINE = 'flex items-center gap-1.5 px-2 py-0.5';
+export const TITLE_LINE = 'break-words px-2 pb-0.5 pt-1.5 font-serif text-[14px] leading-[1.2]';
+export const META_LINE = 'flex items-center gap-1.5 px-2 pb-1.5 pt-0.5';
 
 export function PullRowFields({ pull, target, repo, repoColumnCh }: { pull: PullRowSummary; target: PullTarget; repo?: string; repoColumnCh?: number }) {
   const isOwnAuthor = useIsOwnAuthor();
@@ -47,10 +48,18 @@ export function PullRowFields({ pull, target, repo, repoColumnCh }: { pull: Pull
         {!isOwnAuthor(pull.author) && <span className={ROW_META}>{pull.author}</span>}
         <span className="flex-1" />
         <WorkingSparkle subject={pullSubject(target.owner, target.repo, target.number)} />
-        {pull.draft && <RowTag>draft</RowTag>}
-        {pull.state !== 'open' && <RowTag>{pull.merged ? 'merged' : 'closed'}</RowTag>}
+        <StateTags pull={pull} />
         <RelativeTime iso={pull.updatedAt} className={ROW_META} />
       </div>
+    </>
+  );
+}
+
+export function StateTags({ pull }: { pull: PullRequestSummary }) {
+  return (
+    <>
+      {pull.draft && <RowTag>draft</RowTag>}
+      {pull.state !== 'open' && <RowTag>{pull.merged ? 'merged' : 'closed'}</RowTag>}
     </>
   );
 }

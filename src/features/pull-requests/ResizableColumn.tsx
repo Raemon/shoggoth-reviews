@@ -2,6 +2,7 @@
 
 import { useCallback, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { PANE_WIDTH, usePaneMode, type PaneFrame } from './centralLayout';
+import { useLeftEdgeReveal } from './useEdgeReveal';
 import { columnHotkeyHint } from './columnCommands';
 import { useColumnNav, type ColumnRow } from './columnNav';
 import { COLUMN_HEADER, type ColumnId } from './navColumn';
@@ -199,12 +200,13 @@ export function ResizableColumn(props: ColumnProps) {
   const pane = usePaneMode(props.navId);
   if (pane === 'hidden') return null;
   if (pane === 'column') return props.size.open ? <OpenColumn {...props} /> : <StripColumn {...props} />;
+  if (pane === 'reveal') return <RevealColumn {...props} />;
   return <PaneColumn {...props} frame={pane} />;
 }
 
-const PANE_FRAME: Record<PaneFrame, { section: string; body: string }> = {
-  pane: { section: 'min-h-0 flex-1', body: 'min-h-0 flex-1 overflow-auto' },
-  preface: { section: 'shrink-0 border-b border-panel-edge', body: '' },
+const PANE_FRAME: Record<PaneFrame, { section: string; body: string; header: boolean }> = {
+  pane: { section: 'min-h-0 flex-1', body: 'min-h-0 flex-1 overflow-auto', header: true },
+  preface: { section: 'shrink-0', body: '', header: false },
 };
 
 function PaneColumn({ navId, title, icon, note, action, footer, frame, children }: ColumnProps & { frame: PaneFrame }) {
@@ -216,15 +218,44 @@ function PaneColumn({ navId, title, icon, note, action, footer, frame, children 
       onPointerLeave={nav.clearHover}
       className={`flex min-w-0 flex-col bg-panel ${PANE_FRAME[frame].section}`}
     >
-      <div className={`${PANE_WIDTH} shrink-0`}>
-        <ColumnHeader navId={navId} title={title} icon={icon} note={note} action={action} onCollapse={null} />
-      </div>
+      {PANE_FRAME[frame].header && (
+        <div className={`${PANE_WIDTH} shrink-0`}>
+          <ColumnHeader navId={navId} title={title} icon={icon} note={note} action={action} onCollapse={null} />
+        </div>
+      )}
       <div ref={nav.bodyRef} className={PANE_FRAME[frame].body}>
         <div className={PANE_WIDTH}>
           <ColumnBoundary>{children}</ColumnBoundary>
         </div>
       </div>
       {footer}
+    </section>
+  );
+}
+
+const REVEAL_ZONE = 200;
+
+// No visible handle in central mode: sweeping to the left page edge is what opens it.
+function RevealColumn({ navId, size, onSize, footer, children }: ColumnProps) {
+  const nearEdge = useLeftEdgeReveal(REVEAL_ZONE, size.width);
+  const { focused, bodyRef, focus, clearHover } = useColumnNav(navId);
+  const shown = nearEdge || focused;
+  return (
+    <section
+      data-nav-column={navId}
+      onPointerDown={focus}
+      onPointerLeave={clearHover}
+      inert={!shown}
+      className={`absolute inset-y-0 left-0 z-40 flex w-[var(--col-w)] flex-col bg-panel transition-transform duration-150 ${
+        shown ? 'translate-x-0' : '-translate-x-full'
+      }`}
+      style={{ '--col-w': `${size.width}px` } as CSSProperties}
+    >
+      <div ref={bodyRef} className="min-h-0 flex-1 overflow-auto">
+        <ColumnBoundary>{children}</ColumnBoundary>
+      </div>
+      {footer}
+      <DragHandle onPointerDown={useDragWidth(size, onSize)} />
     </section>
   );
 }

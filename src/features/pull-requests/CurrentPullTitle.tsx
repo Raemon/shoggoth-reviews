@@ -1,9 +1,8 @@
 'use client';
 
-import { RowTag } from './PullListRow';
+import { StateTags } from './PullListRow';
 import { useCurrentBranchHead, useCurrentPull } from './currentPullStore';
 import { pullUrl } from './pullPaths';
-import type { PullRequestSummary } from './pullRequests';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import type { RepoRef } from '@/features/sources/parseRepoLink';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -50,15 +49,6 @@ function TruncatedName({ text, className, serif = false }: { text: string; class
     <HoverCardTrigger label={text} serifLabel={serif} className="min-w-0" focusable={false} tooltipStyle>
       <span className={`min-w-0 truncate ${className}`}>{text}</span>
     </HoverCardTrigger>
-  );
-}
-
-function StateTags({ pull }: { pull: PullRequestSummary }) {
-  return (
-    <>
-      {pull.draft && <RowTag>draft</RowTag>}
-      {pull.state !== 'open' && <RowTag>{pull.merged ? 'merged' : 'closed'}</RowTag>}
-    </>
   );
 }
 
