@@ -234,7 +234,7 @@ function RevealColumn({ navId, size, onSize, footer, children }: ColumnProps) {
       onPointerDown={focus}
       onPointerLeave={clearHover}
       inert={!shown}
-      className={`absolute inset-y-0 left-0 z-40 flex w-[var(--col-w)] flex-col border-r border-panel-edge bg-panel transition-transform duration-150 ${
+      className={`absolute inset-y-0 left-0 z-40 flex w-[var(--col-w)] flex-col bg-panel transition-transform duration-150 ${
         shown ? 'translate-x-0' : '-translate-x-full'
       }`}
       style={{ '--col-w': `${size.width}px` } as CSSProperties}
