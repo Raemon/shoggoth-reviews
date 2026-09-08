@@ -64,7 +64,7 @@ function AllFilesToggle({ filesOpen, onToggle }: { filesOpen: boolean; onToggle:
   return (
     <ChoiceButton
       label={filesOpen ? 'Collapse all files' : 'Expand all files'}
-      active={!filesOpen}
+      active={false}
       placement="top-start"
       onSelect={onToggle}
     >
