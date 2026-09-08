@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
-import { localPref, usePref } from './localPref';
+import { finiteNumber, recordPref, usePref } from './localPref';
 import { clampWidth, type ColumnSize } from './ResizableColumn';
 
 const DEFAULTS: Record<string, ColumnSize> = {
@@ -17,7 +17,7 @@ const DEFAULTS: Record<string, ColumnSize> = {
   'ai-chat': { width: 360, open: false },
 };
 
-const columnsPref = localPref<Partial<Record<string, ColumnSize>>>('reposcope.columns', {}, decodeColumns);
+const columnsPref = recordPref('reposcope.columns', decodeColumnSize);
 
 export function setStickyColumn(name: string, next: SetStateAction<ColumnSize>, defaultOpen?: boolean): void {
   const held = columnsPref.read();
@@ -46,17 +46,12 @@ function defaultSize(name: string, defaultOpen?: boolean): ColumnSize {
   return defaultOpen === undefined ? held : { ...held, open: defaultOpen };
 }
 
-function decodeColumns(stored: unknown): Partial<Record<string, ColumnSize>> | undefined {
-  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return undefined;
-  const columns: Record<string, ColumnSize> = {};
-  for (const [name, size] of Object.entries(stored)) {
-    if (isColumnSize(size)) columns[name] = { width: clampWidth(size.width), open: size.open };
-  }
-  return columns;
+function decodeColumnSize(size: unknown): ColumnSize | undefined {
+  return isColumnSize(size) ? { width: clampWidth(size.width), open: size.open } : undefined;
 }
 
 function isColumnSize(size: unknown): size is ColumnSize {
   if (typeof size !== 'object' || size === null) return false;
   const { width, open } = size as { width?: unknown; open?: unknown };
-  return typeof width === 'number' && Number.isFinite(width) && typeof open === 'boolean';
+  return finiteNumber(width) !== undefined && typeof open === 'boolean';
 }
