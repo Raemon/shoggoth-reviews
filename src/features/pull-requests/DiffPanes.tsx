@@ -63,10 +63,19 @@ export function DiffPanes({
   const toggleFile = useCallback(
     (path: string) => {
       // The header is sticky: mid-file it, not the section top, is what the eye tracks.
-      const header = sections.current.get(path)?.firstElementChild ?? null;
+      const header = headerOf(sections.current.get(path));
       holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path) })));
     },
     [scroller],
+  );
+
+  const filesOpen = files.some((file) => openFile(toggled, file.filename));
+  const setAllFiles = useCallback(
+    (open: boolean) => {
+      const anchor = topVisibleHeader(scroller, files, sections.current);
+      holdingInPlace(scroller, anchor, () => setToggled(everyFileSetTo(files, open)));
+    },
+    [scroller, files],
   );
 
   useImperativeHandle(ref, () => ({
@@ -86,7 +95,7 @@ export function DiffPanes({
     <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <DiffLayoutToggle sortable={sortable} />
+          <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
           <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto bg-code">
             <ImageStrip
               key={`${fileSet.baseRef}:${fileSet.headRef}`}
@@ -121,6 +130,26 @@ export function DiffPanes({
       </DefinitionPeekProvider>
     </EditTarget>
   );
+}
+
+function everyFileSetTo(files: ChangedFile[], open: boolean): Record<string, boolean> {
+  return Object.fromEntries(files.map((file) => [file.filename, open]));
+}
+
+// Collapsing every file at once would fling the reader elsewhere; hold the one they are on.
+function topVisibleHeader(container: HTMLElement | null, files: ChangedFile[], sections: Map<string, HTMLElement>): Element | null {
+  if (!container) return null;
+  const edge = container.getBoundingClientRect().top;
+  const top = files.find((file) => reachesBelow(sections.get(file.filename), edge));
+  return top ? headerOf(sections.get(top.filename)) : null;
+}
+
+function reachesBelow(section: HTMLElement | undefined, edge: number): boolean {
+  return !!section && section.getBoundingClientRect().bottom > edge;
+}
+
+function headerOf(section: HTMLElement | undefined): Element | null {
+  return section?.firstElementChild ?? null;
 }
 
 function openFile(toggled: Record<string, boolean>, path: string): boolean {
