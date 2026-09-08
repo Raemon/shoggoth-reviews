@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { applyFoldMode, useFoldCommand, type FoldMode } from './foldModeStore';
 import { ChoiceButton } from '@/features/surface-ui/ChoiceButton';
 import {
@@ -25,26 +25,29 @@ const CHOICES: { mode: FoldMode; icon: ReactNode; label: string }[] = [
 
 export function FoldModeButtons({ filesOpen, onToggleAllFiles }: { filesOpen: boolean; onToggleAllFiles: () => void }) {
   const command = useFoldCommand();
-  const foldChoices = CHOICES.filter((choice) => choice.mode !== 'gitDefault');
-  const gitDefault = CHOICES.find((choice) => choice.mode === 'gitDefault')!;
   return (
     <span className="flex items-center gap-2">
-      {foldChoices.map(({ mode, icon, label }) => (
-        <ChoiceButton key={mode} label={label} active={command.mode === mode} placement="top-start" onSelect={() => applyFoldMode(mode)}>
-          {icon}
-        </ChoiceButton>
+      {CHOICES.map(({ mode, icon, label }) => (
+        <Fragment key={mode}>
+          {mode === 'gitDefault' && <AllFilesToggle filesOpen={filesOpen} onToggle={onToggleAllFiles} />}
+          <ChoiceButton label={label} active={command.mode === mode} placement="top-start" onSelect={() => applyFoldMode(mode)}>
+            {icon}
+          </ChoiceButton>
+        </Fragment>
       ))}
-      <ChoiceButton
-        label={filesOpen ? 'Collapse all files' : 'Expand all files'}
-        active={false}
-        placement="top-start"
-        onSelect={onToggleAllFiles}
-      >
-        {filesOpen ? <CollapseAllFilesIcon /> : <ExpandAllFilesIcon />}
-      </ChoiceButton>
-      <ChoiceButton key={gitDefault.mode} label={gitDefault.label} active={command.mode === gitDefault.mode} placement="top-start" onSelect={() => applyFoldMode(gitDefault.mode)}>
-        {gitDefault.icon}
-      </ChoiceButton>
     </span>
+  );
+}
+
+function AllFilesToggle({ filesOpen, onToggle }: { filesOpen: boolean; onToggle: () => void }) {
+  return (
+    <ChoiceButton
+      label={filesOpen ? 'Collapse all files' : 'Expand all files'}
+      active={false}
+      placement="top-start"
+      onSelect={onToggle}
+    >
+      {filesOpen ? <CollapseAllFilesIcon /> : <ExpandAllFilesIcon />}
+    </ChoiceButton>
   );
 }
