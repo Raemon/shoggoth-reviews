@@ -7,6 +7,7 @@ import { smallChoiceClass } from '@/features/surface-ui/buttonStyles';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
+import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
 
 export function InlineCommentsToggle({ owner, repo, number }: { owner: string; repo: string; number: number }) {
   const expanded = useInlineCommentsExpanded();
@@ -31,6 +32,7 @@ export function InlineCommentsToggle({ owner, repo, number }: { owner: string; r
 function useHasInlineComments(owner: string, repo: string, number: number): boolean {
   const ready = useStoreReady();
   const token = useGithubToken();
-  const { data: comments } = useCachedJson<PullComment[]>(pullCommentsPath(owner, repo, number), token, ready);
-  return comments?.some((comment) => comment.path !== null) ?? false;
+  const comments = useCachedJson<PullComment[]>(pullCommentsPath(owner, repo, number), token, ready);
+  usePollWhileVisible(comments.reload, ready);
+  return comments.data?.some((comment) => comment.path !== null) ?? false;
 }
