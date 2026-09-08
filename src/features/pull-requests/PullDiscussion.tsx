@@ -16,6 +16,7 @@ import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
 
 const READING_WIDTH = 'max-w-[720px]';
 const ENTRY_CARD = 'mb-1.5 rounded border border-panel-edge bg-tip px-1.5 py-1 shadow-card';
+// inline-entry names itself so consecutive rows drop the doubled border between them.
 const INLINE_ROW =
   'inline-entry flex items-center gap-1.5 border-y border-panel-edge px-1.5 text-[9px] leading-5 text-ink-dim [.inline-entry+&]:border-t-0';
 
@@ -98,24 +99,36 @@ function SubjectMeta({ number, pull, url }: { number: number; pull: PullRequestS
   );
 }
 
-interface EntryProps {
-  owner: string;
-  repo: string;
+interface Byline {
   author: string;
   avatarUrl?: string;
   createdAt?: string;
-  path?: string | null;
   url: string;
   body: string;
+}
+
+interface EntryProps extends Byline {
+  owner: string;
+  repo: string;
+  path?: string | null;
   bodyWidth?: string;
 }
 
-function DiscussionEntry(entry: EntryProps) {
-  if (entry.path) return <InlineEntry {...entry} />;
+function DiscussionEntry({ path, ...entry }: EntryProps) {
+  if (path) return <InlineEntry {...entry} path={path} />;
   return <ConversationEntry {...entry} />;
 }
 
-function ConversationEntry({ owner, repo, author, avatarUrl = '', createdAt, url, body, bodyWidth = '' }: EntryProps) {
+function ConversationEntry({
+  owner,
+  repo,
+  author,
+  avatarUrl = '',
+  createdAt,
+  url,
+  body,
+  bodyWidth = '',
+}: Omit<EntryProps, 'path'>) {
   return (
     <article className={ENTRY_CARD}>
       <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
@@ -132,7 +145,7 @@ function ConversationEntry({ owner, repo, author, avatarUrl = '', createdAt, url
   );
 }
 
-function InlineEntry({ author, avatarUrl = '', createdAt, path, url, body }: EntryProps) {
+function InlineEntry({ author, avatarUrl = '', createdAt, path, url, body }: Byline & { path: string }) {
   return (
     <article className={INLINE_ROW}>
       <EntryAuthor author={author} avatarUrl={avatarUrl} />

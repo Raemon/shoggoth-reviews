@@ -133,7 +133,7 @@ function ThreadComment({
           {comment.author}
         </button>
         {note && <span className="shrink-0">{note}</span>}
-        <CommentPeek body={comment.body} onlyWhenPeeking={showBody} />
+        <CommentPeek body={comment.body} bodyShown={showBody} />
         <RelativeTime iso={comment.createdAt} className="shrink-0" />
       </header>
       {showBody && (
@@ -147,10 +147,11 @@ function ThreadComment({
   );
 }
 
-function CommentPeek({ body, onlyWhenPeeking }: { body: string; onlyWhenPeeking: boolean }) {
+// ThreadColumn puts .peek on cards clipped to header height; without it this text stays hidden.
+function CommentPeek({ body, bodyShown }: { body: string; bodyShown: boolean }) {
   return (
-    <span className="min-w-0 flex-1 truncate">
-      <span className={onlyWhenPeeking ? 'hidden [.peek_&]:inline' : undefined}>{commentPreview(body)}</span>
+    <span className={`min-w-0 flex-1 truncate ${bodyShown ? 'invisible [.peek_&]:visible' : ''}`}>
+      {commentPreview(body)}
     </span>
   );
 }

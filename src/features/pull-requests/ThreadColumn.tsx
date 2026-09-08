@@ -5,6 +5,7 @@ import { overflowPast, placeThreads, type AnchoredThread, type PlacedThread } fr
 import { linesHeight, ROW_HEIGHT, type RowHeights } from './diffMetrics';
 import type { DiffLine } from './diffLines';
 import { rowLighting } from './litRow';
+import { PEEK_SCOPE } from './peekScope';
 import { ThreadCard } from './ThreadCard';
 
 const CARD_GAP = 4;
@@ -12,7 +13,6 @@ const COLLAPSE_BAR = 15;
 // Keep in sync with the rendered height of a ThreadCard header row.
 const CARD_HEADER = 22;
 const PEEK_BODY = 16;
-const MIN_SLOT = CARD_HEADER;
 
 export function ThreadColumn({
   anchors,
@@ -30,7 +30,7 @@ export function ThreadColumn({
   const measure = useCallback((rootId: number, height: number) => {
     setHeights((held) => (held[rootId] === height ? held : { ...held, [rootId]: height }));
   }, []);
-  const cards = placeThreads(anchors, heights, CARD_GAP, MIN_SLOT);
+  const cards = placeThreads(anchors, heights, CARD_GAP, CARD_HEADER);
   const overflow = overflowBelow(cards, heights, expanded, linesHeight(lines, rowHeights));
 
   useEffect(() => onOverflow(overflow), [overflow, onOverflow]);
@@ -105,12 +105,13 @@ function PlacedCard({
   }, []);
 
   const clipped = clampTo !== null && !expanded;
-  const peeking = clipped && clampTo - CARD_HEADER < PEEK_BODY;
+  const overlaid = clampTo !== null && expanded;
+  const peeking = clipped && onlyFitsHeader(clampTo);
   return (
     <div
       {...rowLighting(row)}
       style={{ top }}
-      className={`absolute inset-x-0 px-1 transition-[top] duration-150 ${clampTo !== null && expanded ? 'z-10' : ''} ${peeking ? 'peek' : ''}`}
+      className={`absolute inset-x-0 px-1 transition-[top] duration-150 ${overlaid ? 'z-10' : ''} ${peeking ? PEEK_SCOPE : ''}`}
     >
       <div className={clipped ? 'overflow-hidden' : undefined} style={clipped ? { maxHeight: clampTo } : undefined}>
         <div ref={node}>{children}</div>
@@ -119,6 +120,10 @@ function PlacedCard({
       {expanded && <CollapseBar onToggle={onToggle} />}
     </div>
   );
+}
+
+function onlyFitsHeader(clampTo: number): boolean {
+  return clampTo - CARD_HEADER < PEEK_BODY;
 }
 
 function ExpandTarget({ wholeCard, onToggle }: { wholeCard: boolean; onToggle: () => void }) {
