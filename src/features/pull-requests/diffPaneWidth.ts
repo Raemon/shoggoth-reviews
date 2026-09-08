@@ -10,7 +10,8 @@ const widthPref = clampedPref('reposcope.diffPaneWidth', null, clampWidth);
 export function useDiffPaneWidth(diffWidth: number): number {
   const stored = usePref(widthPref);
   const half = Math.round(diffWidth / 2);
-  return Math.min(stored ?? half, Math.max(half, diffWidth - MIN_RIGHT_PANE));
+  const widest = Math.max(half, diffWidth - MIN_RIGHT_PANE);
+  return Math.min(stored ?? half, widest);
 }
 
 export function setDiffPaneWidth(next: ColumnSize): void {

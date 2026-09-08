@@ -2,11 +2,12 @@
 
 import { useCallback } from 'react';
 import { useDiffAreaWidth } from './diffAreaWidth';
-import type { DraftAnchor } from './draftThread';
+import { draftTargets } from './draftThread';
 import { useDraftAnchor } from './draftThreadStore';
-import { localPref, usePref } from './localPref';
+import { finiteNumber, recordPref, usePref } from './localPref';
 import { useNarrowViewport } from './narrowViewport';
-import { useDragWidth, type ColumnSize } from './ResizableColumn';
+import { pullSubject } from './pullPaths';
+import { clampBetween, useDragWidth, type ColumnSize } from './ResizableColumn';
 import { useReviewTarget, type ReviewThreadTarget } from './reviewThreadStore';
 
 const MIN_DIFF_WIDTH = 640;
@@ -23,17 +24,16 @@ export interface CommentColumn {
   resizable: boolean;
 }
 
-const widthsPref = localPref<Record<string, number>>('reposcope.commentColumnWidths', {}, decodeWidths);
+const widthsPref = recordPref('reposcope.commentColumnWidths', finiteNumber);
 
 export function useCommentColumn(): CommentColumn {
   const target = useReviewTarget();
-  const stored = usePref(widthsPref)[pullKey(target)] ?? null;
-  const available = useDiffAreaWidth();
+  const shown = useThreadsShown(target);
   const narrow = useNarrowViewport();
-  const shown = target.threads.length > 0 || draftedIn(target, useDraftAnchor());
+  const width = useFittedWidth(target);
   if (!shown) return { width: 0, resizable: false };
   if (narrow) return { width: MARKER_STRIP_WIDTH, resizable: false };
-  return { width: stored === null ? defaultWidth(available) : clampCommentWidth(stored, available), resizable: true };
+  return { width, resizable: true };
 }
 
 export function useDiffWidth(): number {
@@ -43,9 +43,20 @@ export function useDiffWidth(): number {
 export function useCommentColumnDrag(width: number) {
   const key = pullKey(useReviewTarget());
   const available = useDiffAreaWidth();
-  const clamp = useCallback((dragged: number) => clampCommentWidth(dragged, available), [available]);
+  const clamp = useCallback((dragged: number) => fitWidth(dragged, available), [available]);
   const remember = useCallback((next: ColumnSize) => rememberWidth(key, next.width), [key]);
   return useDragWidth({ width, open: true }, remember, 'left', clamp);
+}
+
+function useThreadsShown(target: ReviewThreadTarget): boolean {
+  const draft = useDraftAnchor();
+  return target.threads.length > 0 || (draft !== null && draftTargets(draft, target));
+}
+
+function useFittedWidth(target: ReviewThreadTarget): number {
+  const stored = usePref(widthsPref)[pullKey(target)];
+  const available = useDiffAreaWidth();
+  return stored === undefined ? defaultWidth(available) : fitWidth(stored, available);
 }
 
 function rememberWidth(key: string, width: number): void {
@@ -53,11 +64,7 @@ function rememberWidth(key: string, width: number): void {
 }
 
 function pullKey({ owner, repo, number }: ReviewThreadTarget): string {
-  return `${owner}/${repo}#${number}`;
-}
-
-function draftedIn({ owner, repo, number }: ReviewThreadTarget, draft: DraftAnchor | null): boolean {
-  return draft !== null && draft.owner === owner && draft.repo === repo && draft.number === number;
+  return pullSubject(owner, repo, number ?? 0);
 }
 
 function defaultWidth(available: number): number {
@@ -65,24 +72,15 @@ function defaultWidth(available: number): number {
   return snapNarrow(Math.round(available - diff));
 }
 
-function clampCommentWidth(width: number, available: number): number {
+function fitWidth(width: number, available: number): number {
   return snapNarrow(Math.round(clampBetween(width, 0, maxWidth(available))));
 }
 
 function maxWidth(available: number): number {
-  return Math.max(0, available - Math.min(MIN_DIFF_WIDTH, available / 2));
+  return available - Math.min(MIN_DIFF_WIDTH, available / 2);
 }
 
 function snapNarrow(width: number): number {
   if (width >= MARKER_STRIP_WIDTH) return width;
   return width < MARKER_STRIP_WIDTH / 2 ? 0 : MARKER_STRIP_WIDTH;
-}
-
-function clampBetween(value: number, low: number, high: number): number {
-  return Math.min(high, Math.max(low, value));
-}
-
-function decodeWidths(stored: unknown): Record<string, number> | undefined {
-  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return undefined;
-  return Object.fromEntries(Object.entries(stored).filter(([, width]) => typeof width === 'number' && Number.isFinite(width)));
 }

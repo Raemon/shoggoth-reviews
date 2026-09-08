@@ -303,5 +303,9 @@ function headerFill(row: ColumnRow, focused: boolean): string {
 }
 
 export function clampWidth(width: number): number {
-  return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width));
+  return clampBetween(width, MIN_WIDTH, MAX_WIDTH);
+}
+
+export function clampBetween(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value));
 }

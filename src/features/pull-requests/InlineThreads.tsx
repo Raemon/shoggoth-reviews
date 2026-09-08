@@ -27,14 +27,15 @@ export function InlineThreads({
   const { width, resizable } = useCommentColumn();
   const startDrag = useCommentColumnDrag(width);
   const anchors = useMemo(() => anchorThreads(threads, rows, lines, heights), [threads, rows, lines, heights]);
+  const collapsed = width === 0;
   return (
-    <div className={`relative shrink-0 bg-shade ${width > 0 ? 'border-l border-panel-edge' : ''}`} style={{ width }}>
+    <div className={`relative shrink-0 bg-shade ${collapsed ? '' : 'border-l border-panel-edge'}`} style={{ width }}>
       {width >= MIN_CARD_WIDTH ? (
         <ThreadColumn anchors={anchors} lines={lines} heights={heights} onOverflow={onOverflow} />
       ) : (
-        <ThreadMarkers anchors={anchors} collapsed={width === 0} onOverflow={onOverflow} />
+        <ThreadMarkers anchors={anchors} collapsed={collapsed} onOverflow={onOverflow} />
       )}
-      {resizable && <DragHandle onPointerDown={startDrag} edge="left" outside={width === 0} />}
+      {resizable && <DragHandle onPointerDown={startDrag} edge="left" outside={collapsed} />}
     </div>
   );
 }

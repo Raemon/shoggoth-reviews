@@ -64,7 +64,6 @@ function MarkerButton({
   onOpen: (thread: ReviewThread) => void;
 }) {
   const label = markerLabel(thread);
-  const replies = thread.comments.length - 1;
   return (
     <div {...rowLighting(row)} style={{ top }} className="absolute inset-x-0 flex justify-center">
       <HoverCardTrigger label={label} focusable={false} tooltipStyle className="relative">
@@ -77,13 +76,18 @@ function MarkerButton({
         >
           <MarkerFace thread={thread} />
         </button>
-        {replies > 0 && (
-          <span aria-hidden className="absolute -bottom-px -right-px min-w-[9px] rounded-full bg-accent px-[2px] text-center text-[7px] leading-[9px] text-tooltip-ink">
-            {replies + 1}
-          </span>
-        )}
+        <CommentCount count={thread.comments.length} />
       </HoverCardTrigger>
     </div>
+  );
+}
+
+function CommentCount({ count }: { count: number }) {
+  if (count < 2) return null;
+  return (
+    <span aria-hidden className="absolute -bottom-px -right-px min-w-[9px] rounded-full bg-accent px-[2px] text-center text-[7px] leading-[9px] text-tooltip-ink">
+      {count}
+    </span>
   );
 }
 

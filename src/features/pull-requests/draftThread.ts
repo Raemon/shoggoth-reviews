@@ -23,13 +23,12 @@ export function withDraftThread(threads: ReviewThread[], anchor: DraftAnchor | n
   return [...threads, draftThread(anchor)];
 }
 
+export function draftTargets(anchor: DraftAnchor, target: Omit<DraftPlace, 'path'>): boolean {
+  return anchor.owner === target.owner && anchor.repo === target.repo && anchor.number === target.number;
+}
+
 function samePlace(anchor: DraftAnchor, place: DraftPlace): boolean {
-  return (
-    anchor.owner === place.owner &&
-    anchor.repo === place.repo &&
-    anchor.number === place.number &&
-    anchor.path === place.path
-  );
+  return draftTargets(anchor, place) && anchor.path === place.path;
 }
 
 function draftThread(anchor: DraftAnchor): ReviewThread {

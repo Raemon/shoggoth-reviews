@@ -6,8 +6,9 @@ export const COMMENT_ACTION =
   'rounded px-1 leading-4 text-ink-dim hover:bg-btn-hover hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-dim';
 
 export function AuthorPortrait({ avatarUrl, className = 'h-3 w-3' }: { avatarUrl: string; className?: string }) {
-  if (!avatarUrl) return <span className={`${className} shrink-0 rounded-full bg-btn`} />;
-  return <img src={avatarUrl} alt="" className={`${className} shrink-0 rounded-full`} />;
+  const shape = `${className} shrink-0 rounded-full`;
+  if (!avatarUrl) return <span className={`${shape} bg-btn`} />;
+  return <img src={avatarUrl} alt="" className={shape} />;
 }
 
 export function OpenOnGithub({ url, className = '' }: { url?: string; className?: string }) {
