@@ -15,9 +15,15 @@ export interface PlacedThread extends Omit<AnchoredThread, 'anchorTop'> {
   slot: number;
 }
 
-export function anchorThreads(threads: ReviewThread[], rows: DiffRow[], lines: DiffLine[], heights: RowHeights): AnchoredThread[] {
+export function anchorThreads(
+  threads: ReviewThread[],
+  rows: DiffRow[],
+  lines: DiffLine[],
+  heights: RowHeights,
+  foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>,
+): AnchoredThread[] {
   return threads
-    .map((thread) => anchoredThread(thread, rows, lines, heights))
+    .map((thread) => anchoredThread(thread, rows, lines, heights, foldAnchors))
     .filter((anchored): anchored is AnchoredThread => anchored !== null)
     .sort((a, b) => a.anchorTop - b.anchorTop);
 }
@@ -50,11 +56,17 @@ function reservedHeight(thread: ReviewThread, heights: Record<number, number>, m
   return isDraftThread(thread) ? natural : Math.min(natural, minSlot);
 }
 
-function anchoredThread(thread: ReviewThread, rows: DiffRow[], lines: DiffLine[], heights: RowHeights): AnchoredThread | null {
+function anchoredThread(
+  thread: ReviewThread,
+  rows: DiffRow[],
+  lines: DiffLine[],
+  heights: RowHeights,
+  foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>,
+): AnchoredThread | null {
   const row = rowOf(thread, rows);
   if (row < 0) return null;
   const index = displayIndexOf(row, thread.side, lines);
-  return index < 0 ? null : { thread, row, anchorTop: linesHeight(lines.slice(0, index), heights) };
+  return index < 0 ? null : { thread, row, anchorTop: linesHeight(lines.slice(0, index), heights, foldAnchors) };
 }
 
 export function rowOf(thread: ReviewThread, rows: DiffRow[]): number {

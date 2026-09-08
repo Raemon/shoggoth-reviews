@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useLayoutEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { hunkHasEditableLines, type EditableBlock } from './editableBlocks';
 import { codeSegments, type DimmedSegment, type SegmentRole } from './codeSegments';
 import { collapsedSegments, expandedSegments, foldLayout, type FoldLayout } from './foldDimming';
@@ -15,7 +15,7 @@ import type { DiffRow } from './splitDiff';
 import type { CollapseAnchor } from './useCodeCollapse';
 import type { CodePointer } from './useDefinitionPointer';
 import type { SideTokens } from './useDiffSideHighlight';
-import { lineHeight, type RowHeights } from './diffMetrics';
+import { COLLAPSED_ROW_GAP, collapsedRowGap, lineHeight, type RowHeights } from './diffMetrics';
 import { ROW_ATTR } from './litRow';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -25,8 +25,9 @@ import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 const ROW = 'flex h-[15px] items-center gap-1 leading-[15px]';
 const WRAPPED_ROW = 'flex min-h-[15px] items-start gap-1 leading-[15px]';
 // Literal px; Tailwind can't compile computed classes. Sync with BLANK_ROW_HEIGHT.
-const BLANK_ROW = 'flex h-[4px] items-center gap-1 leading-[4px]';
-const GUTTER = 'relative flex w-[46px] shrink-0 select-none items-center text-[9px] text-ink-dim';
+const BLANK_ROW = 'flex h-[2px] items-center gap-1 leading-[2px]';
+const GUTTER = 'relative flex w-[52px] shrink-0 select-none items-center pr-1 text-[9px] text-ink-dim';
+const FOLDING_GUTTER = 'cursor-pointer hover:text-ink';
 const TONED_GUTTER = 'self-stretch group-hover:row-shade group-[.diff-line-lit]:row-lit';
 const DRAFT_BTN =
   'absolute left-0 flex h-[15px] w-[11px] items-center justify-center rounded-sm bg-btn text-[10px] leading-none text-ink-dim opacity-0 hover:bg-btn-hover hover:text-ink focus-visible:opacity-100 group-hover:opacity-100';
@@ -169,6 +170,7 @@ function DiffLines({
         {lines.slice(from, to).map((line, offset) => {
           const index = from + offset;
           const anchor = anchorOf(line, anchors, rowsWithRightLine);
+          const gap = collapsedRowGap(line, lines[index + 1], anchors);
           return (
             <Fragment key={index}>
               <DiffLineView
@@ -190,6 +192,7 @@ function DiffLines({
                 onUntruncate={onUntruncate}
                 onDraft={draftStarter(rows, line, draftThreadAt)}
               />
+              {gap > 0 && <div style={{ height: COLLAPSED_ROW_GAP }} aria-hidden />}
               {spacerLine === index && <div style={{ height: spacer?.height }} />}
             </Fragment>
           );
@@ -298,13 +301,13 @@ function DiffLineView({
   const folded = layout !== null && foldsTail(line, collapsed, layout);
   const segments = collapsed ? collapsedSegments(raw, layout, longestPrefix) : expandedSegments(raw, layout);
   const fold = folded ? prefixStyle(longestPrefix) : null;
-  const tones = rowTones(line);
+  const tones = rowTones(line, collapsed);
   return (
     <div
       {...{ [ROW_ATTR]: line.row }}
-      className={`group ${row} ${tones.row} hover:row-shade ${openable ? 'cursor-text' : ''}`}
+      className={`group ${row} ${tones.row} hover:row-shade ${rowCursor(collapsed, openable)}`}
       style={sized}
-      onClick={openable && onEdit ? (event) => opensEditor(event.detail) && onEdit() : undefined}
+      onClick={rowClick(collapsed ? anchor : null, openable ? onEdit : undefined)}
     >
       <GutterCell line={line.blank ? null : cell.line} anchor={anchor} tone={tones.gutter} onDraft={onDraft} />
       <span className={collapsed ? FOLDED_TEXT : 'contents'}>
@@ -312,7 +315,7 @@ function DiffLineView({
           {...{ [WRAPPED_CELL]: `${side}:${line.row}` }}
           className={codeClass(collapsed, wrapping)}
           style={wrapping && !collapsed ? hangingIndentStyle(cell.text) : undefined}
-          onClick={pointer ? (event) => pointer.press(line, event) : undefined}
+          onClick={pointer && !collapsed ? (event) => pointer.press(line, event) : undefined}
           onMouseMove={pointer ? (event) => pointer.move(line, event) : undefined}
           onMouseLeave={pointer?.leave}
         >
@@ -330,10 +333,29 @@ function prefixStyle(longest: number): CSSProperties {
   return { fontSize: PREFIX_FONT, minWidth: `${longest}ch` };
 }
 
+function rowCursor(collapsed: boolean, openable: boolean): string {
+  if (collapsed) return 'cursor-pointer';
+  return openable ? 'cursor-text' : '';
+}
+
+function rowClick(expands: CollapseAnchor | null, onEdit?: () => void) {
+  if (expands) return () => !window.getSelection()?.toString() && expands.toggle();
+  if (onEdit) return (event: MouseEvent<HTMLElement>) => opensEditor(event.detail) && onEdit();
+  return undefined;
+}
+
+function toggles(anchor: CollapseAnchor) {
+  return (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    anchor.toggle();
+  };
+}
+
 // Full-strength gutter tint keeps the change legible over the faded code.
-function rowTones(line: DiffLine): { row: string; gutter: string } {
-  if (line.kind !== 'change') return { row: line.touched ? TOUCHED_MARK : '', gutter: '' };
-  return { row: `${faintBackground(line.side)} ${changeInk(line.side)}`, gutter: changeBackground(line.side) };
+function rowTones(line: DiffLine, collapsed: boolean): { row: string; gutter: string } {
+  const folded = collapsed ? 'row-folded' : '';
+  if (line.kind !== 'change') return { row: `${line.touched ? TOUCHED_MARK : ''} ${folded}`, gutter: '' };
+  return { row: `${faintBackground(line.side)} ${changeInk(line.side)} ${folded}`, gutter: changeBackground(line.side) };
 }
 
 function faintBackground(side: 'left' | 'right'): string {
@@ -408,7 +430,7 @@ function TruncatedStrip({ count, onExpand }: { count: number; onExpand: () => vo
 function FoldBadge({ anchor }: { anchor: CollapseAnchor }) {
   const { addedLines, deletedLines, kind, start, end } = anchor.region;
   return (
-    <button type="button" onClick={anchor.toggle} title={kind.replace(/_/g, ' ')} className={FOLD_BADGE}>
+    <button type="button" onClick={toggles(anchor)} title={kind.replace(/_/g, ' ')} className={FOLD_BADGE}>
       <span className="not-italic text-ink">{end - start}</span>
       {deletedLines > 0 && <span className="not-italic text-del-ink"> −{deletedLines}</span>}
       {addedLines > 0 && <span className="not-italic text-add-ink"> +{addedLines}</span>}
@@ -428,12 +450,16 @@ function GutterCell({
   tone: string;
   onDraft?: () => void;
 }) {
+  const collapses = anchor && !anchor.collapsed ? anchor : null;
   return (
-    <span className={`${GUTTER} ${tone ? `${TONED_GUTTER} ${tone}` : ''}`}>
+    <span
+      className={`${GUTTER} ${tone ? `${TONED_GUTTER} ${tone}` : ''} ${collapses ? FOLDING_GUTTER : ''}`}
+      onClick={collapses ? toggles(collapses) : undefined}
+    >
       {onDraft && <DraftThreadButton onDraft={onDraft} />}
       <span className="min-w-0 flex-1 text-right">{line}</span>
       {/* flex, not inline: an inline-block button leaves a baseline gap that unsettles a wrapped row. */}
-      <span className="flex w-3 shrink-0 justify-center">{anchor && <CollapseChevron anchor={anchor} />}</span>
+      <span className="flex w-4 shrink-0 justify-center">{anchor && <CollapseChevron anchor={anchor} />}</span>
     </span>
   );
 }
@@ -458,9 +484,9 @@ function CollapseChevron({ anchor }: { anchor: CollapseAnchor }) {
   return (
     <button
       type="button"
-      onClick={anchor.toggle}
+      onClick={toggles(anchor)}
       aria-label={anchor.collapsed ? 'Expand code block' : 'Collapse code block'}
-      className={`shrink-0 text-[11px] leading-[15px] text-ink-dim hover:text-ink ${
+      className={`h-[15px] w-4 shrink-0 text-[13px] leading-[15px] text-ink-dim hover:text-ink ${
         anchor.collapsed ? '' : 'opacity-40 group-hover:opacity-100'
       }`}
     >
