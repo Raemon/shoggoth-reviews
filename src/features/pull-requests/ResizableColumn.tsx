@@ -226,7 +226,7 @@ function PaneColumn({ navId, title, icon, note, action, footer, frame, children 
   );
 }
 
-const FLOATING = 'absolute inset-y-0 z-40 flex w-[var(--col-w)] flex-col bg-panel shadow-2xl';
+const FLOATING = 'absolute inset-y-0 z-40 flex w-[var(--col-w)] flex-col bg-panel';
 
 const FLOATING_SIDE: Record<ColumnSide, string> = { left: 'left-0 border-r', right: 'right-0 border-l' };
 
@@ -242,8 +242,8 @@ function RevealColumn(props: ColumnProps) {
       {...props}
       side="left"
       inert={!shown}
-      className={`transition-transform duration-150 ${shown ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
-      header={props.action && <div className="flex shrink-0 justify-end border-b border-panel-edge px-1 py-[2px]">{props.action}</div>}
+      className={`transition-transform duration-150 ${shown ? 'translate-x-0' : '-translate-x-full'}`}
+      header={null}
     />
   );
 }

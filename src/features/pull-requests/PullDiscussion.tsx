@@ -75,8 +75,8 @@ function SubjectHeading({ number, pull, url }: { number: number; pull: PullReque
   const { central } = useCentralLayout();
   if (!central) return null;
   return (
-    <header className={`px-1.5 pb-3 pt-4 ${READING_WIDTH}`}>
-      <h1 className="font-serif text-[24px] leading-8 tracking-[0.005em] text-ink">{pull.title}</h1>
+    <header className={`px-1.5 pb-3 ${READING_WIDTH}`}>
+      <h1 className="font-serif text-[48px] leading-[1.08] tracking-[0.005em] text-ink">{pull.title}</h1>
       <SubjectMeta number={number} pull={pull} url={url} />
     </header>
   );
