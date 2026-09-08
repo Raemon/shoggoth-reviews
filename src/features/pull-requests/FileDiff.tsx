@@ -17,6 +17,7 @@ import { type EditableBlock } from './editableBlocks';
 import { expandDiff } from './expandDiff';
 import { foldsCollapsed, useFoldCommand, wholeFileFor, wholeFileWanted, type FoldMode } from './foldModeStore';
 import { InlineThreads } from './InlineThreads';
+import { useDiffWidth } from './commentColumnWidth';
 import { FILE_DIFF_ATTR } from './litRow';
 import { setDiffPaneWidth, useDiffPaneWidth } from './diffPaneWidth';
 import { DragHandle, useDragWidth } from './ResizableColumn';
@@ -53,7 +54,7 @@ export function FileDiff({
   const entireFile = file.status === WHOLE_FILE_STATUS;
   const layout = useDiffLayout();
   const singleColumn = layout !== 'split' || entireFile;
-  const removedSize = { width: useDiffPaneWidth(), open: true };
+  const removedSize = { width: useDiffPaneWidth(useDiffWidth()), open: true };
   const startDrag = useDragWidth(removedSize, setDiffPaneWidth);
   const wrap = useDiffWrap();
   const measured = useMeasuredSides();
@@ -120,7 +121,7 @@ export function FileDiff({
   };
   return (
     <div ref={growing} {...{ [FILE_DIFF_ATTR]: '' }} className="flex" style={{ paddingBottom: threadOverflow }}>
-      <div className="min-w-0 flex-1" style={{ flexBasis: singleColumn ? 0 : removedSize.width * 2 }}>
+      <div className="min-w-0 flex-1">
         {singleColumn ? (
           <DiffSide {...shared} lines={mainLines} labels onMeasured={measured.onRight} {...editing} />
         ) : (

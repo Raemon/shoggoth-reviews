@@ -1,13 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { placeThreads, type AnchoredThread, type PlacedThread } from './commentAnchors';
-import { DEFAULT_COMMENT_WIDTH, setCommentColumnWidth, useCommentColumnStyle } from './commentColumnWidth';
+import { overflowPast, placeThreads, type AnchoredThread, type PlacedThread } from './commentAnchors';
 import { linesHeight, ROW_HEIGHT, type RowHeights } from './diffMetrics';
 import type { DiffLine } from './diffLines';
-import { DragHandle, useDragWidth } from './ResizableColumn';
 import { rowLighting } from './litRow';
-import { useElementWidth } from './useElementWidth';
 import { ThreadCard } from './ThreadCard';
 
 const CARD_GAP = 4;
@@ -29,8 +26,6 @@ export function ThreadColumn({
   foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>;
   onOverflow: (pixels: number) => void;
 }) {
-  const column = useRef<HTMLDivElement | null>(null);
-  const startDrag = useDragWidth({ width: useElementWidth(column, DEFAULT_COMMENT_WIDTH), open: true }, setCommentColumnWidth, 'left');
   const [heights, setHeights] = useState<Record<number, number>>({});
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const measure = useCallback((rootId: number, height: number) => {
@@ -42,7 +37,7 @@ export function ThreadColumn({
   useEffect(() => onOverflow(overflow), [overflow, onOverflow]);
 
   return (
-    <div ref={column} className="relative border-l border-panel-edge bg-shade" style={useCommentColumnStyle()}>
+    <>
       {cards.map((card) => (
         <PlacedCard
           key={card.thread.rootId}
@@ -56,8 +51,7 @@ export function ThreadColumn({
           <ThreadCard thread={card.thread} />
         </PlacedCard>
       ))}
-      <DragHandle onPointerDown={startDrag} edge="left" />
-    </div>
+    </>
   );
 }
 
@@ -79,8 +73,7 @@ function overflowBelow(
   expanded: Record<number, boolean>,
   diffHeight: number,
 ): number {
-  const bottoms = cards.map((card) => card.top + shownHeight(card, heights, expanded));
-  return Math.max(0, Math.max(0, ...bottoms) - diffHeight);
+  return overflowPast(cards.map((card) => card.top + shownHeight(card, heights, expanded)), diffHeight);
 }
 
 function PlacedCard({

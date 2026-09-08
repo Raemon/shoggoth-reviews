@@ -45,9 +45,28 @@ export function boolPref(key: string, fallback: boolean): LocalPref<boolean> {
 }
 
 export function clampedPref<T>(key: string, fallback: T, clamp: (value: number) => number): LocalPref<number | T> {
-  return localPref<number | T>(key, fallback, (stored) =>
-    typeof stored === 'number' && Number.isFinite(stored) ? clamp(stored) : undefined,
-  );
+  return localPref<number | T>(key, fallback, (stored) => {
+    const value = finiteNumber(stored);
+    return value === undefined ? undefined : clamp(value);
+  });
+}
+
+export function recordPref<T>(key: string, decodeEntry: (value: unknown) => T | undefined): LocalPref<Partial<Record<string, T>>> {
+  return localPref(key, {}, (stored) => decodeRecord(stored, decodeEntry));
+}
+
+export function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function decodeRecord<T>(stored: unknown, decodeEntry: (value: unknown) => T | undefined): Record<string, T> | undefined {
+  if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) return undefined;
+  const record: Record<string, T> = {};
+  for (const [name, value] of Object.entries(stored)) {
+    const entry = decodeEntry(value);
+    if (entry !== undefined) record[name] = entry;
+  }
+  return record;
 }
 
 export function memoryPref<T>(initial: T): LocalPref<T> {

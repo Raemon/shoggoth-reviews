@@ -2,8 +2,10 @@
 
 import { pullCommentsPath, pullUrl } from './pullPaths';
 import { AuthorPortrait, OpenOnGithub } from './CommentByline';
+import { useCentralLayout } from './centralLayout';
+import { StateTags } from './PullListRow';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
-import type { PullComment } from './pullRequests';
+import type { PullComment, PullRequestSummary } from './pullRequests';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { MarkdownBody } from '@/features/markdown/MarkdownBody';
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
@@ -17,13 +19,13 @@ export function PullDiscussion({
   owner,
   repo,
   number,
-  author,
+  pull,
   body,
 }: {
   owner: string;
   repo: string;
   number: number;
-  author: string;
+  pull: PullRequestSummary;
   body: string | null;
 }) {
   const ready = useStoreReady();
@@ -35,10 +37,11 @@ export function PullDiscussion({
 
   return (
     <div className="flex flex-col">
+      <SubjectHeading number={number} pull={pull} url={pullUrl(owner, repo, number)} />
       <DiscussionEntry
         owner={owner}
         repo={repo}
-        author={author}
+        author={pull.author}
         url={pullUrl(owner, repo, number)}
         body={body?.trim() ? body : 'No description.'}
         bodyWidth={READING_WIDTH}
@@ -64,6 +67,29 @@ export function PullDiscussion({
           />
         ))
       )}
+    </div>
+  );
+}
+
+function SubjectHeading({ number, pull, url }: { number: number; pull: PullRequestSummary; url: string }) {
+  const { central } = useCentralLayout();
+  if (!central) return null;
+  return (
+    <header className={`px-1.5 pb-3 ${READING_WIDTH}`}>
+      <h1 className="font-serif text-[48px] leading-[1.08] tracking-[0.005em] text-ink">{pull.title}</h1>
+      <SubjectMeta number={number} pull={pull} url={url} />
+    </header>
+  );
+}
+
+function SubjectMeta({ number, pull, url }: { number: number; pull: PullRequestSummary; url: string }) {
+  return (
+    <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[10px] leading-4 text-ink-dim">
+      <span className="text-accent">#{number}</span>
+      <StateTags pull={pull} />
+      <span>{pull.author}</span>
+      <RelativeTime iso={pull.updatedAt} />
+      <OpenOnGithub url={url} />
     </div>
   );
 }

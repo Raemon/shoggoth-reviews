@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useDiffAreaWidth } from './diffAreaWidth';
 import { setDiffPaneWidth, useDiffPaneWidth } from './diffPaneWidth';
 import { DragHandle, useDragWidth } from './ResizableColumn';
 import { CheckerImg } from './BlobImage';
@@ -21,7 +22,7 @@ export function ImageDiff({
   before: ImageSource | null;
   after: ImageSource | null;
 }) {
-  const beforeSize = { width: useDiffPaneWidth(), open: true };
+  const beforeSize = { width: useDiffPaneWidth(useDiffAreaWidth()), open: true };
   const startDrag = useDragWidth(beforeSize, setDiffPaneWidth);
   return (
     <div className="flex">

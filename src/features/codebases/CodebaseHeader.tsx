@@ -15,8 +15,10 @@ import { MergePullButton } from '@/features/pull-requests/MergePullButton';
 import { PreviewLink } from '@/features/pull-requests/PreviewLink';
 import { PullBranchRefs } from '@/features/pull-requests/PullBranchRefs';
 import { ALL_PULLS_ROWS, setPullAuthor, useOfferedPullAuthors, useShownPullAuthor, type PullAuthor } from '@/features/pull-requests/pullFilterStore';
+import { PullFilterMenu } from '@/features/pull-requests/PullFilterMenu';
 import { PullRequestMenu } from '@/features/pull-requests/PullRequestMenu';
 import { ViewModeToggle } from '@/features/pull-requests/ViewModeToggle';
+import { useViewMode } from '@/features/pull-requests/viewModeStore';
 import { type RepoRef } from '@/features/sources/parseRepoLink';
 import { opensAnotherTab } from '@/features/surface-ui/selectableClick';
 import { SelectableLink } from '@/features/surface-ui/SelectableLink';
@@ -30,17 +32,19 @@ const REPO_MENU_COMMAND: CommandSpec = { id: 'repo-menu', label: 'repositories m
 
 export function CodebaseHeader() {
   const pathname = usePathname();
+  const central = useViewMode() === 'central';
   const reading = repoBeingRead(pathname);
   const pullNumber = pullBeingRead(pathname);
   const branch = branchBeingRead(pathname);
   const readingPullList = reading !== null && pathname === repoRoute(reading.owner, reading.name);
   const readingChange = reading !== null && (pullNumber !== null || branch !== null);
   return (
-    <header className="relative z-40 flex items-center gap-2 border-b border-panel-edge bg-panel px-2 py-5">
+    <header className={`relative z-40 flex items-center gap-2 bg-panel px-2 py-5 ${central ? '' : 'border-b border-panel-edge'}`}>
       <Link href="/" aria-label="reposcope home" className="shrink-0">
         <ScopeMark size={20} title="reposcope home" />
       </Link>
       <CodebaseMenu reading={reading} />
+      {central && readingChange && <PullFilterMenu />}
       {reading && !readingPullList && <HeaderSubject repo={reading} pullNumber={pullNumber} branch={branch} />}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GithubSignedOutNotice />
@@ -58,8 +62,10 @@ export function CodebaseHeader() {
   );
 }
 
+// Central mode: the discussion column shows the title, so don't repeat it here.
 function HeaderSubject({ repo, pullNumber, branch }: { repo: RepoRef; pullNumber: number | null; branch: string | null }) {
-  if (pullNumber !== null) return <CurrentPullTitle repo={repo} number={pullNumber} />;
+  const central = useViewMode() === 'central';
+  if (pullNumber !== null) return central ? null : <CurrentPullTitle repo={repo} number={pullNumber} />;
   if (branch !== null) return <CurrentBranchTitle repo={repo} branch={branch} />;
   return <PullRequestMenu repo={repo} />;
 }

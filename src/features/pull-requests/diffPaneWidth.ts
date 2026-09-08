@@ -3,10 +3,15 @@
 import { clampedPref, usePref } from './localPref';
 import { clampWidth, type ColumnSize } from './ResizableColumn';
 
-const widthPref = clampedPref('reposcope.diffPaneWidth', 520, clampWidth);
+const MIN_RIGHT_PANE = 200;
 
-export function useDiffPaneWidth(): number {
-  return usePref(widthPref);
+const widthPref = clampedPref('reposcope.diffPaneWidth', null, clampWidth);
+
+export function useDiffPaneWidth(diffWidth: number): number {
+  const stored = usePref(widthPref);
+  const half = Math.round(diffWidth / 2);
+  const widest = Math.max(half, diffWidth - MIN_RIGHT_PANE);
+  return Math.min(stored ?? half, widest);
 }
 
 export function setDiffPaneWidth(next: ColumnSize): void {

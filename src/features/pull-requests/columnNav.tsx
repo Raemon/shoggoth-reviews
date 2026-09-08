@@ -91,8 +91,9 @@ export function ColumnNavProvider({ children }: { children: ReactNode }) {
     if (!column) return;
     toggleColumn(column, focused === pendingToggle);
     setFocused(pendingToggle);
+    setCursor(pendingToggle, column.selected);
     setPendingReveal(pendingToggle);
-  }, [pendingToggle, focused]);
+  }, [pendingToggle, focused, setCursor]);
   useEffect(() => {
     if (pendingReveal === null) return;
     setPendingReveal(null);
@@ -168,7 +169,11 @@ function activateColumn(column: NavColumn, cursor: string | null) {
 }
 
 function scrollColumnIntoView(id: ColumnId) {
-  document.querySelector(`[data-nav-column="${id}"]`)?.scrollIntoView({ block: 'start', inline: 'nearest' });
+  const node = document.querySelector<HTMLElement>(`[data-nav-column="${id}"]`);
+  if (!node) return;
+  // A floating column sits outside the page flow, so scrolling to it would land nowhere.
+  if (getComputedStyle(node).position === 'absolute') scrollerOf(node.parentElement ?? undefined)?.scrollTo({ top: 0, behavior: 'smooth' });
+  else node.scrollIntoView({ block: 'start', inline: 'nearest' });
 }
 
 function scrollBody(node: HTMLElement | undefined, delta: number) {
