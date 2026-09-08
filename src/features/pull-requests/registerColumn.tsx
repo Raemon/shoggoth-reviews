@@ -1,7 +1,7 @@
 'use client';
 
 import { useLayoutEffect } from 'react';
-import { useCentralLayout, usePaneMode } from './centralLayout';
+import { usePaneMode } from './centralLayout';
 import { COLUMN_COMMANDS } from './columnCommands';
 import { useNavRegistry } from './columnNav';
 import type { ColumnId, NavColumn } from './navColumn';
@@ -15,13 +15,5 @@ export function useRegisterColumn(id: ColumnId, column: NavColumn, available = t
     register(id, column);
     return () => register(id, null);
   });
-  useColumnCommand(id, available, toggle);
-}
-
-function useColumnCommand(id: ColumnId, available: boolean, toggle: (id: ColumnId) => void) {
-  const { central, chatOpen, setChatOpen } = useCentralLayout();
-  useCommand(available ? COLUMN_COMMANDS[id] ?? null : null, () => {
-    if (central && id === 'ai-chat') setChatOpen(!chatOpen);
-    toggle(id);
-  });
+  useCommand(available ? COLUMN_COMMANDS[id] ?? null : null, () => toggle(id));
 }

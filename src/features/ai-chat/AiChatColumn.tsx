@@ -37,7 +37,7 @@ export function AiChatColumn({
   const [size, setSize] = useStickyColumn('ai-chat');
   const pane = usePaneMode('ai-chat');
   const key = useCursorKey();
-  const chat = useAiChat({ subject, owner, repo, number, headRef, headSha, active: pane === 'pane' || pane === 'overlay' || size.open });
+  const chat = useAiChat({ subject, owner, repo, number, headRef, headSha, active: pane === 'pane' || size.open });
   const { session, account } = chat;
   useRegisterColumn('ai-chat', { ...useCollapsibleColumn('ai-chat', size, setSize), items: [], selected: null });
   return (
