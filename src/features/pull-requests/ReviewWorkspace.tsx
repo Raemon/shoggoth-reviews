@@ -214,7 +214,7 @@ function Workspace({
               preview={<ColumnPreview column="discussion" tokens={DISCUSSION_TOKENS} />}
               size={discussionSize}
               onSize={setDiscussionSize}
-              action={<InlineCommentsToggle />}
+              action={number !== null ? <InlineCommentsToggle owner={owner} repo={repo} number={number} /> : undefined}
             >
               {discussion}
             </ResizableColumn>

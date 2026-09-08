@@ -1,12 +1,18 @@
 'use client';
 
 import { setInlineCommentsExpanded, useInlineCommentsExpanded } from './inlineCommentsStore';
+import { pullCommentsPath } from './pullPaths';
+import type { PullComment } from './pullRequests';
 import { smallChoiceClass } from '@/features/surface-ui/buttonStyles';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { useCachedJson } from '@/features/sources/useCachedJson';
+import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 
-export function InlineCommentsToggle() {
+export function InlineCommentsToggle({ owner, repo, number }: { owner: string; repo: string; number: number }) {
   const expanded = useInlineCommentsExpanded();
+  const hasInline = useHasInlineComments(owner, repo, number);
   const label = expanded ? 'Collapse inline comments' : 'Expand inline comments';
+  if (!hasInline) return null;
   return (
     <HoverCardTrigger label={label} focusable={false} tooltipStyle placement="top-end">
       <button
@@ -20,4 +26,11 @@ export function InlineCommentsToggle() {
       </button>
     </HoverCardTrigger>
   );
+}
+
+function useHasInlineComments(owner: string, repo: string, number: number): boolean {
+  const ready = useStoreReady();
+  const token = useGithubToken();
+  const { data: comments } = useCachedJson<PullComment[]>(pullCommentsPath(owner, repo, number), token, ready);
+  return comments?.some((comment) => comment.path !== null) ?? false;
 }
