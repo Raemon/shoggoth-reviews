@@ -127,3 +127,25 @@ export function TrashIcon() {
     </ToolbarIcon>
   );
 }
+
+function FileHeaderBars() {
+  return <path d="M3.5 4.5h17M3.5 19.5h17" />;
+}
+
+export function CollapseAllFilesIcon() {
+  return (
+    <ToolbarIcon>
+      <FileHeaderBars />
+      <path d="M8 15 12 11.5 16 15" />
+    </ToolbarIcon>
+  );
+}
+
+export function ExpandAllFilesIcon() {
+  return (
+    <ToolbarIcon>
+      <FileHeaderBars />
+      <path d="M8 9 12 12.5 16 9" />
+    </ToolbarIcon>
+  );
+}

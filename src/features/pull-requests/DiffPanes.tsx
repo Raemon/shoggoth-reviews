@@ -64,6 +64,15 @@ export function DiffPanes({
     [scroller],
   );
 
+  const filesOpen = files.some((file) => openFile(toggled, file.filename));
+  const setAllFiles = useCallback(
+    (open: boolean) => {
+      const header = scroller && topSection(scroller, sections.current)?.firstElementChild;
+      holdingInPlace(scroller, header ?? null, () => setToggled(everyFileSetTo(files, open)));
+    },
+    [scroller, files],
+  );
+
   useImperativeHandle(ref, () => ({
     scrollToFile(path: string) {
       const section = sections.current.get(path);
@@ -81,7 +90,7 @@ export function DiffPanes({
     <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <DiffLayoutToggle sortable={sortable} />
+          <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
           <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto bg-code">
             <ImageStrip
               key={`${fileSet.baseRef}:${fileSet.headRef}`}
@@ -116,6 +125,17 @@ export function DiffPanes({
       </DefinitionPeekProvider>
     </EditTarget>
   );
+}
+
+function everyFileSetTo(files: ChangedFile[], open: boolean): Record<string, boolean> {
+  return Object.fromEntries(files.map((file) => [file.filename, open]));
+}
+
+// Collapsing every file at once would fling the reader elsewhere; hold the file they are on.
+function topSection(container: HTMLElement, sections: Map<string, HTMLElement>): HTMLElement | null {
+  const edge = container.getBoundingClientRect().top;
+  const onscreen = [...sections.values()].filter((section) => section.getBoundingClientRect().bottom > edge);
+  return onscreen.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)[0] ?? null;
 }
 
 function openFile(toggled: Record<string, boolean>, path: string): boolean {
