@@ -17,6 +17,7 @@ const CENTRAL_PANES: Partial<Record<ColumnId, PaneMode>> = {
   'ai-chat': 'column',
 };
 
+export const PANE_MAX_WIDTH = 980;
 export const PANE_WIDTH = 'mx-auto w-full max-w-[980px]';
 
 interface CentralValue {

@@ -216,7 +216,7 @@ function Workspace({
           </ResizableColumn>
         )}
         {showsDiff && (
-          <div ref={reviewRow} className={stacked ? STACKED_ROW : COLUMNS_ROW}>
+          <div ref={reviewRow} data-reveal-blocked className={stacked ? STACKED_ROW : COLUMNS_ROW}>
             <CommitsColumn
               owner={owner}
               repo={repo}
