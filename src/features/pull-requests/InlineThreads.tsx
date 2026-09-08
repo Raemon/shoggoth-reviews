@@ -33,7 +33,7 @@ export function InlineThreads({
       {width >= MIN_CARD_WIDTH ? (
         <ThreadColumn anchors={anchors} lines={lines} heights={heights} onOverflow={onOverflow} />
       ) : (
-        <ThreadMarkers anchors={anchors} collapsed={collapsed} onOverflow={onOverflow} />
+        <ThreadMarkers anchors={anchors} lines={lines} heights={heights} collapsed={collapsed} onOverflow={onOverflow} />
       )}
       {resizable && <DragHandle onPointerDown={startDrag} edge="left" outside={collapsed} />}
     </div>

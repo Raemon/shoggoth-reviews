@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { placeThreads, type AnchoredThread } from './commentAnchors';
+import { overflowPast, placeThreads, type AnchoredThread, type PlacedThread } from './commentAnchors';
 import { MARKER_GAP, MARKER_SIZE } from './commentColumnWidth';
 import { AuthorPortrait } from './CommentByline';
+import { linesHeight, type RowHeights } from './diffMetrics';
+import type { DiffLine } from './diffLines';
 import { isDraftThread } from './draftThread';
 import { clearDraftThread } from './draftThreadStore';
 import { rowLighting } from './litRow';
@@ -16,18 +18,23 @@ const MAX_SNIPPET_CHARS = 80;
 
 export function ThreadMarkers({
   anchors,
+  lines,
+  heights,
   collapsed,
   onOverflow,
 }: {
   anchors: AnchoredThread[];
+  lines: DiffLine[];
+  heights: RowHeights;
   collapsed: boolean;
   onOverflow: (pixels: number) => void;
 }) {
   const [picked, setPicked] = useState<ReviewThread | null>(null);
   const markers = collapsed ? [] : placeThreads(anchors, markerHeights(anchors), MARKER_GAP, MARKER_SIZE);
   const opened = anchors.find(({ thread }) => isDraftThread(thread))?.thread ?? picked;
+  const overflow = markersOverflow(markers, linesHeight(lines, heights));
 
-  useEffect(() => onOverflow(0), [onOverflow]);
+  useEffect(() => onOverflow(overflow), [overflow, onOverflow]);
 
   return (
     <>
@@ -41,6 +48,10 @@ export function ThreadMarkers({
       )}
     </>
   );
+}
+
+function markersOverflow(markers: PlacedThread[], diffHeight: number): number {
+  return overflowPast(markers.map((marker) => marker.top + MARKER_SIZE), diffHeight);
 }
 
 function markerHeights(anchors: AnchoredThread[]): Record<number, number> {

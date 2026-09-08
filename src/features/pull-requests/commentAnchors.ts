@@ -22,6 +22,10 @@ export function anchorThreads(threads: ReviewThread[], rows: DiffRow[], lines: D
     .sort((a, b) => a.anchorTop - b.anchorTop);
 }
 
+export function overflowPast(bottoms: number[], height: number): number {
+  return Math.max(0, Math.max(0, ...bottoms) - height);
+}
+
 export function placeThreads(anchors: AnchoredThread[], heights: Record<number, number>, gap: number, minSlot: number): PlacedThread[] {
   const tops = stackedTops(anchors, heights, gap, minSlot);
   return anchors.map(({ thread, row }, index) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { placeThreads, type AnchoredThread, type PlacedThread } from './commentAnchors';
+import { overflowPast, placeThreads, type AnchoredThread, type PlacedThread } from './commentAnchors';
 import { linesHeight, ROW_HEIGHT, type RowHeights } from './diffMetrics';
 import type { DiffLine } from './diffLines';
 import { rowLighting } from './litRow';
@@ -71,8 +71,7 @@ function overflowBelow(
   expanded: Record<number, boolean>,
   diffHeight: number,
 ): number {
-  const bottoms = cards.map((card) => card.top + shownHeight(card, heights, expanded));
-  return Math.max(0, Math.max(0, ...bottoms) - diffHeight);
+  return overflowPast(cards.map((card) => card.top + shownHeight(card, heights, expanded)), diffHeight);
 }
 
 function PlacedCard({
