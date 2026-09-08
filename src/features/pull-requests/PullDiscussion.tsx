@@ -150,7 +150,7 @@ function InlineEntry({ author, avatarUrl = '', createdAt, path, url, body }: Byl
     <article className={INLINE_ROW}>
       <EntryAuthor author={author} avatarUrl={avatarUrl} />
       <span className="shrink-0 font-serif text-[10px]">{path}</span>
-      <span className="min-w-0 flex-1 truncate">{commentPreview(body)}</span>
+      <span className="min-w-0 flex-1 truncate font-serif text-[14px] leading-6 text-ink">{commentPreview(body)}</span>
       {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
       <OpenOnGithub url={url} />
     </article>

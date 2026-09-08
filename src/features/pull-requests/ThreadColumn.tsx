@@ -11,7 +11,7 @@ import { ThreadCard } from './ThreadCard';
 const CARD_GAP = 4;
 const COLLAPSE_BAR = 15;
 // Keep in sync with the rendered height of a ThreadCard header row.
-const CARD_HEADER = 22;
+const CARD_HEADER = 26;
 const PEEK_BODY = 16;
 
 export function ThreadColumn({

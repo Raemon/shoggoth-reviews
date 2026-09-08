@@ -9,7 +9,8 @@ function stripBlockMarkup(body: string): string {
   return body
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/^\s*(?:[-*+]\s+|#{1,6}\s+|>\s?)/gm, ' ')
-    .replace(/^\s*\[[ xX]\]\s*/gm, ' ');
+    .replace(/^\s*\[[ xX]\]\s*/gm, ' ')
+    .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, ' ');
 }
 
 // Emphasis is stripped only at word edges: a review comment is mostly snake_case and paths.

@@ -150,7 +150,9 @@ function ThreadComment({
 // ThreadColumn puts .peek on cards clipped to header height; without it this text stays hidden.
 function CommentPeek({ body, bodyShown }: { body: string; bodyShown: boolean }) {
   return (
-    <span className={`min-w-0 flex-1 truncate ${bodyShown ? 'invisible [.peek_&]:visible' : ''}`}>
+    <span
+      className={`min-w-0 flex-1 truncate font-serif text-[14px] leading-5 ${bodyShown ? 'invisible [.peek_&]:visible' : ''}`}
+    >
       {commentPreview(body)}
     </span>
   );
