@@ -43,6 +43,7 @@ function ExpandAllSpace({ onActivate }: { onActivate: () => void }) {
     <button
       type="button"
       onClick={onActivate}
+      onKeyDown={(event) => event.key === 'Enter' && onActivate()}
       aria-label="Expand every folder"
       className="min-h-6 flex-1 cursor-default"
     />
