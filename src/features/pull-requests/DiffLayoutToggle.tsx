@@ -9,9 +9,7 @@ import { FoldModeButtons } from './FoldModeButtons';
 import { ChoiceButton } from '@/features/surface-ui/ChoiceButton';
 import type { IconButtonTone } from '@/features/surface-ui/buttonStyles';
 import {
-  CollapseAllFilesIcon,
   EditIcon,
-  ExpandAllFilesIcon,
   ResultViewIcon,
   SplitViewIcon,
   UnifiedViewIcon,
@@ -37,8 +35,7 @@ export function DiffLayoutToggle({
   const current = useDiffLayout();
   return (
     <div className="relative z-30 flex shrink-0 items-center gap-2 border-b border-panel-edge bg-panel px-2 py-[2px]">
-      <AllFilesToggle filesOpen={filesOpen} onToggle={onToggleAllFiles} />
-      <FoldModeButtons />
+      <FoldModeButtons filesOpen={filesOpen} onToggleAllFiles={onToggleAllFiles} />
       <span className="ml-auto flex items-center gap-2">
         {CHOICES.map(({ layout, icon, label, tone }) => (
           <ChoiceButton
@@ -57,19 +54,6 @@ export function DiffLayoutToggle({
         {sortable && <DiffSortMenu />}
       </span>
     </div>
-  );
-}
-
-function AllFilesToggle({ filesOpen, onToggle }: { filesOpen: boolean; onToggle: () => void }) {
-  return (
-    <ChoiceButton
-      label={filesOpen ? 'Collapse all files' : 'Expand all files'}
-      active={false}
-      placement="top-start"
-      onSelect={onToggle}
-    >
-      {filesOpen ? <CollapseAllFilesIcon /> : <ExpandAllFilesIcon />}
-    </ChoiceButton>
   );
 }
 
