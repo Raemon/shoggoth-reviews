@@ -117,7 +117,7 @@ function PlacedCard({
         <div ref={node}>{children}</div>
       </div>
       {clipped && <ExpandTarget wholeCard={peeking} onToggle={onToggle} />}
-      {expanded && <CollapseBar onToggle={onToggle} />}
+      {overlaid && <CollapseBar onToggle={onToggle} />}
     </div>
   );
 }
