@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { overflowPast, placeThreads, type AnchoredThread, type PlacedThread } from './commentAnchors';
 import { MARKER_GAP, MARKER_SIZE } from './commentColumnWidth';
 import { AuthorPortrait } from './CommentByline';
@@ -11,8 +11,8 @@ import { clearDraftThread } from './draftThreadStore';
 import { rowLighting } from './litRow';
 import type { ReviewThread } from './reviewThreads';
 import { ThreadCard } from './ThreadCard';
+import { ANCHOR_ATTR, ThreadPopover } from './ThreadPopover';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
-import { ModalShell } from '@/features/surface-ui/ModalShell';
 
 const MAX_SNIPPET_CHARS = 80;
 
@@ -29,25 +29,45 @@ export function ThreadMarkers({
   collapsed: boolean;
   onOverflow: (pixels: number) => void;
 }) {
-  const [picked, setPicked] = useState<ReviewThread | null>(null);
-  const markers = collapsed ? [] : placeThreads(anchors, markerHeights(anchors), MARKER_GAP, MARKER_SIZE);
-  const opened = anchors.find(({ thread }) => isDraftThread(thread))?.thread ?? picked;
-  const overflow = markersOverflow(markers, linesHeight(lines, heights));
+  const [picked, setPicked] = useState<number | null>(null);
+  const markers = placeThreads(anchors, markerHeights(anchors), MARKER_GAP, MARKER_SIZE);
+  const opened = openedThread(markers, picked);
+  const overflow = collapsed ? 0 : markersOverflow(markers, linesHeight(lines, heights));
+  const toggle = useCallback((rootId: number) => setPicked((held) => (held === rootId ? null : rootId)), []);
 
   useEffect(() => onOverflow(overflow), [overflow, onOverflow]);
 
   return (
     <>
-      {markers.map((marker) => (
-        <MarkerButton key={marker.thread.rootId} row={marker.row} top={marker.top} thread={marker.thread} onOpen={setPicked} />
-      ))}
+      {!collapsed &&
+        markers.map((marker) => (
+          <MarkerButton
+            key={marker.thread.rootId}
+            row={marker.row}
+            top={marker.top}
+            thread={marker.thread}
+            open={marker.thread === opened?.thread}
+            onOpen={toggle}
+          />
+        ))}
       {opened && (
-        <ModalShell label={threadLabel(opened)} dismissable onDismiss={() => dismissThread(setPicked)}>
-          <ThreadCard thread={opened} />
-        </ModalShell>
+        <ThreadPopover
+          top={opened.top}
+          label={threadLabel(opened.thread)}
+          dismissOnBlur={!isDraftThread(opened.thread)}
+          onDismiss={() => dismissThread(setPicked)}
+        >
+          <ThreadCard thread={opened.thread} />
+        </ThreadPopover>
       )}
     </>
   );
+}
+
+// Draft first: a new composer must replace whatever card is open, not wait behind it.
+function openedThread(markers: PlacedThread[], picked: number | null): PlacedThread | null {
+  const drafted = markers.find(({ thread }) => isDraftThread(thread));
+  return drafted ?? markers.find(({ thread }) => thread.rootId === picked) ?? null;
 }
 
 function markersOverflow(markers: PlacedThread[], diffHeight: number): number {
@@ -58,7 +78,7 @@ function markerHeights(anchors: AnchoredThread[]): Record<number, number> {
   return Object.fromEntries(anchors.map(({ thread }) => [thread.rootId, MARKER_SIZE]));
 }
 
-function dismissThread(setPicked: (thread: ReviewThread | null) => void) {
+function dismissThread(setPicked: (rootId: number | null) => void) {
   clearDraftThread();
   setPicked(null);
 }
@@ -67,30 +87,48 @@ function MarkerButton({
   row,
   top,
   thread,
+  open,
   onOpen,
 }: {
   row: number;
   top: number;
   thread: ReviewThread;
-  onOpen: (thread: ReviewThread) => void;
+  open: boolean;
+  onOpen: (rootId: number) => void;
 }) {
   const label = markerLabel(thread);
   return (
-    <div {...rowLighting(row)} style={{ top }} className="absolute inset-x-0 flex justify-center">
-      <HoverCardTrigger label={label} focusable={false} tooltipStyle className="relative">
+    <div {...rowLighting(row)} {...{ [ANCHOR_ATTR]: '' }} style={{ top }} className="absolute inset-x-0 flex justify-center">
+      <MarkerTip label={label} muted={open}>
         <button
           type="button"
-          onClick={() => onOpen(thread)}
+          onClick={() => onOpen(thread.rootId)}
           aria-label={label}
+          aria-expanded={open}
           style={{ width: MARKER_SIZE, height: MARKER_SIZE }}
-          className={`flex items-center justify-center overflow-hidden rounded-full border border-panel-edge bg-tip text-ink-dim hover:border-accent hover:text-ink ${thread.resolved ? 'opacity-60 hover:opacity-100' : ''}`}
+          className={`flex items-center justify-center overflow-hidden rounded-full border bg-tip text-ink-dim hover:border-accent hover:text-ink ${markerEdge(thread, open)}`}
         >
           <MarkerFace thread={thread} />
         </button>
         <CommentCount count={thread.comments.length} />
-      </HoverCardTrigger>
+      </MarkerTip>
     </div>
   );
+}
+
+// The open card shows this thread already; its tooltip would cover the card's byline.
+function MarkerTip({ label, muted, children }: { label: string; muted: boolean; children: ReactNode }) {
+  if (muted) return <span className="relative inline-flex">{children}</span>;
+  return (
+    <HoverCardTrigger label={label} focusable={false} tooltipStyle className="relative">
+      {children}
+    </HoverCardTrigger>
+  );
+}
+
+function markerEdge(thread: ReviewThread, open: boolean): string {
+  if (open) return 'border-accent text-ink';
+  return `border-panel-edge ${thread.resolved ? 'opacity-60 hover:opacity-100' : ''}`;
 }
 
 function CommentCount({ count }: { count: number }) {
