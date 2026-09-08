@@ -31,7 +31,7 @@ export function AllFilesSection({
         title="all files"
         titleTone="text-ink-dim"
         chevron={expanded ? '⌄' : '⌃'}
-        className="bg-panel text-ink-dim hover:bg-btn-hover"
+        className="w-full bg-panel text-ink-dim hover:bg-btn-hover"
         label={`${expanded ? 'Collapse' : 'Expand'} all files`}
         expanded={expanded}
         onActivate={() => onExpanded(!expanded)}
