@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { useDiffAreaWidth } from './diffAreaWidth';
+import { useDiffLayout } from './diffLayoutStore';
 import { finiteNumber, recordPref, usePref } from './localPref';
 import { useNarrowViewport } from './narrowViewport';
 import { pullSubject } from './pullPaths';
@@ -38,7 +39,8 @@ export function useDiffWidth(): number {
 export function useCommentColumnDrag(width: number) {
   const key = pullKey(useReviewTarget());
   const available = useDiffAreaWidth();
-  const clamp = useCallback((dragged: number) => fitWidth(dragged, available), [available]);
+  const panes = useDiffPanes();
+  const clamp = useCallback((dragged: number) => fitWidth(dragged, available, panes), [available, panes]);
   const remember = useCallback((next: ColumnSize) => rememberWidth(key, next.width), [key]);
   return useDragWidth({ width, open: true }, remember, 'left', clamp);
 }
@@ -46,7 +48,12 @@ export function useCommentColumnDrag(width: number) {
 function useFittedWidth(target: ReviewThreadTarget): number {
   const stored = usePref(widthsPref)[pullKey(target)];
   const available = useDiffAreaWidth();
-  return stored === undefined ? defaultWidth(available) : fitWidth(stored, available);
+  const panes = useDiffPanes();
+  return stored === undefined ? defaultWidth(available, panes) : fitWidth(stored, available, panes);
+}
+
+function useDiffPanes(): number {
+  return useDiffLayout() === 'split' ? 2 : 1;
 }
 
 function rememberWidth(key: string, width: number): void {
@@ -57,17 +64,17 @@ function pullKey({ owner, repo, number }: ReviewThreadTarget): string {
   return pullSubject(owner, repo, number ?? 0);
 }
 
-function defaultWidth(available: number): number {
-  const diff = Math.min(available, clampBetween(available * DIFF_SHARE, MIN_DIFF_WIDTH, MAX_DIFF_WIDTH));
+function defaultWidth(available: number, panes: number): number {
+  const diff = Math.min(available, clampBetween(available * DIFF_SHARE, MIN_DIFF_WIDTH * panes, MAX_DIFF_WIDTH * panes));
   return snapNarrow(Math.round(available - diff));
 }
 
-function fitWidth(width: number, available: number): number {
-  return snapNarrow(Math.round(clampBetween(width, 0, maxWidth(available))));
+function fitWidth(width: number, available: number, panes: number): number {
+  return snapNarrow(Math.round(clampBetween(width, 0, maxWidth(available, panes))));
 }
 
-function maxWidth(available: number): number {
-  return available - Math.min(MIN_DIFF_WIDTH, available / 2);
+function maxWidth(available: number, panes: number): number {
+  return available - Math.min(MIN_DIFF_WIDTH * panes, available / 2);
 }
 
 function snapNarrow(width: number): number {
