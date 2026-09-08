@@ -43,7 +43,7 @@ export function BranchesSection({
         title="branches"
         titleTone="text-ink-dim"
         chevron={expanded ? '⌄' : '⌃'}
-        className="bg-panel hover:bg-btn-hover"
+        className="w-full bg-panel hover:bg-btn-hover"
         label={`${expanded ? 'Collapse' : 'Expand'} branches`}
         expanded={expanded}
         onActivate={() => onExpanded(!expanded)}

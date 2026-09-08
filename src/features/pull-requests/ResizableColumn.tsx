@@ -11,7 +11,7 @@ import { HotkeyCap } from '@/features/hotkeys/HotkeyCap';
 import { ColumnBoundary } from '@/features/surface-ui/ColumnBoundary';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
-const HEADER_ROW = 'flex w-full shrink-0 items-center gap-1.5 border-panel-edge px-1.5 py-[1px] text-left';
+const HEADER_ROW = 'flex min-w-0 shrink-0 items-center gap-1.5 border-panel-edge px-1.5 py-[1px] text-left';
 
 const STRIP =
   'flex w-full shrink-0 cursor-pointer items-center gap-1.5 border-b px-1.5 py-1 text-[10px] uppercase tracking-[0.18em] text-ink-dim hover:text-ink md:w-7 md:min-h-0 md:flex-col md:gap-2.5 md:border-b-0 md:px-0';
