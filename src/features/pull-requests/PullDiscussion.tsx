@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { pullCommentsPath, pullUrl } from './pullPaths';
 import { AuthorPortrait, OpenOnGithub } from './CommentByline';
 import { useCentralLayout } from './centralLayout';
@@ -117,6 +118,13 @@ interface EntryProps extends Byline {
   path: string | null;
 }
 
+interface InlineProps extends Byline {
+  owner: string;
+  repo: string;
+  id: number;
+  path: string;
+}
+
 function DiscussionEntry({ owner, repo, id, path, ...byline }: EntryProps) {
   if (path) return <InlineEntry {...byline} owner={owner} repo={repo} id={id} path={path} />;
   return <ConversationEntry {...byline} owner={owner} repo={repo} />;
@@ -131,11 +139,13 @@ function ConversationEntry({
   url,
   body,
   bodyWidth = '',
-}: Byline & { owner: string; repo: string; bodyWidth?: string }) {
+  lead,
+}: Byline & { owner: string; repo: string; bodyWidth?: string; lead?: ReactNode }) {
   return (
     <article className={`${ENTRY_LINE} py-1.5`}>
       <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
         <EntryAuthor author={author} avatarUrl={avatarUrl} />
+        {lead}
         {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
         <OpenOnGithub url={url} className="ml-auto" />
       </header>
@@ -148,45 +158,29 @@ function ConversationEntry({
   );
 }
 
-function InlineEntry(entry: Byline & { owner: string; repo: string; id: number; path: string }) {
+function InlineEntry(entry: InlineProps) {
   const { central } = useCentralLayout();
   const expanded = useInlineCommentsExpanded();
-  if (!central && expanded) return <OpenInlineEntry {...entry} />;
+  // Central is already a reading feed; expanding inline rows there just lengthens it.
+  const showBodies = !central && expanded;
+  if (showBodies) return <OpenInlineEntry {...entry} />;
   return <ClosedInlineEntry {...entry} />;
 }
 
-function OpenInlineEntry({
-  owner,
-  repo,
-  id,
-  author,
-  avatarUrl = '',
-  createdAt,
-  path,
-  url,
-  body,
-}: Byline & { owner: string; repo: string; id: number; path: string }) {
-  const showInDiff = useShowInDiff(path, id);
+function OpenInlineEntry(entry: InlineProps) {
+  const showInDiff = useShowInDiff(entry.path, entry.id);
+  return <ConversationEntry {...entry} lead={<PathButton path={entry.path} onShow={showInDiff} />} />;
+}
+
+function PathButton({ path, onShow }: { path: string; onShow: () => void }) {
   return (
-    <article className={`${ENTRY_LINE} py-1.5`}>
-      <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
-        <EntryAuthor author={author} avatarUrl={avatarUrl} />
-        <button type="button" onClick={showInDiff} className="min-w-0 truncate text-left font-serif text-[10px]">
-          {path}
-        </button>
-        {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
-        <OpenOnGithub url={url} className="ml-auto" />
-      </header>
-      <MarkdownBody
-        className="markdown-body break-words text-ink"
-        html={renderMarkdown(body, { owner, repo })}
-        tooltipStyle
-      />
-    </article>
+    <button type="button" onClick={onShow} className="min-w-0 truncate text-left font-serif text-[10px]">
+      {path}
+    </button>
   );
 }
 
-function ClosedInlineEntry({ id, author, avatarUrl = '', createdAt, path, url, body }: Byline & { id: number; path: string }) {
+function ClosedInlineEntry({ id, author, avatarUrl = '', createdAt, path, url, body }: InlineProps) {
   const showInDiff = useShowInDiff(path, id);
   return (
     <article className={INLINE_ROW}>
