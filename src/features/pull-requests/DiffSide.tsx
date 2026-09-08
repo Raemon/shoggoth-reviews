@@ -299,6 +299,7 @@ function DiffLineView({
   const raw = codeSegments(cell.text, lineTokens, changed ? ranges : null);
   const layout = dim ? foldLayout(lineTokens) : null;
   const folded = layout !== null && foldsTail(line, collapsed, layout);
+  const oneLine = collapsed || (folded && wrapping);
   const segments = collapsed ? collapsedSegments(raw, layout, longestPrefix) : expandedSegments(raw, layout);
   const fold = folded ? prefixStyle(longestPrefix) : null;
   const tones = rowTones(line, collapsed);
@@ -313,8 +314,8 @@ function DiffLineView({
       <span className={collapsed ? FOLDED_TEXT : 'contents'}>
         <span
           {...{ [WRAPPED_CELL]: `${side}:${line.row}` }}
-          className={codeClass(collapsed, wrapping)}
-          style={wrapping && !collapsed ? hangingIndentStyle(cell.text) : undefined}
+          className={codeClass(oneLine, wrapping)}
+          style={wrapping && !oneLine ? hangingIndentStyle(cell.text) : undefined}
           onClick={pointer && !collapsed ? (event) => pointer.press(line, event) : undefined}
           onMouseMove={pointer ? (event) => pointer.move(line, event) : undefined}
           onMouseLeave={pointer?.leave}
@@ -402,9 +403,9 @@ function RoleSpan({ role, prefix, children }: { role: SegmentRole | undefined; p
   return children;
 }
 
-// A collapsed row shows one ellipsised line, so it neither wraps nor hangs.
-function codeClass(collapsed: boolean, wrapping: boolean): string {
-  if (collapsed) return `${CODE} min-w-0 overflow-hidden text-ellipsis`;
+// A row whose tail is folded away shows one ellipsised line, so it neither wraps nor hangs.
+function codeClass(oneLine: boolean, wrapping: boolean): string {
+  if (oneLine) return `${CODE} min-w-0 overflow-hidden text-ellipsis`;
   return wrapping ? WRAPPED_CODE : CODE;
 }
 
