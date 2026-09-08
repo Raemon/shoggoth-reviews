@@ -19,9 +19,12 @@ import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 const SCROLL_MS = 100;
 const REALIGN_MS = 150;
 const REALIGN_TRIES = 12;
-// Flush to the top a card hides under the sticky file header, so it stops short of it.
-const THREAD_TOP_GAP = 44;
 const HAND_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+
+interface ScrollTarget {
+  node: HTMLElement;
+  gap: number;
+}
 
 export interface DiffPanesHandle {
   scrollToFile: (path: string, rootId?: number) => void;
@@ -145,14 +148,16 @@ function holdingInPlace(container: HTMLElement | null, anchor: Element | null, c
   if (container && anchor && top !== undefined) container.scrollTop += anchor.getBoundingClientRect().top - top;
 }
 
-// A thread card only mounts once its file has drawn, so the target is re-read on every realign.
-function scrollTarget(section: HTMLElement | undefined, rootId?: number): HTMLElement | null {
-  if (!section || rootId === undefined) return section ?? null;
-  return section.querySelector<HTMLElement>(`[data-thread-root="${rootId}"]`) ?? section;
+// A thread card mounts only once its file draws, so the target is re-read each realign.
+function scrollTarget(section: HTMLElement | undefined, rootId?: number): ScrollTarget | null {
+  if (!section) return null;
+  const card = rootId === undefined ? null : section.querySelector<HTMLElement>(`[data-thread-root="${rootId}"]`);
+  return card ? { node: card, gap: headerHeight(section) } : { node: section, gap: 0 };
 }
 
-function gapAbove(target: HTMLElement): number {
-  return target.hasAttribute('data-thread-root') ? THREAD_TOP_GAP : 0;
+// Flush to the top a card would sit under the sticky header, so it stops that far short.
+function headerHeight(section: HTMLElement): number {
+  return section.firstElementChild?.getBoundingClientRect().height ?? 0;
 }
 
 function scrollerOffset(container: HTMLElement, section: HTMLElement): number {
@@ -178,7 +183,7 @@ function remember(refs: Map<string, (node: HTMLElement | null) => void>, path: s
 }
 
 // Files above the target draw as they near, moving it; hold it there until they settle.
-function realignAfterDrawing(container: HTMLElement, section: () => HTMLElement | null): () => void {
+function realignAfterDrawing(container: HTMLElement, section: () => ScrollTarget | null): () => void {
   let tries = 0;
   const stop = () => {
     clearInterval(settle);
@@ -187,7 +192,7 @@ function realignAfterDrawing(container: HTMLElement, section: () => HTMLElement 
   const settle = setInterval(() => {
     const target = section();
     if (!target || (tries += 1) > REALIGN_TRIES) stop();
-    else container.scrollTop = scrollerOffset(container, target) - gapAbove(target);
+    else container.scrollTop = scrollerOffset(container, target.node) - target.gap;
   }, REALIGN_MS);
   handEvents((type) => window.addEventListener(type, stop, true));
   return stop;

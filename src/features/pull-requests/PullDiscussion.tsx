@@ -44,7 +44,7 @@ export function PullDiscussion({
   return (
     <div className="flex flex-col">
       <SubjectHeading number={number} pull={pull} url={pullUrl(owner, repo, number)} />
-      <DiscussionEntry
+      <ConversationEntry
         owner={owner}
         repo={repo}
         author={pull.author}
@@ -112,14 +112,13 @@ interface Byline {
 interface EntryProps extends Byline {
   owner: string;
   repo: string;
-  id?: number;
-  path?: string | null;
-  bodyWidth?: string;
+  id: number;
+  path: string | null;
 }
 
-function DiscussionEntry({ path, id, ...entry }: EntryProps) {
-  if (path && id !== undefined) return <InlineEntry {...entry} path={path} id={id} />;
-  return <ConversationEntry {...entry} />;
+function DiscussionEntry({ owner, repo, id, path, ...byline }: EntryProps) {
+  if (path) return <InlineEntry {...byline} id={id} path={path} />;
+  return <ConversationEntry {...byline} owner={owner} repo={repo} />;
 }
 
 function ConversationEntry({
@@ -131,7 +130,7 @@ function ConversationEntry({
   url,
   body,
   bodyWidth = '',
-}: Omit<EntryProps, 'path' | 'id'>) {
+}: Byline & { owner: string; repo: string; bodyWidth?: string }) {
   return (
     <article className={`${ENTRY_LINE} py-1.5`}>
       <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
@@ -169,7 +168,7 @@ function useShowInDiff(path: string, id: number): () => void {
   return () => reveal?.(path, rootOf(threads, id));
 }
 
-// A reply's own id anchors nothing: the diff renders one card per thread, keyed by its root comment.
+// A reply anchors nothing: the diff renders one card per thread, keyed by its root.
 function rootOf(threads: ReviewThread[], id: number): number {
   return threads.find((thread) => thread.comments.some((comment) => comment.id === id))?.rootId ?? id;
 }
