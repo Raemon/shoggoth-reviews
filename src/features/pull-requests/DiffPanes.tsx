@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 import { NearViewportProvider } from './nearViewportStore';
 import { DefinitionPeek } from './DefinitionPeek';
 import { DefinitionPeekProvider } from './definitionPeekStore';
@@ -53,9 +54,14 @@ export function DiffPanes({
   const realigning = useRef<(() => void) | null>(null);
   useEffect(() => () => realigning.current?.(), []);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  const toggleFile = useCallback((path: string) => {
-    setToggled((held) => ({ ...held, [path]: !openFile(held, path) }));
-  }, []);
+  const toggleFile = useCallback(
+    (path: string) => {
+      // The header is sticky: mid-file it, not the section top, is what the eye tracks.
+      const header = sections.current.get(path)?.firstElementChild ?? null;
+      holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path) })));
+    },
+    [scroller],
+  );
 
   useImperativeHandle(ref, () => ({
     scrollToFile(path: string) {
@@ -126,6 +132,12 @@ function ImageStrip({
 }) {
   if (files.length === 0) return null;
   return <ImageThumbnailStrip owner={owner} repo={repo} files={files} baseRef={fileSet.baseRef} headRef={fileSet.headRef} />;
+}
+
+function holdingInPlace(container: HTMLElement | null, anchor: Element | null, change: () => void) {
+  const top = anchor?.getBoundingClientRect().top;
+  flushSync(change);
+  if (container && anchor && top !== undefined) container.scrollTop += anchor.getBoundingClientRect().top - top;
 }
 
 function scrollerOffset(container: HTMLElement, section: HTMLElement): number {
