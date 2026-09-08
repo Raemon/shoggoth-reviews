@@ -15,7 +15,7 @@ const DIFF_SHARE = 2 / 3;
 export const MARKER_SIZE = 18;
 export const MARKER_GAP = 2;
 export const MARKER_STRIP_WIDTH = MARKER_SIZE + MARKER_GAP * 2;
-export const MIN_CARD_WIDTH = 75;
+export const MIN_CARD_WIDTH = 120;
 
 export interface CommentColumn {
   width: number;
