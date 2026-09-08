@@ -116,8 +116,10 @@ function BrowsePane({
   return <RepoBrowseReader owner={owner} repo={repo} fileSet={fileSet} tree={tree} item={item} />;
 }
 
+const PREVIEW_CHIPS = 60;
+
 function treeTokens(tree: RepoFileTree, selected: string | null): PreviewToken[] {
-  return tree.rows.map((row) => ({
+  return tree.rows.slice(0, PREVIEW_CHIPS).map((row) => ({
     key: rowKey(row),
     label: row.node.name.slice(0, 2),
     title: row.node.path,
