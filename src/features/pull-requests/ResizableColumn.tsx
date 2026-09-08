@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { PANE_WIDTH, usePaneMode, type PaneFrame } from './centralLayout';
+import { useCallback, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { PANE_MAX_WIDTH, PANE_WIDTH, usePaneMode, type PaneFrame } from './centralLayout';
 import { useLeftEdgeReveal } from './useEdgeReveal';
+import { useElementWidth } from './useElementWidth';
 import { columnHotkeyHint } from './columnCommands';
 import { useColumnNav, type ColumnRow } from './columnNav';
 import { COLUMN_HEADER, type ColumnId } from './navColumn';
@@ -234,30 +235,44 @@ function PaneColumn({ navId, title, icon, note, action, footer, frame, children 
 }
 
 const REVEAL_ZONE = 200;
+const REVEAL_GAP = 100;
+const MIN_REVEAL_WIDTH = 200;
+
+const REVEAL_BLOCKED = '[data-reveal-blocked]';
 
 // No visible handle in central mode: sweeping to the left page edge is what opens it.
 function RevealColumn({ navId, size, onSize, footer, children }: ColumnProps) {
-  const nearEdge = useLeftEdgeReveal(REVEAL_ZONE, size.width);
+  const [column, setColumn] = useState<HTMLElement | null>(null);
+  const cap = revealCap(useElementWidth(column?.parentElement ?? null));
+  const width = Math.min(size.width, cap);
+  const nearEdge = useLeftEdgeReveal(REVEAL_ZONE, width, REVEAL_BLOCKED);
   const { focused, bodyRef, focus, clearHover } = useColumnNav(navId);
   const shown = nearEdge || focused;
   return (
     <section
+      ref={setColumn}
       data-nav-column={navId}
       onPointerDown={focus}
       onPointerLeave={clearHover}
       inert={!shown}
-      className={`absolute inset-y-0 left-0 z-40 flex w-[var(--col-w)] flex-col bg-panel transition-transform duration-150 ${
-        shown ? 'translate-x-0' : '-translate-x-full'
+      className={`absolute inset-y-0 left-0 z-40 flex w-[var(--col-w)] flex-col bg-panel transition-opacity duration-150 ${
+        shown ? 'opacity-100' : 'pointer-events-none opacity-0'
       }`}
-      style={{ '--col-w': `${size.width}px` } as CSSProperties}
+      style={{ '--col-w': `${width}px` } as CSSProperties}
     >
       <div ref={bodyRef} className="min-h-0 flex-1 overflow-auto">
         <ColumnBoundary>{children}</ColumnBoundary>
       </div>
       {footer}
-      <DragHandle onPointerDown={useDragWidth(size, onSize)} />
+      <DragHandle onPointerDown={useDragWidth(size, onSize, 'right', (wanted) => clampBetween(wanted, MIN_WIDTH, cap))} />
     </section>
   );
+}
+
+// An unmeasured frame is 0 wide, which would pin the panel to its floor on the first paint.
+function revealCap(frame: number): number {
+  if (frame === 0) return Number.POSITIVE_INFINITY;
+  return Math.max(MIN_REVEAL_WIDTH, (frame - PANE_MAX_WIDTH) / 2 - REVEAL_GAP);
 }
 
 function StripColumn({ navId, title, icon, preview, size, onSize, side = 'left' }: ColumnProps) {
