@@ -15,6 +15,7 @@ import { RepoBrowseReader } from './RepoBrowseReader';
 import { useRepoFiles } from './repoFileStore';
 import { ResizableColumn, useCollapsibleColumn, type ColumnSize } from './ResizableColumn';
 import { useRegisterColumn } from './registerColumn';
+import { RevealCommentContext } from './revealComment';
 import { commentCountsOf, sortChangedFiles } from './diffSort';
 import { useDiffSort } from './diffSortStore';
 import { DeleteFileModal } from './DeleteFileModal';
@@ -77,7 +78,7 @@ function Workspace({
   const [deleted, setDeleted] = useState<string[]>([]);
   const [browsed, setBrowsed] = useState<string | null>(null);
   const [fileQuery, setFileQuery] = useState('');
-  const [scrollWanted, setScrollWanted] = useState<string | null>(null);
+  const [scrollWanted, setScrollWanted] = useState<{ path: string; rootId?: number } | null>(null);
   const [allFilesOpen, setAllFilesOpen] = useStickyOpen('all-files');
   const [discussionSize, setDiscussionSize] = useStickyColumn('discussion');
   const [fileSize, setFileSize] = useStickyColumn('files');
@@ -105,7 +106,7 @@ function Workspace({
 
   useEffect(() => {
     if (scrollWanted === null || browsed !== null) return;
-    diffPanes.current?.scrollToFile(scrollWanted);
+    diffPanes.current?.scrollToFile(scrollWanted.path, scrollWanted.rootId);
     setScrollWanted(null);
   }, [scrollWanted, browsed]);
 
@@ -115,10 +116,10 @@ function Workspace({
     setPath((held) => (held && fileSet.files.some((file) => file.filename === held) ? held : fileSet.files[0]?.filename ?? null));
   }, [fileSet, showingWhole]);
 
-  const revealFile = useCallback((filename: string) => {
+  const revealFile = useCallback((filename: string, rootId?: number) => {
     setBrowsed(null);
     setPath(filename);
-    setScrollWanted(filename);
+    setScrollWanted({ path: filename, rootId });
   }, []);
   const browseTree = useRepoFileTree({
     repoFiles,
@@ -200,101 +201,103 @@ function Workspace({
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
-      <div className={`flex min-h-0 flex-1 max-md:flex-col max-md:overflow-y-auto ${stacked ? 'flex-col overflow-y-auto' : ''}`}>
-        {listColumn}
-        {discussion !== null && (
-          <ResizableColumn
-            navId="discussion"
-            icon="❝"
-            title="discussion"
-            preview={<ColumnPreview column="discussion" tokens={DISCUSSION_TOKENS} />}
-            size={discussionSize}
-            onSize={setDiscussionSize}
-          >
-            {discussion}
-          </ResizableColumn>
-        )}
-        {showsDiff && (
-          <div ref={reviewRow} data-reveal-blocked className={stacked ? STACKED_ROW : COLUMNS_ROW}>
-            <CommitsColumn
-              owner={owner}
-              repo={repo}
-              change={change}
-              selection={selection}
-              onSelect={setSelection}
-              size={commitSize}
-              onSize={setCommitSize}
-            />
+    <RevealCommentContext value={revealFile}>
+      <div className="relative flex h-full min-h-0 flex-col">
+        <div className={`flex min-h-0 flex-1 max-md:flex-col max-md:overflow-y-auto ${stacked ? 'flex-col overflow-y-auto' : ''}`}>
+          {listColumn}
+          {discussion !== null && (
             <ResizableColumn
-              navId="files"
-              icon="▤"
-              title="files"
-              note={filesNote(loadedFiles, showingWhole)}
-              tone="bg-shade"
-              preview={<ColumnPreview column="files" tokens={fileTokens(files, path)} />}
-              size={fileSize}
-              onSize={setFileSize}
-              footer={
-                <AllFilesSection
-                  repoFiles={repoFiles}
-                  tree={browseTree}
-                  expanded={allFilesOpen}
-                  onExpanded={setAllFilesOpen}
-                  selected={browsed}
-                  onSelect={setBrowsed}
-                  query={fileQuery}
-                  onQuery={setFileQuery}
-                />
-              }
+              navId="discussion"
+              icon="❝"
+              title="discussion"
+              preview={<ColumnPreview column="discussion" tokens={DISCUSSION_TOKENS} />}
+              size={discussionSize}
+              onSize={setDiscussionSize}
             >
-              <PullFilesColumn
-                files={loadedFiles}
-                fileError={fileError}
-                path={path}
-                onSelect={revealFile}
-                onDelete={editableFiles !== null && fileSet !== null ? deletion.ask : null}
-              />
+              {discussion}
             </ResizableColumn>
-            <ColumnBoundary>
-              {browsed !== null && repoFiles.fileSet !== null ? (
-                <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
-                  <RepoBrowseReader owner={owner} repo={repo} fileSet={repoFiles.fileSet} tree={browseTree} item={browsed} />
-                </div>
-              ) : fileSet === null && fileError !== null ? (
-                <p className="flex-1 px-2 py-1 text-[11px] text-error-ink">{fileError}</p>
-              ) : (
-                <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
-                  {notice !== null && <p className="shrink-0 px-2 py-1 text-[11px] text-error-ink">{notice}</p>}
-                  <DiffPanes
-                    ref={diffPanes}
-                    owner={owner}
-                    repo={repo}
-                    fileSet={fileSet}
-                    files={files}
-                    selected={path}
-                    editablePull={editableFiles}
-                    onCommitted={reloadInPlace}
+          )}
+          {showsDiff && (
+            <div ref={reviewRow} data-reveal-blocked className={stacked ? STACKED_ROW : COLUMNS_ROW}>
+              <CommitsColumn
+                owner={owner}
+                repo={repo}
+                change={change}
+                selection={selection}
+                onSelect={setSelection}
+                size={commitSize}
+                onSize={setCommitSize}
+              />
+              <ResizableColumn
+                navId="files"
+                icon="▤"
+                title="files"
+                note={filesNote(loadedFiles, showingWhole)}
+                tone="bg-shade"
+                preview={<ColumnPreview column="files" tokens={fileTokens(files, path)} />}
+                size={fileSize}
+                onSize={setFileSize}
+                footer={
+                  <AllFilesSection
+                    repoFiles={repoFiles}
+                    tree={browseTree}
+                    expanded={allFilesOpen}
+                    onExpanded={setAllFilesOpen}
+                    selected={browsed}
+                    onSelect={setBrowsed}
+                    query={fileQuery}
+                    onQuery={setFileQuery}
                   />
-                </div>
-              )}
-            </ColumnBoundary>
-            <ColumnBoundary>
-              <AiChatColumn owner={owner} repo={repo} number={number} subject={subjectKey} headRef={headRef} headSha={headCommit(change)?.sha ?? null} />
-            </ColumnBoundary>
-          </div>
+                }
+              >
+                <PullFilesColumn
+                  files={loadedFiles}
+                  fileError={fileError}
+                  path={path}
+                  onSelect={revealFile}
+                  onDelete={editableFiles !== null && fileSet !== null ? deletion.ask : null}
+                />
+              </ResizableColumn>
+              <ColumnBoundary>
+                {browsed !== null && repoFiles.fileSet !== null ? (
+                  <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
+                    <RepoBrowseReader owner={owner} repo={repo} fileSet={repoFiles.fileSet} tree={browseTree} item={browsed} />
+                  </div>
+                ) : fileSet === null && fileError !== null ? (
+                  <p className="flex-1 px-2 py-1 text-[11px] text-error-ink">{fileError}</p>
+                ) : (
+                  <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
+                    {notice !== null && <p className="shrink-0 px-2 py-1 text-[11px] text-error-ink">{notice}</p>}
+                    <DiffPanes
+                      ref={diffPanes}
+                      owner={owner}
+                      repo={repo}
+                      fileSet={fileSet}
+                      files={files}
+                      selected={path}
+                      editablePull={editableFiles}
+                      onCommitted={reloadInPlace}
+                    />
+                  </div>
+                )}
+              </ColumnBoundary>
+              <ColumnBoundary>
+                <AiChatColumn owner={owner} repo={repo} number={number} subject={subjectKey} headRef={headRef} headSha={headCommit(change)?.sha ?? null} />
+              </ColumnBoundary>
+            </div>
+          )}
+        </div>
+        {deletion.asking !== null && (
+          <DeleteFileModal
+            path={deletion.asking}
+            deleting={deletion.deleting}
+            error={deletion.failure}
+            onConfirm={deletion.confirm}
+            onCancel={deletion.cancel}
+          />
         )}
       </div>
-      {deletion.asking !== null && (
-        <DeleteFileModal
-          path={deletion.asking}
-          deleting={deletion.deleting}
-          error={deletion.failure}
-          onConfirm={deletion.confirm}
-          onCancel={deletion.cancel}
-        />
-      )}
-    </div>
+    </RevealCommentContext>
   );
 }
 

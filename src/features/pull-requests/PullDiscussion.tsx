@@ -13,12 +13,13 @@ import { RelativeTime } from '@/features/surface-ui/RelativeTime';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
+import { useRevealComment } from './revealComment';
+import { useReviewTarget } from './reviewThreadStore';
+import type { ReviewThread } from './reviewThreads';
 
 const READING_WIDTH = 'max-w-[720px]';
-const ENTRY_CARD = 'mb-1.5 rounded border border-panel-edge bg-tip px-1.5 py-1 shadow-card';
-// inline-entry names itself so consecutive rows drop the doubled border between them.
-const INLINE_ROW =
-  'inline-entry flex items-center gap-1.5 border-y border-panel-edge px-1.5 text-[9px] leading-5 text-ink-dim [.inline-entry+&]:border-t-0';
+const ENTRY_LINE = 'border-b border-panel-edge px-1.5 last:border-b-0';
+const INLINE_ROW = `${ENTRY_LINE} flex items-center gap-1.5 text-[9px] leading-5 text-ink-dim`;
 
 export function PullDiscussion({
   owner,
@@ -61,6 +62,7 @@ export function PullDiscussion({
         comments.map((comment) => (
           <DiscussionEntry
             key={comment.id}
+            id={comment.id}
             owner={owner}
             repo={repo}
             author={comment.author}
@@ -110,12 +112,13 @@ interface Byline {
 interface EntryProps extends Byline {
   owner: string;
   repo: string;
+  id?: number;
   path?: string | null;
   bodyWidth?: string;
 }
 
-function DiscussionEntry({ path, ...entry }: EntryProps) {
-  if (path) return <InlineEntry {...entry} path={path} />;
+function DiscussionEntry({ path, id, ...entry }: EntryProps) {
+  if (path && id !== undefined) return <InlineEntry {...entry} path={path} id={id} />;
   return <ConversationEntry {...entry} />;
 }
 
@@ -128,9 +131,9 @@ function ConversationEntry({
   url,
   body,
   bodyWidth = '',
-}: Omit<EntryProps, 'path'>) {
+}: Omit<EntryProps, 'path' | 'id'>) {
   return (
-    <article className={ENTRY_CARD}>
+    <article className={`${ENTRY_LINE} py-1.5`}>
       <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
         <EntryAuthor author={author} avatarUrl={avatarUrl} />
         {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
@@ -145,16 +148,30 @@ function ConversationEntry({
   );
 }
 
-function InlineEntry({ author, avatarUrl = '', createdAt, path, url, body }: Byline & { path: string }) {
+function InlineEntry({ id, author, avatarUrl = '', createdAt, path, url, body }: Byline & { id: number; path: string }) {
+  const showInDiff = useShowInDiff(path, id);
   return (
     <article className={INLINE_ROW}>
       <EntryAuthor author={author} avatarUrl={avatarUrl} />
-      <span className="shrink-0 font-serif text-[10px]">{path}</span>
-      <span className="min-w-0 flex-1 truncate font-serif text-[14px] leading-6 text-ink">{commentPreview(body)}</span>
+      <button type="button" onClick={showInDiff} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+        <span className="shrink-0 font-serif text-[10px]">{path}</span>
+        <span className="min-w-0 flex-1 truncate font-serif text-[14px] leading-6 text-ink">{commentPreview(body)}</span>
+      </button>
       {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
       <OpenOnGithub url={url} />
     </article>
   );
+}
+
+function useShowInDiff(path: string, id: number): () => void {
+  const reveal = useRevealComment();
+  const { threads } = useReviewTarget();
+  return () => reveal?.(path, rootOf(threads, id));
+}
+
+// A reply's own id anchors nothing: the diff renders one card per thread, keyed by its root comment.
+function rootOf(threads: ReviewThread[], id: number): number {
+  return threads.find((thread) => thread.comments.some((comment) => comment.id === id))?.rootId ?? id;
 }
 
 function EntryAuthor({ author, avatarUrl }: { author: string; avatarUrl: string }) {

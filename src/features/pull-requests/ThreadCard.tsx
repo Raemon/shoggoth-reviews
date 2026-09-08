@@ -65,7 +65,10 @@ function PostedThreadCard({ thread }: { thread: ReviewThread }) {
   const open = toggled ?? !thread.resolved;
   const shown = open ? thread.comments : thread.comments.slice(0, 1);
   return (
-    <article className={`group relative ${CARD} ${thread.resolved ? 'opacity-70 hover:opacity-100' : ''}`}>
+    <article
+      data-thread-root={thread.rootId}
+      className={`group relative ${CARD} ${thread.resolved ? 'opacity-70 hover:opacity-100' : ''}`}
+    >
       {shown.map((comment, index) => (
         <ThreadComment
           key={comment.id}
