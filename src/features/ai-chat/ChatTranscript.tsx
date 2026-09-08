@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ChatEntry } from './chatEntries';
+import { ChatActionRow, ActionDetail } from './ChatActionRow';
+import { kindForTool, thinkingSummary, toolSummary } from './chatActionMeta';
+import { UserBubble } from './UserBubble';
 import { MarkdownBody } from '@/features/markdown/MarkdownBody';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
-
-const ROW = 'border-b border-panel-edge px-1.5 py-1';
-const LABEL = 'text-[9px] uppercase tracking-[0.18em] text-ink-dim';
 
 export function ChatTranscript({ entries, owner, repo, busy }: { entries: ChatEntry[]; owner: string; repo: string; busy: boolean }) {
   const foot = useRef<HTMLDivElement>(null);
@@ -15,7 +15,7 @@ export function ChatTranscript({ entries, owner, repo, busy }: { entries: ChatEn
     foot.current?.scrollIntoView({ block: 'end' });
   }, [entries]);
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col py-1">
       {entries.map((entry) => (
         <TranscriptEntry key={entry.id} entry={entry} owner={owner} repo={repo} />
       ))}
@@ -26,59 +26,49 @@ export function ChatTranscript({ entries, owner, repo, busy }: { entries: ChatEn
 }
 
 function TranscriptEntry({ entry, owner, repo }: { entry: ChatEntry; owner: string; repo: string }) {
-  if (entry.kind === 'user') return <UserEntry text={entry.text} />;
+  if (entry.kind === 'user') return <UserBubble text={entry.text} />;
   if (entry.kind === 'assistant') return <AssistantEntry text={entry.text} owner={owner} repo={repo} />;
   if (entry.kind === 'thinking') return <ThinkingEntry text={entry.text} />;
   if (entry.kind === 'tool') return <ToolEntry name={entry.name} detail={entry.detail} done={entry.done} />;
   if (entry.kind === 'result') return <ResultEntry entry={entry} owner={owner} repo={repo} />;
-  return <p className={`${ROW} text-[10px] leading-4 ${entry.kind === 'error' ? 'text-error-ink' : 'text-ink-dim'}`}>{entry.text}</p>;
-}
-
-function UserEntry({ text }: { text: string }) {
-  return (
-    <article className={`${ROW} bg-field`}>
-      <p className={LABEL}>you</p>
-      <p className="whitespace-pre-wrap font-serif text-[13px] leading-[1.5] text-ink">{text}</p>
-    </article>
-  );
+  return <NoticeEntry kind={entry.kind} text={entry.text} />;
 }
 
 function AssistantEntry({ text, owner, repo }: { text: string; owner: string; repo: string }) {
   return (
-    <article className={ROW}>
+    <article className="px-1.5 py-1.5">
       <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(text, { owner, repo })} tooltipStyle />
     </article>
   );
 }
 
 function ThinkingEntry({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div className={`${ROW} bg-shade/60`}>
-      <button type="button" onClick={() => setOpen(!open)} className={`${LABEL} flex w-full items-center gap-1 hover:text-ink`}>
-        <span aria-hidden>{open ? '▾' : '▸'}</span>
-        thinking
-        {!open && <span className="min-w-0 flex-1 truncate normal-case tracking-normal">{text.trim()}</span>}
-      </button>
-      {open && <p className="whitespace-pre-wrap font-mono text-[10px] leading-4 text-ink-dim">{text.trim()}</p>}
-    </div>
+    <ChatActionRow kind="thinking" summary={thinkingSummary(text)}>
+      <ActionDetail text={text} />
+    </ChatActionRow>
   );
 }
 
 function ToolEntry({ name, detail, done }: { name: string; detail: string; done: boolean }) {
   return (
-    <div className="flex items-baseline gap-1.5 px-1.5 py-[2px] font-mono text-[10px] text-ink-dim">
-      <span aria-hidden className={done ? 'text-scope' : 'animate-pulse text-accent'}>{done ? '✓' : '◍'}</span>
-      <span className="shrink-0 text-ink">{name}</span>
-      <span className="min-w-0 flex-1 truncate">{detail}</span>
-    </div>
+    <ChatActionRow kind={kindForTool(name)} summary={toolSummary(name, detail)} live={!done}>
+      <ActionDetail text={[name, detail].filter(Boolean).join('\n')} />
+    </ChatActionRow>
+  );
+}
+
+function NoticeEntry({ kind, text }: { kind: 'notice' | 'error'; text: string }) {
+  return (
+    <ChatActionRow kind={kind} summary={text}>
+      <ActionDetail text={text} />
+    </ChatActionRow>
   );
 }
 
 function ResultEntry({ entry, owner, repo }: { entry: Extract<ChatEntry, { kind: 'result' }>; owner: string; repo: string }) {
   return (
-    <article className={`${ROW} border-l-2 border-l-scope`}>
-      <p className={LABEL}>result</p>
+    <article className="px-1.5 py-1.5">
       <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(entry.text, { owner, repo })} tooltipStyle />
       {entry.branch !== null && <p className="mt-0.5 font-mono text-[10px] text-ink-dim">pushed to {entry.branch}</p>}
       {entry.prUrl && (
@@ -92,7 +82,7 @@ function ResultEntry({ entry, owner, repo }: { entry: Extract<ChatEntry, { kind:
 
 function PendingDots() {
   return (
-    <p aria-live="polite" className="animate-pulse px-1.5 py-1 text-[10px] tracking-[0.3em] text-ink-dim">
+    <p aria-live="polite" className="animate-pulse px-1.5 py-1 text-[10px] tracking-[0.3em] text-ink-dim opacity-50">
       •••
     </p>
   );
