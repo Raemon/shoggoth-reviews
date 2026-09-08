@@ -37,8 +37,11 @@ const EDIT_BTN = `${STICKY_CHIP} uppercase tracking-[0.14em]`;
 const FOLD_BADGE = `${STICKY_CHIP} ml-auto text-[9px] italic text-ink-dim`;
 const FOLD_PREVIEW = 'diff-code hidden max-w-[90ch] shrink-[999] overflow-hidden text-ellipsis whitespace-pre pl-2 text-[11px] text-ink-dim/70 group-hover:block';
 const CODE = 'diff-code whitespace-pre pr-2 text-[11px]';
+const CLIPPED_CODE = `${CODE} min-w-0 overflow-hidden text-ellipsis`;
+// Pairs with .fold-tail in RoleSpan: reveal the tail on hover without wrapping the row.
+const CLIP_FOLDED = 'has-[.fold-tail]:whitespace-pre has-[.fold-tail]:overflow-hidden has-[.fold-tail]:text-ellipsis';
 // break-word, so only a word too long for a whole line is ever split.
-const WRAPPED_CODE = 'diff-code min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:break-word] [tab-size:8] pr-2 text-[11px]';
+const WRAPPED_CODE = `diff-code min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:break-word] [tab-size:8] pr-2 text-[11px] ${CLIP_FOLDED}`;
 // 100px keeps the fold badge clear of the ellipsis; 100cqw is the visible column width.
 const FOLDED_TEXT = 'flex min-w-0 max-w-[calc(100cqw-100px)] overflow-hidden';
 const STRIP = `${ROW} bg-procgen px-1 text-left text-[9px] text-ink-dim`;
@@ -313,7 +316,7 @@ function DiffLineView({
       <span className={collapsed ? FOLDED_TEXT : 'contents'}>
         <span
           {...{ [WRAPPED_CELL]: `${side}:${line.row}` }}
-          className={codeClass(collapsed, wrapping)}
+          className={collapsed ? CLIPPED_CODE : wrapping ? WRAPPED_CODE : CODE}
           style={wrapping && !collapsed ? hangingIndentStyle(cell.text) : undefined}
           onClick={pointer && !collapsed ? (event) => pointer.press(line, event) : undefined}
           onMouseMove={pointer ? (event) => pointer.move(line, event) : undefined}
@@ -398,14 +401,8 @@ function SegmentSpan({ segment, side }: { segment: DimmedSegment; side: 'left' |
 // The tail stays in the DOM while hidden so click offsets still match the source line.
 function RoleSpan({ role, prefix, children }: { role: SegmentRole | undefined; prefix: CSSProperties; children: ReactNode }) {
   if (role === 'prefix') return <span className="inline-block indent-0" style={prefix}>{children}</span>;
-  if (role === 'tail') return <span className="hidden group-hover:inline">{children}</span>;
+  if (role === 'tail') return <span className="fold-tail hidden group-hover:inline">{children}</span>;
   return children;
-}
-
-// A collapsed row shows one ellipsised line, so it neither wraps nor hangs.
-function codeClass(collapsed: boolean, wrapping: boolean): string {
-  if (collapsed) return `${CODE} min-w-0 overflow-hidden text-ellipsis`;
-  return wrapping ? WRAPPED_CODE : CODE;
 }
 
 // Negative text-indent pulls the first line back out of the padding the continuations sit in.
