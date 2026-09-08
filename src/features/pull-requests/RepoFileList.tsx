@@ -23,7 +23,7 @@ export function RepoFileList({
   onQuery: (next: string) => void;
 }) {
   return (
-    <>
+    <div className="flex min-h-full flex-col">
       <div className="border-b border-panel-edge px-1.5 py-[2px]">
         <FilterField
           value={query}
@@ -33,7 +33,19 @@ export function RepoFileList({
         />
       </div>
       <FileRows repoFiles={repoFiles} tree={tree} selected={selected} onSelect={onSelect} />
-    </>
+      <ExpandAllSpace onActivate={tree.expandAll} />
+    </div>
+  );
+}
+
+function ExpandAllSpace({ onActivate }: { onActivate: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onActivate}
+      aria-label="Expand every folder"
+      className="min-h-6 flex-1 cursor-default"
+    />
   );
 }
 
