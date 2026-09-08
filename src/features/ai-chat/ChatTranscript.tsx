@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import type { ChatEntry } from './chatEntries';
 import { ChatActionRow, ActionDetail } from './ChatActionRow';
 import { kindForTool, thinkingSummary, toolSummary } from './chatActionMeta';
@@ -35,11 +35,7 @@ function TranscriptEntry({ entry, owner, repo }: { entry: ChatEntry; owner: stri
 }
 
 function AssistantEntry({ text, owner, repo }: { text: string; owner: string; repo: string }) {
-  return (
-    <article className="px-1.5 py-1.5">
-      <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(text, { owner, repo })} tooltipStyle />
-    </article>
-  );
+  return <MarkdownEntry text={text} owner={owner} repo={repo} />;
 }
 
 function ThinkingEntry({ text }: { text: string }) {
@@ -68,14 +64,30 @@ function NoticeEntry({ kind, text }: { kind: 'notice' | 'error'; text: string })
 
 function ResultEntry({ entry, owner, repo }: { entry: Extract<ChatEntry, { kind: 'result' }>; owner: string; repo: string }) {
   return (
-    <article className="px-1.5 py-1.5">
-      <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(entry.text, { owner, repo })} tooltipStyle />
-      {entry.branch !== null && <p className="mt-0.5 font-mono text-[10px] text-ink-dim">pushed to {entry.branch}</p>}
-      {entry.prUrl && (
-        <a href={entry.prUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-accent underline">
+    <MarkdownEntry text={entry.text} owner={owner} repo={repo}>
+      <ResultMeta branch={entry.branch} prUrl={entry.prUrl} />
+    </MarkdownEntry>
+  );
+}
+
+function ResultMeta({ branch, prUrl }: { branch: string | null; prUrl: string | null }) {
+  return (
+    <>
+      {branch !== null && <p className="mt-0.5 font-mono text-[10px] text-ink-dim">pushed to {branch}</p>}
+      {prUrl && (
+        <a href={prUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-[10px] text-accent underline">
           open pull request
         </a>
       )}
+    </>
+  );
+}
+
+function MarkdownEntry({ text, owner, repo, children }: { text: string; owner: string; repo: string; children?: ReactNode }) {
+  return (
+    <article className="px-1.5 py-1.5">
+      <MarkdownBody className="markdown-body break-words text-ink" html={renderMarkdown(text, { owner, repo })} tooltipStyle />
+      {children}
     </article>
   );
 }

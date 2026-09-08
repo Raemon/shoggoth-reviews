@@ -42,9 +42,7 @@ function ActionToggle({
 }) {
   return (
     <button type="button" aria-expanded={open} onClick={onToggle} className={TOGGLE}>
-      <span className={live ? 'shrink-0 animate-pulse' : 'shrink-0'}>
-        <ActionIcon kind={kind} />
-      </span>
+      <LiveIcon kind={kind} live={live} />
       <span className="flex min-w-0 items-center gap-1">
         <span className="min-w-0 truncate">{summary}</span>
         <ChevronIcon open={open} />
@@ -55,4 +53,12 @@ function ActionToggle({
 
 export function ActionDetail({ text }: { text: string }) {
   return <p className="whitespace-pre-wrap pb-1 pl-5 font-mono text-[10px] leading-4">{text.trim()}</p>;
+}
+
+function LiveIcon({ kind, live }: { kind: ActionKind; live: boolean }) {
+  return (
+    <span className={live ? 'shrink-0 animate-pulse' : 'shrink-0'}>
+      <ActionIcon kind={kind} />
+    </span>
+  );
 }
