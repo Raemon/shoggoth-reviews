@@ -17,6 +17,7 @@ import { PullBranchRefs } from '@/features/pull-requests/PullBranchRefs';
 import { ALL_PULLS_ROWS, setPullAuthor, useOfferedPullAuthors, useShownPullAuthor, type PullAuthor } from '@/features/pull-requests/pullFilterStore';
 import { PullRequestMenu } from '@/features/pull-requests/PullRequestMenu';
 import { ViewModeToggle } from '@/features/pull-requests/ViewModeToggle';
+import { useViewMode } from '@/features/pull-requests/viewModeStore';
 import { type RepoRef } from '@/features/sources/parseRepoLink';
 import { opensAnotherTab } from '@/features/surface-ui/selectableClick';
 import { SelectableLink } from '@/features/surface-ui/SelectableLink';
@@ -58,8 +59,10 @@ export function CodebaseHeader() {
   );
 }
 
+// Central mode: the discussion column shows the title, so don't repeat it here.
 function HeaderSubject({ repo, pullNumber, branch }: { repo: RepoRef; pullNumber: number | null; branch: string | null }) {
-  if (pullNumber !== null) return <CurrentPullTitle repo={repo} number={pullNumber} />;
+  const central = useViewMode() === 'central';
+  if (pullNumber !== null) return central ? null : <CurrentPullTitle repo={repo} number={pullNumber} />;
   if (branch !== null) return <CurrentBranchTitle repo={repo} branch={branch} />;
   return <PullRequestMenu repo={repo} />;
 }

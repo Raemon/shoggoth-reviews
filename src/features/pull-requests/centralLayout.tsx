@@ -1,112 +1,62 @@
 'use client';
 
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { useColumnNav } from './columnNav';
 import type { ColumnId } from './navColumn';
 import { useViewMode } from './viewModeStore';
 
-export type CentralTab = 'pulls' | 'review' | 'ai-chat';
-
 export type PaneFrame = 'pane' | 'preface';
 
-export type PaneMode = 'hidden' | 'column' | PaneFrame;
+export type PaneMode = 'hidden' | 'column' | 'reveal' | 'overlay' | PaneFrame;
 
-interface TabEntry {
-  tab: CentralTab;
-  label: string;
-  columns: Partial<Record<ColumnId, PaneMode>>;
-  focus: ColumnId;
-}
-
-const PULLS_TAB: TabEntry = { tab: 'pulls', label: 'pull requests', columns: { pulls: 'pane' }, focus: 'pulls' };
-
-const SUBJECT_TABS: TabEntry[] = [
-  {
-    tab: 'review',
-    label: 'review',
-    columns: { discussion: 'preface', commits: 'column', files: 'column', diff: 'column' },
-    focus: 'files',
-  },
-  { tab: 'ai-chat', label: 'ai chat', columns: { 'ai-chat': 'pane' }, focus: 'ai-chat' },
-];
-
-const TABS = [PULLS_TAB, ...SUBJECT_TABS];
-
-const ENTRY_OF_TAB = new Map<CentralTab, TabEntry>(TABS.map((entry) => [entry.tab, entry]));
+const CENTRAL_PANES: Partial<Record<ColumnId, PaneMode>> = {
+  pulls: 'reveal',
+  discussion: 'preface',
+  commits: 'column',
+  files: 'column',
+  diff: 'column',
+};
 
 export const PANE_WIDTH = 'mx-auto w-full max-w-[980px]';
 
-const TAB_ROW = 'shrink-0 border-b border-panel-edge bg-panel py-1';
-const TAB_BUTTON = 'rounded px-1.5 py-[2px] text-[10px] uppercase tracking-[0.18em]';
+const RAIL =
+  'absolute inset-y-0 right-0 z-20 flex w-7 flex-col items-center justify-center gap-2.5 border-l border-panel-edge bg-panel py-2 text-[10px] uppercase tracking-[0.18em] text-ink-dim hover:bg-btn-hover hover:text-ink';
 
 interface CentralValue {
   central: boolean;
-  tab: CentralTab;
-  setTab: (tab: CentralTab) => void;
+  chatOpen: boolean;
+  setChatOpen: (open: boolean) => void;
 }
 
-const CentralContext = createContext<CentralValue>({ central: false, tab: 'review', setTab: () => {} });
+const CentralContext = createContext<CentralValue>({ central: false, chatOpen: false, setChatOpen: () => {} });
 
 export function CentralLayoutProvider({ children }: { children: ReactNode }) {
-  const [tab, setTab] = useState<CentralTab>('review');
+  const [chatOpen, setChatOpen] = useState(false);
   const central = useViewMode() === 'central';
-  return <CentralContext.Provider value={{ central, tab, setTab }}>{children}</CentralContext.Provider>;
+  return <CentralContext.Provider value={{ central, chatOpen, setChatOpen }}>{children}</CentralContext.Provider>;
 }
 
 export function useCentralLayout(): CentralValue {
   return useContext(CentralContext);
 }
 
-function entryOf(tab: CentralTab): TabEntry {
-  return ENTRY_OF_TAB.get(tab) ?? PULLS_TAB;
-}
-
-export function tabContaining(id: ColumnId): CentralTab | null {
-  return TABS.find((entry) => id in entry.columns)?.tab ?? null;
-}
-
 export function usePaneMode(id: ColumnId): PaneMode {
-  const { central, tab } = useCentralLayout();
-  return central ? entryOf(tab).columns[id] ?? 'hidden' : 'column';
+  const { central, chatOpen } = useCentralLayout();
+  if (!central) return 'column';
+  if (id === 'ai-chat') return chatOpen ? 'overlay' : 'hidden';
+  return CENTRAL_PANES[id] ?? 'hidden';
 }
 
 export function useShowsColumn(id: ColumnId): boolean {
   return usePaneMode(id) !== 'hidden';
 }
 
-export function CentralTabBar() {
-  const { central } = useCentralLayout();
-  if (!central) return null;
+export function CentralChatRail() {
+  const { central, chatOpen, setChatOpen } = useCentralLayout();
+  if (!central || chatOpen) return null;
   return (
-    <div className={TAB_ROW}>
-      <div className="relative flex items-center px-1.5">
-        <div className="absolute left-1.5">
-          <TabButton {...PULLS_TAB} />
-        </div>
-        <div className="mx-auto flex items-center gap-1">
-          {SUBJECT_TABS.map((entry) => (
-            <TabButton key={entry.tab} {...entry} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TabButton({ tab, label, focus }: TabEntry) {
-  const { tab: active, setTab } = useCentralLayout();
-  const nav = useColumnNav(focus);
-  return (
-    <button
-      type="button"
-      aria-current={tab === active ? 'page' : undefined}
-      onClick={() => {
-        setTab(tab);
-        nav.focus();
-      }}
-      className={`${TAB_BUTTON} ${tab === active ? 'bg-btn-active text-accent' : 'text-ink-dim hover:bg-btn-hover hover:text-ink'}`}
-    >
-      {label}
+    <button type="button" onClick={() => setChatOpen(true)} aria-label="Open AI chat" className={RAIL}>
+      <span aria-hidden className="shrink-0 text-[11px] leading-none">✳</span>
+      <span className="shrink-0 [writing-mode:vertical-rl]">ai chat</span>
     </button>
   );
 }

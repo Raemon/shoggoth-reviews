@@ -9,6 +9,7 @@ import type { PullTarget } from './pullActionStore';
 import { clearPullFilters, isDefaultPullFilters, usePullFilters } from './pullFilterStore';
 import { prefetchPull } from './prefetchPull';
 import { pullRoute, pullSubject } from './pullPaths';
+import type { PullRequestSummary } from './pullRequests';
 import { WorkingSparkle } from '@/features/ai-chat/WorkingSparkle';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import { useGithubToken } from '@/features/sources/sourceStore';
@@ -47,10 +48,18 @@ export function PullRowFields({ pull, target, repo, repoColumnCh }: { pull: Pull
         {!isOwnAuthor(pull.author) && <span className={ROW_META}>{pull.author}</span>}
         <span className="flex-1" />
         <WorkingSparkle subject={pullSubject(target.owner, target.repo, target.number)} />
-        {pull.draft && <RowTag>draft</RowTag>}
-        {pull.state !== 'open' && <RowTag>{pull.merged ? 'merged' : 'closed'}</RowTag>}
+        <StateTags pull={pull} />
         <RelativeTime iso={pull.updatedAt} className={ROW_META} />
       </div>
+    </>
+  );
+}
+
+export function StateTags({ pull }: { pull: PullRequestSummary }) {
+  return (
+    <>
+      {pull.draft && <RowTag>draft</RowTag>}
+      {pull.state !== 'open' && <RowTag>{pull.merged ? 'merged' : 'closed'}</RowTag>}
     </>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import { PANE_WIDTH, usePaneMode, type PaneFrame } from './centralLayout';
+import { PANE_WIDTH, useCentralLayout, usePaneMode, type PaneFrame } from './centralLayout';
+import { useLeftEdgeReveal } from './useEdgeReveal';
 import { columnHotkeyHint } from './columnCommands';
 import { useColumnNav, type ColumnRow } from './columnNav';
 import { COLUMN_HEADER, type ColumnId } from './navColumn';
@@ -132,12 +133,15 @@ export function SectionHeader({
   );
 }
 
+const COLLAPSE_CHEVRON: Record<ColumnSide, string> = { left: '‹', right: '›' };
+
 function ColumnHeader({
   navId,
   title,
   icon,
   note,
   action,
+  side = 'left',
   onCollapse,
 }: {
   navId: ColumnId;
@@ -145,6 +149,7 @@ function ColumnHeader({
   icon: string;
   note?: string;
   action?: ReactNode;
+  side?: ColumnSide;
   onCollapse: (() => void) | null;
 }) {
   const nav = useColumnNav(navId);
@@ -158,7 +163,7 @@ function ColumnHeader({
         titleTone={nav.focused ? 'text-accent' : 'text-ink-dim'}
         note={note}
         hotkey={columnHotkeyHint(navId)}
-        chevron={onCollapse === null ? null : <span className="inline-block max-md:-rotate-90">‹</span>}
+        chevron={onCollapse === null ? null : <span className="inline-block max-md:-rotate-90">{COLLAPSE_CHEVRON[side]}</span>}
         className="min-w-0 flex-1"
         label={onCollapse === null ? title : `Collapse ${title}`}
         onActivate={onCollapse ?? (() => {})}
@@ -187,12 +192,14 @@ export function ResizableColumn(props: ColumnProps) {
   const pane = usePaneMode(props.navId);
   if (pane === 'hidden') return null;
   if (pane === 'column') return props.size.open ? <OpenColumn {...props} /> : <StripColumn {...props} />;
+  if (pane === 'reveal') return <RevealColumn {...props} />;
+  if (pane === 'overlay') return <OverlayColumn {...props} />;
   return <PaneColumn {...props} frame={pane} />;
 }
 
-const PANE_FRAME: Record<PaneFrame, { section: string; body: string }> = {
-  pane: { section: 'min-h-0 flex-1', body: 'min-h-0 flex-1 overflow-auto' },
-  preface: { section: 'shrink-0 border-b border-panel-edge', body: '' },
+const PANE_FRAME: Record<PaneFrame, { section: string; body: string; header: boolean }> = {
+  pane: { section: 'min-h-0 flex-1', body: 'min-h-0 flex-1 overflow-auto', header: true },
+  preface: { section: 'shrink-0', body: '', header: false },
 };
 
 function PaneColumn({ navId, title, icon, note, action, footer, frame, children }: ColumnProps & { frame: PaneFrame }) {
@@ -204,9 +211,11 @@ function PaneColumn({ navId, title, icon, note, action, footer, frame, children 
       onPointerLeave={nav.clearHover}
       className={`flex min-w-0 flex-col bg-panel ${PANE_FRAME[frame].section}`}
     >
-      <div className={`${PANE_WIDTH} shrink-0`}>
-        <ColumnHeader navId={navId} title={title} icon={icon} note={note} action={action} onCollapse={null} />
-      </div>
+      {PANE_FRAME[frame].header && (
+        <div className={`${PANE_WIDTH} shrink-0`}>
+          <ColumnHeader navId={navId} title={title} icon={icon} note={note} action={action} onCollapse={null} />
+        </div>
+      )}
       <div ref={nav.bodyRef} className={PANE_FRAME[frame].body}>
         <div className={PANE_WIDTH}>
           <ColumnBoundary>{children}</ColumnBoundary>
@@ -215,6 +224,84 @@ function PaneColumn({ navId, title, icon, note, action, footer, frame, children 
       {footer}
     </section>
   );
+}
+
+const FLOATING = 'absolute inset-y-0 z-40 flex w-[var(--col-w)] flex-col bg-panel shadow-2xl';
+
+const FLOATING_SIDE: Record<ColumnSide, string> = { left: 'left-0 border-r', right: 'right-0 border-l' };
+
+const REVEAL_ZONE = 200;
+
+// No visible handle in central mode: sweeping to the left page edge is what opens it.
+function RevealColumn(props: ColumnProps) {
+  const nearEdge = useLeftEdgeReveal(REVEAL_ZONE, props.size.width);
+  const { focused } = useColumnNav(props.navId);
+  const shown = nearEdge || focused;
+  return (
+    <FloatingColumn
+      {...props}
+      side="left"
+      inert={!shown}
+      className={`transition-transform duration-150 ${shown ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
+      header={props.action && <div className="flex shrink-0 justify-end border-b border-panel-edge px-1 py-[2px]">{props.action}</div>}
+    />
+  );
+}
+
+function OverlayColumn(props: ColumnProps) {
+  const { setChatOpen } = useCentralLayout();
+  return (
+    <FloatingColumn
+      {...props}
+      side="right"
+      header={
+        <ColumnHeader
+          navId={props.navId}
+          title={props.title}
+          icon={props.icon}
+          note={props.note}
+          action={props.action}
+          side="right"
+          onCollapse={() => setChatOpen(false)}
+        />
+      }
+    />
+  );
+}
+
+function FloatingColumn({
+  navId,
+  size,
+  onSize,
+  side,
+  header,
+  footer,
+  inert = false,
+  className = '',
+  children,
+}: ColumnProps & { side: ColumnSide; header: ReactNode; inert?: boolean; className?: string }) {
+  const nav = useColumnNav(navId);
+  return (
+    <section
+      data-nav-column={navId}
+      onPointerDown={nav.focus}
+      onPointerLeave={nav.clearHover}
+      inert={inert}
+      className={`${FLOATING} ${FLOATING_SIDE[side]} border-panel-edge ${className}`}
+      style={{ '--col-w': `${size.width}px` } as CSSProperties}
+    >
+      {header}
+      <div ref={nav.bodyRef} className="min-h-0 flex-1 overflow-auto">
+        <ColumnBoundary>{children}</ColumnBoundary>
+      </div>
+      {footer}
+      <DragHandle onPointerDown={useDragWidth(size, onSize, oppositeOf(side))} edge={oppositeOf(side)} />
+    </section>
+  );
+}
+
+function oppositeOf(side: ColumnSide): DragEdge {
+  return side === 'left' ? 'right' : 'left';
 }
 
 function StripColumn({ navId, title, icon, preview, size, onSize, side = 'left' }: ColumnProps) {

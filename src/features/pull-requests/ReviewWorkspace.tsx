@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AiChatColumn } from '@/features/ai-chat/AiChatColumn';
 import { ColumnBoundary } from '@/features/surface-ui/ColumnBoundary';
 import { AllFilesSection } from './AllFilesSection';
-import { CentralTabBar, useCentralLayout, useShowsColumn } from './centralLayout';
+import { CentralChatRail, useCentralLayout, useShowsColumn } from './centralLayout';
 import { ColumnPreview, type PreviewToken } from './ColumnPreview';
 import { DiffPanes, type DiffPanesHandle } from './DiffPanes';
 import { CommitsColumn } from './CommitsColumn';
@@ -200,9 +200,8 @@ function Workspace({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <CentralTabBar />
-      <div className={`flex min-h-0 flex-1 max-md:flex-col max-md:overflow-y-auto ${stacked ? 'flex-col overflow-y-auto' : ''}`}>
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div className={`flex min-h-0 flex-1 max-md:flex-col max-md:overflow-y-auto ${stacked ? 'flex-col overflow-y-auto pr-7' : ''}`}>
         {listColumn}
         {discussion !== null && (
           <ResizableColumn
@@ -286,6 +285,7 @@ function Workspace({
           <AiChatColumn owner={owner} repo={repo} number={number} subject={subjectKey} headRef={headRef} headSha={headCommit(change)?.sha ?? null} />
         </ColumnBoundary>
       </div>
+      <CentralChatRail />
       {deletion.asking !== null && (
         <DeleteFileModal
           path={deletion.asking}

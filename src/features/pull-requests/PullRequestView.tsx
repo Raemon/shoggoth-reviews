@@ -66,7 +66,7 @@ export function PullRequestView({
           <RepoPullsColumn owner={owner} repo={repo} size={listSize} onSize={setListSize} />
         )
       }
-      discussion={<PullDiscussion owner={owner} repo={repo} number={number} author={pull.pull.author} body={pull.body} />}
+      discussion={<PullDiscussion owner={owner} repo={repo} number={number} pull={pull.pull} body={pull.body} />}
       editableWhole={editablePull(pull.pull)}
     />
   );
