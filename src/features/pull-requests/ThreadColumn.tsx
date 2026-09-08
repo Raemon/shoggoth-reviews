@@ -5,13 +5,14 @@ import { overflowPast, placeThreads, type AnchoredThread, type PlacedThread } fr
 import { linesHeight, ROW_HEIGHT, type RowHeights } from './diffMetrics';
 import type { DiffLine } from './diffLines';
 import { rowLighting } from './litRow';
+import { PEEK_SCOPE } from './peekScope';
 import { ThreadCard } from './ThreadCard';
 
 const CARD_GAP = 4;
-const EXPAND_BAR = 15;
+const COLLAPSE_BAR = 15;
 // Keep in sync with the rendered height of a ThreadCard header row.
-const CARD_HEADER = 22;
-const MIN_SLOT = CARD_HEADER + EXPAND_BAR;
+const CARD_HEADER = 26;
+const PEEK_BODY = 16;
 
 export function ThreadColumn({
   anchors,
@@ -29,7 +30,7 @@ export function ThreadColumn({
   const measure = useCallback((rootId: number, height: number) => {
     setHeights((held) => (held[rootId] === height ? held : { ...held, [rootId]: height }));
   }, []);
-  const cards = placeThreads(anchors, heights, CARD_GAP, MIN_SLOT);
+  const cards = placeThreads(anchors, heights, CARD_GAP, CARD_HEADER);
   const overflow = overflowBelow(cards, heights, expanded, linesHeight(lines, rowHeights));
 
   useEffect(() => onOverflow(overflow), [overflow, onOverflow]);
@@ -62,7 +63,7 @@ function shownHeight(card: PlacedThread, heights: Record<number, number>, expand
   const natural = heights[card.thread.rootId] ?? ROW_HEIGHT;
   const clampTo = clampFor(card, heights);
   if (clampTo === null) return natural;
-  return expanded[card.thread.rootId] ? natural + EXPAND_BAR : clampTo;
+  return expanded[card.thread.rootId] ? natural + COLLAPSE_BAR : clampTo;
 }
 
 function overflowBelow(
@@ -105,23 +106,50 @@ function PlacedCard({
 
   const clipped = clampTo !== null && !expanded;
   const overlaid = clampTo !== null && expanded;
+  const peeking = clipped && onlyFitsHeader(clampTo);
   return (
-    <div {...rowLighting(row)} style={{ top }} className={`absolute inset-x-0 px-1 transition-[top] duration-150 ${overlaid ? 'z-10' : ''}`}>
-      <div className={clipped ? 'overflow-hidden' : undefined} style={clipped ? { maxHeight: clampTo - EXPAND_BAR } : undefined}>
+    <div
+      {...rowLighting(row)}
+      style={{ top }}
+      className={`absolute inset-x-0 px-1 transition-[top] duration-150 ${overlaid ? 'z-10' : ''} ${peeking ? PEEK_SCOPE : ''}`}
+    >
+      <div className={clipped ? 'overflow-hidden' : undefined} style={clipped ? { maxHeight: clampTo } : undefined}>
         <div ref={node}>{children}</div>
       </div>
-      {clampTo !== null && (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
-          aria-label={expanded ? 'Collapse comment' : 'Expand comment'}
-          style={{ height: EXPAND_BAR }}
-          className="block w-full rounded-b border border-t-0 border-panel-edge bg-tip px-1.5 text-left text-[9px] italic leading-[13px] text-ink-dim hover:text-ink"
-        >
-          {expanded ? 'Collapse' : 'Expand'}
-        </button>
-      )}
+      {clipped && <ExpandTarget wholeCard={peeking} onToggle={onToggle} />}
+      {overlaid && <CollapseBar onToggle={onToggle} />}
     </div>
+  );
+}
+
+function onlyFitsHeader(clampTo: number): boolean {
+  return clampTo - CARD_HEADER < PEEK_BODY;
+}
+
+function ExpandTarget({ wholeCard, onToggle }: { wholeCard: boolean; onToggle: () => void }) {
+  const reach = wholeCard ? 'inset-y-0' : 'bottom-0 h-4 bg-gradient-to-t from-tip to-transparent';
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={false}
+      aria-label="Expand comment"
+      className={`absolute inset-x-1 ${reach}`}
+    />
+  );
+}
+
+function CollapseBar({ onToggle }: { onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded
+      aria-label="Collapse comment"
+      style={{ height: COLLAPSE_BAR }}
+      className="block w-full rounded-b border border-t-0 border-panel-edge bg-tip px-1.5 text-left text-[9px] italic leading-[13px] text-ink-dim hover:text-ink"
+    >
+      Collapse
+    </button>
   );
 }
