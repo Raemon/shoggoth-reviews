@@ -4,6 +4,7 @@ import { pullCommentsPath, pullUrl } from './pullPaths';
 import { AuthorPortrait, OpenOnGithub } from './CommentByline';
 import { useCentralLayout } from './centralLayout';
 import { StateTags } from './PullListRow';
+import { commentPreview } from './commentPreview';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
 import type { PullComment, PullRequestSummary } from './pullRequests';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
@@ -14,6 +15,9 @@ import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
 
 const READING_WIDTH = 'max-w-[720px]';
+const ENTRY_CARD = 'mb-1.5 rounded border border-panel-edge bg-tip px-1.5 py-1 shadow-card';
+const INLINE_ROW =
+  'inline-entry flex items-center gap-1.5 border-y border-panel-edge px-1.5 text-[9px] leading-5 text-ink-dim [.inline-entry+&]:border-t-0';
 
 export function PullDiscussion({
   owner,
@@ -94,17 +98,7 @@ function SubjectMeta({ number, pull, url }: { number: number; pull: PullRequestS
   );
 }
 
-function DiscussionEntry({
-  owner,
-  repo,
-  author,
-  avatarUrl = '',
-  createdAt,
-  path,
-  url,
-  body,
-  bodyWidth = '',
-}: {
+interface EntryProps {
   owner: string;
   repo: string;
   author: string;
@@ -114,19 +108,19 @@ function DiscussionEntry({
   url: string;
   body: string;
   bodyWidth?: string;
-}) {
-  const isOwnAuthor = useIsOwnAuthor();
+}
+
+function DiscussionEntry(entry: EntryProps) {
+  if (entry.path) return <InlineEntry {...entry} />;
+  return <ConversationEntry {...entry} />;
+}
+
+function ConversationEntry({ owner, repo, author, avatarUrl = '', createdAt, url, body, bodyWidth = '' }: EntryProps) {
   return (
-    <article className="border-b border-panel-edge px-1.5 py-1">
+    <article className={ENTRY_CARD}>
       <header className="flex items-center gap-1.5 text-[9px] leading-4 text-ink-dim">
-        {!isOwnAuthor(author) && (
-          <>
-            <AuthorPortrait avatarUrl={avatarUrl} />
-            <span className="shrink-0 text-ink">{author}</span>
-          </>
-        )}
+        <EntryAuthor author={author} avatarUrl={avatarUrl} />
         {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
-        {path && <span className="min-w-0 flex-1 truncate font-serif text-[10px]">{path}</span>}
         <OpenOnGithub url={url} className="ml-auto" />
       </header>
       <MarkdownBody
@@ -135,5 +129,28 @@ function DiscussionEntry({
         tooltipStyle
       />
     </article>
+  );
+}
+
+function InlineEntry({ author, avatarUrl = '', createdAt, path, url, body }: EntryProps) {
+  return (
+    <article className={INLINE_ROW}>
+      <EntryAuthor author={author} avatarUrl={avatarUrl} />
+      <span className="shrink-0 font-serif text-[10px]">{path}</span>
+      <span className="min-w-0 flex-1 truncate">{commentPreview(body)}</span>
+      {createdAt && <RelativeTime iso={createdAt} className="shrink-0" />}
+      <OpenOnGithub url={url} />
+    </article>
+  );
+}
+
+function EntryAuthor({ author, avatarUrl }: { author: string; avatarUrl: string }) {
+  const isOwnAuthor = useIsOwnAuthor();
+  if (isOwnAuthor(author)) return null;
+  return (
+    <>
+      <AuthorPortrait avatarUrl={avatarUrl} />
+      <span className="shrink-0 text-ink">{author}</span>
+    </>
   );
 }

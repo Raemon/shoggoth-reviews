@@ -9,6 +9,7 @@ import { useReviewTarget, type ReviewThreadTarget } from './reviewThreadStore';
 import { AuthorPortrait, COMMENT_ACTION, OpenOnGithub } from './CommentByline';
 import { ThreadReplyBox } from './ThreadReplyBox';
 import { useThreadAction } from './useThreadAction';
+import { commentPreview } from './commentPreview';
 import { renderMarkdown } from '@/features/markdown/renderMarkdown';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { MarkdownBody } from '@/features/markdown/MarkdownBody';
@@ -131,7 +132,8 @@ function ThreadComment({
         >
           {comment.author}
         </button>
-        <span className="min-w-0 flex-1 truncate">{note}</span>
+        {note && <span className="shrink-0">{note}</span>}
+        <CommentPeek body={comment.body} onlyWhenPeeking={showBody} />
         <RelativeTime iso={comment.createdAt} className="shrink-0" />
       </header>
       {showBody && (
@@ -142,6 +144,14 @@ function ThreadComment({
         />
       )}
     </div>
+  );
+}
+
+function CommentPeek({ body, onlyWhenPeeking }: { body: string; onlyWhenPeeking: boolean }) {
+  return (
+    <span className="min-w-0 flex-1 truncate">
+      <span className={onlyWhenPeeking ? 'hidden [.peek_&]:inline' : undefined}>{commentPreview(body)}</span>
+    </span>
   );
 }
 
