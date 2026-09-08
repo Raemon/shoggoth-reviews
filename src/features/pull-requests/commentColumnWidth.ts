@@ -2,8 +2,6 @@
 
 import { useCallback } from 'react';
 import { useDiffAreaWidth } from './diffAreaWidth';
-import { draftTargets } from './draftThread';
-import { useDraftAnchor } from './draftThreadStore';
 import { finiteNumber, recordPref, usePref } from './localPref';
 import { useNarrowViewport } from './narrowViewport';
 import { pullSubject } from './pullPaths';
@@ -27,11 +25,8 @@ export interface CommentColumn {
 const widthsPref = recordPref('reposcope.commentColumnWidths', finiteNumber);
 
 export function useCommentColumn(): CommentColumn {
-  const target = useReviewTarget();
-  const shown = useThreadsShown(target);
+  const width = useFittedWidth(useReviewTarget());
   const narrow = useNarrowViewport();
-  const width = useFittedWidth(target);
-  if (!shown) return { width: 0, resizable: false };
   if (narrow) return { width: MARKER_STRIP_WIDTH, resizable: false };
   return { width, resizable: true };
 }
@@ -46,11 +41,6 @@ export function useCommentColumnDrag(width: number) {
   const clamp = useCallback((dragged: number) => fitWidth(dragged, available), [available]);
   const remember = useCallback((next: ColumnSize) => rememberWidth(key, next.width), [key]);
   return useDragWidth({ width, open: true }, remember, 'left', clamp);
-}
-
-function useThreadsShown(target: ReviewThreadTarget): boolean {
-  const draft = useDraftAnchor();
-  return target.threads.length > 0 || (draft !== null && draftTargets(draft, target));
 }
 
 function useFittedWidth(target: ReviewThreadTarget): number {
