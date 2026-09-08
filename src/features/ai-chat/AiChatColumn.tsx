@@ -4,6 +4,7 @@ import { ChatComposer } from './ChatComposer';
 import { ChatTranscript } from './ChatTranscript';
 import { CursorKeyForm } from './CursorKeyForm';
 import { statusBusy, statusLabel } from './chatStatus';
+import { useCloseOnNewSubject } from './closeOnNewSubject';
 import { useAiChat, type AiChat } from './useAiChat';
 import { useCursorKey, writeCursorKey } from './cursorKeyStore';
 import type { ChatSession } from './aiChatStore';
@@ -35,6 +36,7 @@ export function AiChatColumn({
   headSha: string | null;
 }) {
   const [size, setSize] = useStickyColumn('ai-chat');
+  useCloseOnNewSubject(subject, setSize);
   const pane = usePaneMode('ai-chat');
   const key = useCursorKey();
   const chat = useAiChat({ subject, owner, repo, number, headRef, headSha, active: pane === 'pane' || size.open });
