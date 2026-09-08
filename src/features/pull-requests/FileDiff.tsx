@@ -146,6 +146,7 @@ export function FileDiff({
         rows={rows}
         lines={mainLines}
         heights={rowHeights}
+        foldAnchors={collapse.anchors}
         onOverflow={setThreadOverflow}
       />
       {hunkEdit.message !== null && hunkEdit.edit !== null && (

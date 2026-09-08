@@ -20,11 +20,13 @@ export function ThreadColumn({
   anchors,
   lines,
   heights: rowHeights,
+  foldAnchors,
   onOverflow,
 }: {
   anchors: AnchoredThread[];
   lines: DiffLine[];
   heights: RowHeights;
+  foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>;
   onOverflow: (pixels: number) => void;
 }) {
   const column = useRef<HTMLDivElement | null>(null);
@@ -35,7 +37,7 @@ export function ThreadColumn({
     setHeights((held) => (held[rootId] === height ? held : { ...held, [rootId]: height }));
   }, []);
   const cards = placeThreads(anchors, heights, CARD_GAP, MIN_SLOT);
-  const overflow = overflowBelow(cards, heights, expanded, linesHeight(lines, rowHeights));
+  const overflow = overflowBelow(cards, heights, expanded, linesHeight(lines, rowHeights, foldAnchors));
 
   useEffect(() => onOverflow(overflow), [overflow, onOverflow]);
 

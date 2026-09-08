@@ -15,7 +15,7 @@ import type { DiffRow } from './splitDiff';
 import type { CollapseAnchor } from './useCodeCollapse';
 import type { CodePointer } from './useDefinitionPointer';
 import type { SideTokens } from './useDiffSideHighlight';
-import { lineHeight, type RowHeights } from './diffMetrics';
+import { COLLAPSED_ROW_GAP, collapsedRowGap, lineHeight, type RowHeights } from './diffMetrics';
 import { ROW_ATTR } from './litRow';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -25,7 +25,7 @@ import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 const ROW = 'flex h-[15px] items-center gap-1 leading-[15px]';
 const WRAPPED_ROW = 'flex min-h-[15px] items-start gap-1 leading-[15px]';
 // Literal px; Tailwind can't compile computed classes. Sync with BLANK_ROW_HEIGHT.
-const BLANK_ROW = 'flex h-[4px] items-center gap-1 leading-[4px]';
+const BLANK_ROW = 'flex h-[2px] items-center gap-1 leading-[2px]';
 const GUTTER = 'relative flex w-[52px] shrink-0 select-none items-center pr-1 text-[9px] text-ink-dim';
 const FOLDING_GUTTER = 'cursor-pointer hover:text-ink';
 const TONED_GUTTER = 'self-stretch group-hover:row-shade group-[.diff-line-lit]:row-lit';
@@ -170,6 +170,7 @@ function DiffLines({
         {lines.slice(from, to).map((line, offset) => {
           const index = from + offset;
           const anchor = anchorOf(line, anchors, rowsWithRightLine);
+          const gap = collapsedRowGap(line, lines[index + 1], anchors);
           return (
             <Fragment key={index}>
               <DiffLineView
@@ -191,6 +192,7 @@ function DiffLines({
                 onUntruncate={onUntruncate}
                 onDraft={draftStarter(rows, line, draftThreadAt)}
               />
+              {gap > 0 && <div style={{ height: COLLAPSED_ROW_GAP }} aria-hidden />}
               {spacerLine === index && <div style={{ height: spacer?.height }} />}
             </Fragment>
           );

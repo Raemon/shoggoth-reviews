@@ -15,16 +15,18 @@ export function InlineThreads({
   rows,
   lines,
   heights,
+  foldAnchors,
   onOverflow,
 }: {
   threads: ReviewThread[];
   rows: DiffRow[];
   lines: DiffLine[];
   heights: RowHeights;
+  foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>;
   onOverflow: (pixels: number) => void;
 }) {
   const narrow = useNarrowViewport();
-  const anchors = useMemo(() => anchorThreads(threads, rows, lines, heights), [threads, rows, lines, heights]);
+  const anchors = useMemo(() => anchorThreads(threads, rows, lines, heights, foldAnchors), [threads, rows, lines, heights, foldAnchors]);
   if (narrow) return <ThreadMarkers anchors={anchors} onOverflow={onOverflow} />;
-  return <ThreadColumn anchors={anchors} lines={lines} heights={heights} onOverflow={onOverflow} />;
+  return <ThreadColumn anchors={anchors} lines={lines} heights={heights} foldAnchors={foldAnchors} onOverflow={onOverflow} />;
 }
