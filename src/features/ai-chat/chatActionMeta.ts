@@ -37,12 +37,11 @@ const TOOL_PREFIX: Record<ActionKind, string> = {
 
 export function kindForTool(name: string): ActionKind {
   const key = name.toLowerCase().replace(/[_-]/g, '');
-  return TOOL_MATCH.find(([, parts]) => parts.some((part) => key.includes(part)))?.[0] ?? 'tool';
+  return TOOL_MATCH.find(([, parts]) => keyIncludesAny(key, parts))?.[0] ?? 'tool';
 }
 
-export function toolSummary(name: string, detail: string): string {
-  const kind = kindForTool(name);
-  if (kind === 'image') return detail === '' ? 'Viewed an image' : `Viewed ${detail}`;
+export function toolSummary(kind: ActionKind, name: string, detail: string): string {
+  if (kind === 'image') return detail === '' ? `${TOOL_PREFIX.image} an image` : `${TOOL_PREFIX.image} ${detail}`;
   const prefix = TOOL_PREFIX[kind];
   if (prefix === '') return [name, detail].filter(Boolean).join(' ');
   return `${prefix} ${detail || name}`;
@@ -50,5 +49,9 @@ export function toolSummary(name: string, detail: string): string {
 
 export function thinkingSummary(text: string): string {
   const preview = text.trim().split('\n')[0] ?? '';
-  return preview === '' ? 'Thinking' : `Thinking ${preview}`;
+  return preview === '' ? TOOL_PREFIX.thinking : `${TOOL_PREFIX.thinking} ${preview}`;
+}
+
+function keyIncludesAny(key: string, parts: string[]): boolean {
+  return parts.some((part) => key.includes(part));
 }

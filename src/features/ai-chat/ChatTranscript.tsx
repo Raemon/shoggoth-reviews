@@ -47,8 +47,9 @@ function ThinkingEntry({ text }: { text: string }) {
 }
 
 function ToolEntry({ name, detail, done }: { name: string; detail: string; done: boolean }) {
+  const kind = kindForTool(name);
   return (
-    <ChatActionRow kind={kindForTool(name)} summary={toolSummary(name, detail)} live={!done}>
+    <ChatActionRow kind={kind} summary={toolSummary(kind, name, detail)} live={!done}>
       <ActionDetail text={[name, detail].filter(Boolean).join('\n')} />
     </ChatActionRow>
   );
