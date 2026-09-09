@@ -8,6 +8,7 @@ import {
   lineTotals,
   listedPaths,
   rowKey,
+  ROOT_ITEM,
   treePath,
   visibleRows,
   type TreeNode,
@@ -66,7 +67,7 @@ export function useRepoFileTree({
   const activateItem = useCallback(
     (item: string) => {
       const folder = folderedPath(item);
-      if (folder !== null) toggle(folder);
+      if (folder) toggle(folder);
       onSelect(item);
     },
     [onSelect, toggle],
@@ -76,7 +77,7 @@ export function useRepoFileTree({
     rows,
     nodes,
     lines,
-    navItems: useMemo(() => rows.map(rowKey), [rows]),
+    navItems: useMemo(() => (rows.length === 0 ? [] : [ROOT_ITEM, ...rows.map(rowKey)]), [rows]),
     shown: listed.shown.length,
     total: listed.total,
     isOpen,

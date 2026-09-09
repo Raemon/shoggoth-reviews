@@ -1,8 +1,8 @@
 'use client';
 
 import { FileTreeRow } from './FileTreeRow';
-import { browseKey, folderKey } from './fileTreeNodes';
-import { FolderTreeRow } from './FolderTreeRow';
+import { browseKey, folderKey, ROOT_FOLDER, ROOT_ITEM, type TreeRow } from './fileTreeNodes';
+import { FolderTreeRow, RootTreeRow } from './FolderTreeRow';
 import { LineCount } from './LineCount';
 import type { RepoFileTree } from './useRepoFileTree';
 
@@ -18,10 +18,38 @@ export function RepoFileTreeRows({
   selected: string | null;
   onSelect: (item: string) => void;
 }) {
-  return tree.rows.map(({ node, depth }) =>
-    node.kind === 'folder' ? (
+  return (
+    <>
+      {tree.rows.length > 0 && (
+        <RootTreeRow
+          indent={indentOf(0)}
+          selected={selected === ROOT_ITEM}
+          onActivate={() => tree.activateItem(ROOT_ITEM)}
+        >
+          <LineCount lines={tree.lines.get(ROOT_FOLDER)} />
+        </RootTreeRow>
+      )}
+      {tree.rows.map((row) => (
+        <NodeRow key={row.node.path} row={row} tree={tree} selected={selected} onSelect={onSelect} />
+      ))}
+    </>
+  );
+}
+
+function NodeRow({
+  row: { node, depth },
+  tree,
+  selected,
+  onSelect,
+}: {
+  row: TreeRow;
+  tree: RepoFileTree;
+  selected: string | null;
+  onSelect: (item: string) => void;
+}) {
+  if (node.kind === 'folder')
+    return (
       <FolderTreeRow
-        key={node.path}
         path={node.path}
         name={node.name}
         indent={indentOf(depth)}
@@ -31,18 +59,17 @@ export function RepoFileTreeRows({
       >
         <LineCount lines={tree.lines.get(node.path)} />
       </FolderTreeRow>
-    ) : (
-      <FileTreeRow
-        key={node.path}
-        path={node.path}
-        navKey={browseKey(node.path)}
-        selected={browseKey(node.path) === selected}
-        onSelect={() => onSelect(browseKey(node.path))}
-        indent={indentOf(depth) + STEP}
-      >
-        <LineCount lines={tree.lines.get(node.path)} />
-      </FileTreeRow>
-    ),
+    );
+  return (
+    <FileTreeRow
+      path={node.path}
+      navKey={browseKey(node.path)}
+      selected={browseKey(node.path) === selected}
+      onSelect={() => onSelect(browseKey(node.path))}
+      indent={indentOf(depth) + STEP}
+    >
+      <LineCount lines={tree.lines.get(node.path)} />
+    </FileTreeRow>
   );
 }
 

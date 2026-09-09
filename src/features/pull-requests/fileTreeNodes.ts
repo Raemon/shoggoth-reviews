@@ -33,6 +33,11 @@ export function folderKey(path: string): string {
   return `${FOLDER_PREFIX}${path}`;
 }
 
+export const ROOT_FOLDER = '';
+
+export const ROOT_ITEM = folderKey(ROOT_FOLDER);
+
+// Returns '' for the root listing, so callers must test `!== null`, not truthiness.
 export function folderedPath(item: string): string | null {
   return item.startsWith(FOLDER_PREFIX) ? item.slice(FOLDER_PREFIX.length) : null;
 }
@@ -53,6 +58,7 @@ export type FolderHeading = { kind: 'folder'; path: string; depth: number };
 export type ReadingItem = FolderHeading | { kind: 'file'; path: string };
 
 export function folderReadingOrder(nodes: TreeNode[], folder: string): ReadingItem[] {
+  if (folder === ROOT_FOLDER) return childReadingOrder(nodes, 0);
   const found = findFolder(nodes, folder);
   return found ? readingOrder(found, 0) : [];
 }
@@ -67,9 +73,12 @@ function findFolder(nodes: TreeNode[], path: string): TreeFolder | null {
 }
 
 function readingOrder(folder: TreeFolder, depth: number): ReadingItem[] {
-  const files = folder.children.filter(isFileNode).map((child): ReadingItem => ({ kind: 'file', path: child.path }));
-  const nested = folder.children.filter(isFolderNode).flatMap((child) => readingOrder(child, depth + 1));
-  return [{ kind: 'folder', path: folder.path, depth }, ...files, ...nested];
+  return [{ kind: 'folder', path: folder.path, depth }, ...childReadingOrder(folder.children, depth + 1)];
+}
+
+function childReadingOrder(children: TreeNode[], depth: number): ReadingItem[] {
+  const files = children.filter(isFileNode).map((child): ReadingItem => ({ kind: 'file', path: child.path }));
+  return [...files, ...children.filter(isFolderNode).flatMap((child) => readingOrder(child, depth))];
 }
 
 function isFileNode(node: TreeNode): node is TreeFile {
@@ -104,6 +113,7 @@ export function lineTotals(counts: Record<string, number>): ReadonlyMap<string, 
   for (const [path, lines] of Object.entries(counts)) {
     totals.set(path, lines);
     for (const folder of ancestorFolders(path)) totals.set(folder, (totals.get(folder) ?? 0) + lines);
+    totals.set(ROOT_FOLDER, (totals.get(ROOT_FOLDER) ?? 0) + lines);
   }
   return totals;
 }

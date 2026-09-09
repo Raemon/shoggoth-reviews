@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useColumnNav } from './columnNav';
-import { folderKey } from './fileTreeNodes';
+import { folderKey, ROOT_ITEM } from './fileTreeNodes';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { rowStateClass } from '@/features/surface-ui/rowState';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
@@ -40,6 +40,33 @@ export function FolderTreeRow({
       <HoverCardTrigger label={path} className="min-w-0 flex-1" focusable={false} tooltipStyle>
         <span className="min-w-0 flex-1 truncate text-ink-dim">{name}/</span>
       </HoverCardTrigger>
+      {children}
+    </SelectableRow>
+  );
+}
+
+export function RootTreeRow({
+  indent,
+  selected,
+  onActivate,
+  children,
+}: {
+  indent: number;
+  selected: boolean;
+  onActivate: () => void;
+  children?: ReactNode;
+}) {
+  const row = useColumnNav('files').row(ROOT_ITEM, selected);
+  return (
+    <SelectableRow
+      {...row.props}
+      onActivate={onActivate}
+      label="Read the whole repository"
+      style={{ paddingLeft: indent }}
+      className={`${ROW} ${rowStateClass(row.state)}`}
+    >
+      <span aria-hidden className="w-2 shrink-0" />
+      <span className="min-w-0 flex-1 truncate text-ink-dim">/</span>
       {children}
     </SelectableRow>
   );

@@ -11,7 +11,11 @@ import { HotkeyCap } from '@/features/hotkeys/HotkeyCap';
 import { ColumnBoundary } from '@/features/surface-ui/ColumnBoundary';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
-const HEADER_ROW = 'flex min-w-0 shrink-0 items-center gap-1.5 border-panel-edge px-1.5 py-[1px] text-left';
+const HEADER_ROW = 'flex min-w-0 shrink-0 items-center gap-1.5 border-panel-edge px-1.5 text-left';
+// 'column' matches the 28px diff toolbar, which the sort menu's popover wrapper sets.
+const HEADER_PAD = { column: 'py-[6px]', section: 'py-[1px]' };
+
+type HeaderDensity = keyof typeof HEADER_PAD;
 
 const STRIP =
   'flex w-full shrink-0 cursor-pointer items-center gap-1.5 border-b px-1.5 py-1 text-[10px] uppercase tracking-[0.18em] text-ink-dim hover:text-ink md:w-7 md:min-h-0 md:flex-col md:gap-2.5 md:border-b-0 md:px-0';
@@ -107,6 +111,7 @@ export function SectionHeader({
   hotkey,
   chevron,
   className,
+  density = 'section',
   label,
   expanded,
   cursor,
@@ -120,6 +125,7 @@ export function SectionHeader({
   hotkey?: string;
   chevron: ReactNode;
   className: string;
+  density?: HeaderDensity;
   label: string;
   expanded?: boolean;
   cursor?: boolean;
@@ -133,7 +139,7 @@ export function SectionHeader({
       onActivate={onActivate}
       label={label}
       expanded={expanded}
-      className={`${HEADER_ROW} ${className}`}
+      className={`${HEADER_ROW} ${HEADER_PAD[density]} ${className}`}
     >
       <span aria-hidden className="shrink-0 text-[11px] leading-4 text-ink-dim">{icon}</span>
       <span className={`shrink-0 text-[10px] uppercase tracking-[0.18em] ${titleTone}`}>{title}</span>
@@ -174,6 +180,7 @@ function ColumnHeader({
         hotkey={columnHotkeyHint(navId)}
         chevron={onCollapse === null ? null : <span className="inline-block max-md:-rotate-90">‹</span>}
         className="min-w-0 flex-1"
+        density="column"
         label={onCollapse === null ? title : `Collapse ${title}`}
         onActivate={onCollapse ?? (() => {})}
       />
