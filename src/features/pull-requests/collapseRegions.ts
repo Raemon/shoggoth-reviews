@@ -1,7 +1,7 @@
 import { extensionOf, foldDialect, type FoldDialect } from './foldDialects';
 import { indentSpans, lineRuleSpans, markdownSpans } from './foldLineSpans';
 import { addRowRange, allLinesDeleted, pushSpan, scanRows, scanRowsFlushing, scanSide, textOf, type Side, type Span } from './foldSpan';
-import { commentSpan, typeLikeSpan } from './regionRoles';
+import { commentLine, commentSpan, functionLikeSpan, typeLikeSpan } from './regionRoles';
 import type { DiffRow } from './splitDiff';
 
 export interface CollapseRegion {
@@ -13,6 +13,7 @@ export interface CollapseRegion {
   imports: boolean;
   comment: boolean;
   typeLike: boolean;
+  functionLike: boolean;
   addedLines: number;
   deletedLines: number;
   anchorChanged: boolean;
@@ -28,7 +29,7 @@ export function collapseRegions(rows: DiffRow[], contiguous: boolean, filename: 
     ...(dialect.markdown ? markdownSpans(rows, side, contiguous) : []),
     ...(dialect.indent ? indentSpans(rows, side, contiguous, covered) : []),
   ];
-  return assembleRegions(rows, side, contiguous, spans, tokens, dialect.importLine);
+  return assembleRegions(rows, side, contiguous, spans, tokens, covered, dialect);
 }
 
 export function assembleRegions(
@@ -37,11 +38,25 @@ export function assembleRegions(
   contiguous: boolean,
   spans: Span[],
   importSource: Span[],
-  importLine: RegExp | null,
+  literal: Set<number>,
+  dialect: FoldDialect,
 ): CollapseRegion[] {
-  const imports = importSpans(rows, side, contiguous, importSource, importLine);
+  const imports = importSpans(rows, side, contiguous, importSource, dialect.importLine);
+  const comments = commentGroupSpans(rows, side, contiguous, literal, dialect);
   const wideEnough = spans.filter((span) => span.end - span.start >= 2);
-  return finalize(rows, [...imports, ...wideEnough, ...deletedFileSpans(rows)]);
+  return finalize(rows, [...imports, ...comments, ...wideEnough, ...deletedFileSpans(rows)]);
+}
+
+// Block comments arrive as token spans; this catches the runs of line comments they miss.
+function commentGroupSpans(rows: DiffRow[], side: Side, contiguous: boolean, literal: Set<number>, dialect: FoldDialect): Span[] {
+  const runs: Span[] = [];
+  const run: LineRun = { start: -1, last: -1 };
+  const flush = () => flushRun(run, runs, 'comment_group');
+  scanRowsFlushing(rows, side, contiguous, flush, (text, index) => {
+    if (!literal.has(index) && commentLine(text, dialect)) extendRun(run, index);
+    else flush();
+  });
+  return runs;
 }
 
 function contentRowIndexes(rows: DiffRow[]): number[] {
@@ -438,35 +453,36 @@ function importCoveredRows(rows: DiffRow[], side: Side, spans: Span[], importLin
   return covered;
 }
 
-interface ImportRun {
+interface LineRun {
   start: number;
   last: number;
 }
 
 function importRuns(rows: DiffRow[], side: Side, importCovered: Set<number>, importLine: RegExp, contiguous: boolean): Span[] {
   const runs: Span[] = [];
-  const run: ImportRun = { start: -1, last: -1 };
+  const run: LineRun = { start: -1, last: -1 };
   scanRowsFlushing(
     rows,
     side,
     contiguous,
-    () => flushImportRun(run, runs),
+    () => flushRun(run, runs, 'imports'),
     (text, index) => importRunStep(text, index, importCovered, importLine, run, runs),
   );
   return runs;
 }
 
-function importRunStep(text: string, index: number, importCovered: Set<number>, importLine: RegExp, run: ImportRun, runs: Span[]) {
-  if (importCovered.has(index) || importLine.test(text)) {
-    if (run.start < 0) run.start = index;
-    run.last = index;
-  } else if (run.start < 0 || text.trim() !== '') {
-    flushImportRun(run, runs);
-  }
+function importRunStep(text: string, index: number, importCovered: Set<number>, importLine: RegExp, run: LineRun, runs: Span[]) {
+  if (importCovered.has(index) || importLine.test(text)) extendRun(run, index);
+  else if (run.start < 0 || text.trim() !== '') flushRun(run, runs, 'imports');
 }
 
-function flushImportRun(run: ImportRun, runs: Span[]) {
-  if (run.start >= 0 && run.last > run.start) runs.push({ start: run.start, end: run.last, kind: 'imports', imports: true });
+function extendRun(run: LineRun, index: number) {
+  if (run.start < 0) run.start = index;
+  run.last = index;
+}
+
+function flushRun(run: LineRun, runs: Span[], kind: 'imports' | 'comment_group') {
+  if (run.start >= 0 && run.last > run.start) runs.push({ start: run.start, end: run.last, kind, imports: kind === 'imports' });
   run.start = -1;
   run.last = -1;
 }
@@ -504,6 +520,10 @@ function preferredSpan(held: Span | undefined, candidate: Span): Span {
   return held;
 }
 
+function anchorText(anchor: DiffRow | undefined): string {
+  return anchor?.right?.text ?? anchor?.left?.text ?? '';
+}
+
 function regionOf(rows: DiffRow[], span: Span, depth: number): CollapseRegion {
   const anchor = rows[span.start];
   const hidden = rows.slice(span.start + 1, span.end + 1);
@@ -512,7 +532,8 @@ function regionOf(rows: DiffRow[], span: Span, depth: number): CollapseRegion {
     depth,
     key: `${anchor?.left?.line ?? 'x'}:${anchor?.right?.line ?? 'x'}`,
     comment: commentSpan(span.kind),
-    typeLike: typeLikeSpan(span.kind, anchor?.right?.text ?? anchor?.left?.text ?? ''),
+    typeLike: typeLikeSpan(span.kind, anchorText(anchor)),
+    functionLike: functionLikeSpan(span.kind, anchorText(anchor)),
     addedLines: changedLineCount(hidden, 'right'),
     deletedLines: changedLineCount(hidden, 'left'),
     anchorChanged: anchor?.kind === 'change',

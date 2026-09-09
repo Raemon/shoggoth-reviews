@@ -157,9 +157,9 @@ export async function treeCollapseRegions(
   const side = scanSide(rows);
   const spans = await parsedSpans(rows, side, contiguous, language);
   if (spans === null || spans.length === 0) return null;
-  const markers = lineRuleSpans(rows, side, contiguous, regionMarkerRules(extension), literalRows(spans));
-  const allSpans = [...spans, ...markers];
-  return assembleRegions(rows, side, contiguous, allSpans, spans, foldDialect(extension).importLine);
+  const literal = literalRows(spans);
+  const markers = lineRuleSpans(rows, side, contiguous, regionMarkerRules(extension), literal);
+  return assembleRegions(rows, side, contiguous, [...spans, ...markers], spans, literal, foldDialect(extension));
 }
 
 async function parsedSpans(rows: DiffRow[], side: Side, contiguous: boolean, language: Language): Promise<Span[] | null> {

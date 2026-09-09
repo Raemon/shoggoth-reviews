@@ -1,8 +1,7 @@
 'use client';
 
 import { setPullAuthor, setPullState, useOfferedPullAuthors, usePullFilters } from './pullFilterStore';
-import { iconButtonClass } from '@/features/surface-ui/buttonStyles';
-import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { PopoverIconButton } from '@/features/surface-ui/PopoverIconButton';
 import { PopoverMenu, type PopoverTrigger } from '@/features/surface-ui/PopoverMenu';
 
 const FILTER_LABEL = 'Filter pull requests';
@@ -29,20 +28,11 @@ export function PullFilterMenu() {
   );
 }
 
-function FilterButton({ open, toggle }: PopoverTrigger) {
+function FilterButton(trigger: PopoverTrigger) {
   return (
-    <HoverCardTrigger label={FILTER_LABEL} focusable={false} tooltipStyle>
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={FILTER_LABEL}
-        onClick={toggle}
-        className={iconButtonClass(open)}
-      >
-        <FilterIcon />
-      </button>
-    </HoverCardTrigger>
+    <PopoverIconButton label={FILTER_LABEL} {...trigger}>
+      <FilterIcon />
+    </PopoverIconButton>
   );
 }
 
