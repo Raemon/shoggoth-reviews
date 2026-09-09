@@ -1,19 +1,20 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from 'react';
-import { flushSync } from 'react-dom';
+import { Fragment, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react';
 import { NearViewportProvider } from './nearViewportStore';
 import { DefinitionPeek } from './DefinitionPeek';
 import { DefinitionPeekProvider } from './definitionPeekStore';
 import { DiffAreaWidthProvider } from './diffAreaWidth';
-import { DiffFileSection } from './DiffFileSection';
+import { DiffFileSection, type FileView } from './DiffFileSection';
 import { DiffLayoutToggle } from './DiffLayoutToggle';
 import type { FolderHeading } from './fileTreeNodes';
 import { FolderHeadingBar } from './FolderHeading';
 import { EditTarget } from './editTarget';
+import { revealing, useFoldCommand, type FoldCommand } from './foldModeStore';
 import { ImageThumbnailStrip } from './ImageThumbnailStrip';
 import { imageFilesOf, isImagePath } from './imageFiles';
 import type { ChangedFile, ChangedFileSet, PullRequestSummary } from './pullRequests';
+import { WHOLE_FILE_STATUS } from './wholeFileEntry';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 const SCROLL_MS = 100;
@@ -59,23 +60,15 @@ export function DiffPanes({
   const holdSection = useSectionRegistry(sections);
   const realigning = useRef<(() => void) | null>(null);
   useEffect(() => () => realigning.current?.(), []);
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const hold = useHeldScroll(scroller);
+  const [fileFold, setFileFold] = useFileFold(() => hold(topVisibleHeader(scroller, files, sections.current)));
   const toggleFile = useCallback(
     (path: string) => {
       // The header is sticky: mid-file it, not the section top, is what the eye tracks.
-      const header = headerOf(sections.current.get(path));
-      holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path) })));
+      hold(headerOf(sections.current.get(path)));
+      setFileFold((held) => withFileToggled(held, path));
     },
-    [scroller],
-  );
-
-  const filesOpen = files.some((file) => openFile(toggled, file.filename));
-  const setAllFiles = useCallback(
-    (open: boolean) => {
-      const anchor = topVisibleHeader(scroller, files, sections.current);
-      holdingInPlace(scroller, anchor, () => setToggled(everyFileSetTo(files, open)));
-    },
-    [scroller, files],
+    [hold, setFileFold],
   );
 
   useImperativeHandle(ref, () => ({
@@ -95,7 +88,7 @@ export function DiffPanes({
     <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
+          <DiffLayoutToggle sortable={sortable} hasDiffs={files.some((file) => file.status !== WHOLE_FILE_STATUS)} />
           <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto bg-code">
             <ImageStrip
               key={`${fileSet.baseRef}:${fileSet.headRef}`}
@@ -116,7 +109,7 @@ export function DiffPanes({
                       baseRef={fileSet.baseRef}
                       headRef={fileSet.headRef}
                       selected={file.filename === selected}
-                      open={openFile(toggled, file.filename)}
+                      view={fileView(fileFold, file.filename)}
                       onToggle={() => toggleFile(file.filename)}
                       sectionRef={holdSection(file.filename)}
                     />
@@ -132,8 +125,55 @@ export function DiffPanes({
   );
 }
 
-function everyFileSetTo(files: ChangedFile[], open: boolean): Record<string, boolean> {
-  return Object.fromEntries(files.map((file) => [file.filename, open]));
+interface FileFold {
+  command: FoldCommand;
+  toggled: Record<string, boolean>;
+}
+
+// Applied from local state, not the store, so the reader can be held in place first.
+function useFileFold(holdPlace: () => void) {
+  const command = useFoldCommand();
+  const held = useState<FileFold>(() => ({ command, toggled: {} }));
+  const [fileFold, setFileFold] = held;
+  const stale = fileFold.command.epoch !== command.epoch;
+  useEffect(() => {
+    if (!stale) return;
+    holdPlace();
+    setFileFold({ command, toggled: {} });
+  }, [stale, command, holdPlace, setFileFold]);
+  return held;
+}
+
+type HoldScroll = (anchor: Element | null) => void;
+
+function useHeldScroll(scroller: HTMLElement | null): HoldScroll {
+  const held = useRef<{ anchor: Element; top: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!held.current || !scroller) return;
+    scroller.scrollTop += held.current.anchor.getBoundingClientRect().top - held.current.top;
+    held.current = null;
+  });
+  return useCallback((anchor) => {
+    held.current = anchor ? { anchor, top: anchor.getBoundingClientRect().top } : null;
+  }, []);
+}
+
+function withFileToggled(held: FileFold, path: string): FileFold {
+  return { ...held, toggled: { ...held.toggled, [path]: fileView(held, path) !== 'open' } };
+}
+
+function fileView(fold: FileFold, path: string): FileView {
+  const forced = fold.toggled[path];
+  if (forced === true) return 'open';
+  const natural = naturalView(fold.command, path);
+  if (forced === false && natural === 'open') return 'closed';
+  return natural;
+}
+
+function naturalView(command: FoldCommand, path: string): FileView {
+  if (isImagePath(path)) return 'closed';
+  if (command.mode !== 'collapseFiles') return 'open';
+  return revealing(command) ? 'revealed' : 'closed';
 }
 
 // Collapsing every file at once would fling the reader elsewhere; hold the one they are on.
@@ -152,10 +192,6 @@ function headerOf(section: HTMLElement | undefined): Element | null {
   return section?.firstElementChild ?? null;
 }
 
-function openFile(toggled: Record<string, boolean>, path: string): boolean {
-  return toggled[path] ?? !isImagePath(path);
-}
-
 function ImageStrip({
   owner,
   repo,
@@ -169,12 +205,6 @@ function ImageStrip({
 }) {
   if (files.length === 0) return null;
   return <ImageThumbnailStrip owner={owner} repo={repo} files={files} baseRef={fileSet.baseRef} headRef={fileSet.headRef} />;
-}
-
-function holdingInPlace(container: HTMLElement | null, anchor: Element | null, change: () => void) {
-  const top = anchor?.getBoundingClientRect().top;
-  flushSync(change);
-  if (container && anchor && top !== undefined) container.scrollTop += anchor.getBoundingClientRect().top - top;
 }
 
 // A thread card mounts only once its file draws, so the target is re-read each realign.

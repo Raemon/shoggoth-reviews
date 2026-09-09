@@ -1,8 +1,7 @@
 'use client';
 
 import { setDiffSort, useDiffSort, type DiffSort } from './diffSortStore';
-import { iconButtonClass } from '@/features/surface-ui/buttonStyles';
-import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { PopoverIconButton } from '@/features/surface-ui/PopoverIconButton';
 import { PopoverMenu, type PopoverTrigger } from '@/features/surface-ui/PopoverMenu';
 import { SortIcon } from './diffToolbarIcons';
 
@@ -22,22 +21,12 @@ export function DiffSortMenu() {
   );
 }
 
-function SortButton({ current, open, toggle }: PopoverTrigger & { current: DiffSort }) {
+function SortButton({ current, ...trigger }: PopoverTrigger & { current: DiffSort }) {
   const held = CHOICES.find((choice) => choice.sort === current) ?? CHOICES[0]!;
-  const label = `Sort files by ${held.label}`;
   return (
-    <HoverCardTrigger label={label} focusable={false} tooltipStyle placement="top-end">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={label}
-        onClick={toggle}
-        className={iconButtonClass(open)}
-      >
-        <SortIcon />
-      </button>
-    </HoverCardTrigger>
+    <PopoverIconButton label={`Sort files by ${held.label}`} placement="top-end" {...trigger}>
+      <SortIcon />
+    </PopoverIconButton>
   );
 }
 

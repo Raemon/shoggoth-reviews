@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { collapseRegions } from '../src/features/pull-requests/collapseRegions.ts';
-import { columnLines, visibleLines } from '../src/features/pull-requests/diffLines.ts';
+import { columnLines, shownLines } from '../src/features/pull-requests/diffLines.ts';
+import { NO_TRUNCATION } from '../src/features/pull-requests/truncateRows.ts';
 import { allLinesDeleted } from '../src/features/pull-requests/foldSpan.ts';
+import { revealedRegions } from '../src/features/pull-requests/foldReveals.ts';
 import { overrideWasmSource, treeCollapseRegions } from '../src/features/pull-requests/treeSitterFolds.ts';
 
 const WASM = 'node_modules/@vscode/tree-sitter-wasm/wasm';
@@ -382,9 +384,84 @@ for (const region of deletedTwoFunctionRegions) {
 }
 check(
   'collapsing a deleted file leaves only the first code line',
-  visibleLines(columnLines(deletedTwoFunctionRows, 'left'), deletedHidden).map((line) => line.kind),
+  shownLines(columnLines(deletedTwoFunctionRows, 'left'), deletedHidden, NO_TRUNCATION).map((line) => line.kind),
   ['hunk', 'change'],
 );
+
+// --- region roles: comment groups, types, functions ------------------------------
+function rolesOf(lines, filename) {
+  return collapseRegions(rowsOf(lines), true, filename).map((r) => [r.start, r.end, r.kind, r.comment, r.functionLike]);
+}
+check("line comment group folds as one region", rolesOf([
+  '// first line',
+  '// second line',
+  '// third line',
+  'const a = 1;',
+], 'x.ts'), [[0,2,'comment_group',true,false]]);
+check("two-line hash comment group folds", rolesOf([
+  '# one',
+  '# two',
+  'x = 1',
+], 'x.py'), [[0,1,'comment_group',true,false]]);
+check("a lone comment line is not a group", rolesOf([
+  '// only',
+  'const a = 1;',
+  'const b = 2;',
+], 'x.ts'), []);
+check("blank line splits comment groups", rolesOf([
+  '// a',
+  '// b',
+  '',
+  '// c',
+  '// d',
+], 'x.ts'), [[0,1,'comment_group',true,false],[3,4,'comment_group',true,false]]);
+check("function and arrow anchors are function-like", collapseRegions(rowsOf([
+  'export async function foo() {',
+  '  return 1;',
+  '}',
+  'const bar = async (a) => {',
+  '  return a;',
+  '};',
+  'interface Shape {',
+  '  x: number;',
+  '}',
+]), true, 'x.ts').map((r) => [r.start, r.functionLike, r.typeLike]), [[0,true,false],[3,true,false],[6,false,true]]);
+check("python def and class are function-like", collapseRegions(rowsOf([
+  'def foo():',
+  '    return 1',
+  '    pass',
+  'class Bar:',
+  '    x = 1',
+  '    y = 2',
+]), true, 'x.py').map((r) => [r.start, r.functionLike]), [[0,true],[3,true]]);
+
+check("comment-looking lines inside a template literal are not a comment group", rolesOf([
+  'const snippet = `',
+  '// not a comment',
+  '// still not',
+  '`;',
+], 'x.ts').map((r) => r[2]), ['template']);
+
+// --- reveal toggles ---------------------------------------------------------------
+const nestedCommentLines = [
+  'function outer() {',
+  '  // why this',
+  '  // matters',
+  '  return 1;',
+  '}',
+  'const other = 2;',
+];
+function revealOf(lines, filename, command) {
+  const rows = rowsOf(lines);
+  const regions = collapseRegions(rows, true, filename);
+  const reveal = revealedRegions(regions, rows, { mode: 'collapseCode', reveals: new Set(), search: '', epoch: 0, wholeFile: true, ...command });
+  return { blocks: [...reveal.blocks].map((r) => r.start), ancestors: [...reveal.ancestors].map((r) => r.start) };
+}
+check("a revealed comment inside a function opens the function too", revealOf(nestedCommentLines, 'x.ts', { reveals: new Set(['comments']) }),
+  { blocks: [1], ancestors: [0] });
+check("search opens the enclosing block and everything in it", revealOf(nestedCommentLines, 'x.ts', { search: 'MATTERS' }),
+  { blocks: [0, 1], ancestors: [] });
+check("no reveal without a match", revealOf(nestedCommentLines, 'x.ts', { search: 'absent' }), { blocks: [], ancestors: [] });
 
 // --- regressions for confirmed wrong-fold bugs ----------------------------------
 function check2(name, lines, filename, expected) { check(name, boundsOf(lines, filename), expected); }
@@ -547,7 +624,7 @@ for (const region of collapseRegions(acrossHunk, true, 'a.ts')) {
 }
 check(
   'a collapsed region never hides its hunk header',
-  visibleLines(columnLines(acrossHunk, 'right'), acrossHunkHidden).map((line) => line.kind),
+  shownLines(columnLines(acrossHunk, 'right'), acrossHunkHidden, NO_TRUNCATION).map((line) => line.kind),
   ['context', 'hunk'],
 );
 

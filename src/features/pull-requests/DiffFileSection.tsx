@@ -16,6 +16,11 @@ import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 import { rowStateClass, type RowState } from '@/features/surface-ui/rowState';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
+// revealed: the file stays folded, with only the blocks a reveal toggle asks for drawn.
+export type FileView = 'open' | 'revealed' | 'closed';
+
+const CHEVRON: Record<FileView, string> = { open: '▾', revealed: '▹', closed: '▸' };
+
 const ACTION = 'rounded px-1 leading-4 hover:bg-btn-hover hover:text-ink';
 const ACTION_BAR = 'flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100';
 
@@ -26,7 +31,7 @@ export function DiffFileSection({
   baseRef,
   headRef,
   selected,
-  open,
+  view,
   onToggle,
   sectionRef,
 }: {
@@ -36,11 +41,12 @@ export function DiffFileSection({
   baseRef: string;
   headRef: string;
   selected: boolean;
-  open: boolean;
+  view: FileView;
   onToggle: () => void;
   sectionRef: (node: HTMLElement | null) => void;
 }) {
   const row = useColumnNav('diff').row(file.filename, selected);
+  const open = view === 'open';
   const [watchNear, near] = useNearViewport();
   // React takes this cleanup instead of calling the ref with null: let go of both here.
   const holdSection = useCallback(
@@ -68,7 +74,7 @@ export function DiffFileSection({
           className="flex min-w-0 flex-1 items-baseline gap-2 py-1.5 pl-2 text-left"
         >
           <span aria-hidden className="w-3 shrink-0 text-[11px] text-ink-dim">
-            {open ? '▾' : '▸'}
+            {CHEVRON[view]}
           </span>
           <span className="min-w-0 flex-1 truncate font-serif text-[14px]">
             {file.previousFilename && <span className="text-ink-dim">{file.previousFilename} → </span>}
@@ -79,11 +85,11 @@ export function DiffFileSection({
         </SelectableRow>
         <HeaderActions path={file.filename} href={blobUrl(owner, repo, headRef, file.filename)} />
       </div>
-      {open &&
+      {view !== 'closed' &&
         (near ? (
-          <FileBody owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} />
+          <FileBody owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} revealedOnly={view === 'revealed'} />
         ) : (
-          <div style={{ height: unreadHeight(file) }} />
+          <div style={{ height: view === 'revealed' ? ROW_HEIGHT : unreadHeight(file) }} />
         ))}
     </section>
   );
@@ -123,14 +129,19 @@ function FileBody({
   file,
   baseRef,
   headRef,
+  revealedOnly,
 }: {
   owner: string;
   repo: string;
   file: ChangedFile;
   baseRef: string;
   headRef: string;
+  revealedOnly: boolean;
 }) {
-  const diff = file.patch ? <FileDiff owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} /> : null;
+  const diff = file.patch ? (
+    <FileDiff owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} revealedOnly={revealedOnly} />
+  ) : null;
+  if (revealedOnly) return diff;
   if (isImagePath(file.filename)) {
     const { before, after } = imageSides(file, baseRef, headRef);
     return (

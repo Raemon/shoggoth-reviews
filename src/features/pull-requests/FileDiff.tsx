@@ -42,12 +42,14 @@ export function FileDiff({
   file,
   baseRef,
   headRef,
+  revealedOnly = false,
 }: {
   owner: string;
   repo: string;
   file: ChangedFile;
   baseRef: string;
   headRef: string;
+  revealedOnly?: boolean;
 }) {
   const token = useGithubToken();
   const target = useContext(EditTarget);
@@ -85,14 +87,14 @@ export function FileDiff({
     () => withDraftThread(fileThreads, draftAnchor, { owner, repo, number: pull?.number ?? null, path: file.filename }),
     [fileThreads, draftAnchor, owner, repo, pull, file.filename],
   );
-  const collapse = useCodeCollapse(rows, showingWholeFile, file.filename, threads, editBlock);
+  const collapse = useCodeCollapse(rows, showingWholeFile, file.filename, threads, editBlock, revealedOnly);
   const commentedRows = useMemo(() => new Set(threads.map((thread) => rowOf(thread, rows))), [threads, rows]);
   const alwaysDrawn = useMemo(() => rowsAlwaysDrawn(commentedRows, editBlock), [commentedRows, editBlock]);
-  const [truncation, untruncate] = useRowTruncation(rows, collapse.hidden, alwaysDrawn, showingWholeFile);
+  const [truncation, untruncate] = useRowTruncation(rows, collapse.hidden, alwaysDrawn, showingWholeFile && !revealedOnly);
   const undrawn = useMemo(() => undrawnRows(collapse.hidden, truncation), [collapse.hidden, truncation]);
   const rowHeights = singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right);
   const resultView = layout === 'result' && !entireFile && anyLineSurvives(rows);
-  const drawn = { hidden: collapse.hidden, commentedRows, truncation };
+  const drawn = { hidden: collapse.hidden, commentedRows, truncation, revealedOnly };
   const mainLines = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
   const leftLines = useShownLines(rows, singleColumn ? null : 'left', drawn);
   const growing = useHeightTransition(rows, undrawn, rowHeights);
@@ -247,6 +249,7 @@ interface DrawnRows {
   hidden: Set<number>;
   commentedRows: Set<number>;
   truncation: Truncation;
+  revealedOnly: boolean;
 }
 
 function mainColumn(singleColumn: boolean, resultView: boolean): Column {
@@ -256,11 +259,16 @@ function mainColumn(singleColumn: boolean, resultView: boolean): Column {
 
 // A null column is one this layout never draws, so its lines are never laid out.
 function useShownLines(rows: DiffRow[], column: Column | null, drawn: DrawnRows): DiffLine[] {
-  const { hidden, commentedRows, truncation } = drawn;
+  const { hidden, commentedRows, truncation, revealedOnly } = drawn;
   return useMemo(
-    () => (column ? shownLines(columnOf(rows, column, commentedRows), hidden, truncation) : []),
-    [rows, column, commentedRows, hidden, truncation],
+    () => (column ? withoutHunks(shownLines(columnOf(rows, column, commentedRows), hidden, truncation), revealedOnly) : []),
+    [rows, column, commentedRows, hidden, truncation, revealedOnly],
   );
+}
+
+// Revealed blocks stand alone; a stray @@ line above the first would read as a break.
+function withoutHunks(lines: DiffLine[], revealedOnly: boolean): DiffLine[] {
+  return revealedOnly ? lines.filter((line) => line.kind !== 'hunk') : lines;
 }
 
 function columnOf(rows: DiffRow[], column: Column, commentedRows: Set<number>): DiffLine[] {

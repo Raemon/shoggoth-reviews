@@ -23,19 +23,11 @@ const CHOICES: { layout: DiffLayout; icon: ReactNode; label: string; tone?: Icon
   { layout: 'result', icon: <ResultViewIcon />, label: 'Show the file as it will be, with removed lines hidden', tone: 'add' },
 ];
 
-export function DiffLayoutToggle({
-  sortable,
-  filesOpen,
-  onToggleAllFiles,
-}: {
-  sortable: boolean;
-  filesOpen: boolean;
-  onToggleAllFiles: () => void;
-}) {
+export function DiffLayoutToggle({ sortable, hasDiffs }: { sortable: boolean; hasDiffs: boolean }) {
   const current = useDiffLayout();
   return (
     <div className="relative z-30 flex shrink-0 items-center gap-2 border-b border-panel-edge bg-panel px-2 py-[2px]">
-      <FoldModeButtons filesOpen={filesOpen} onToggleAllFiles={onToggleAllFiles} />
+      <FoldModeButtons hasDiffs={hasDiffs} />
       <span className="ml-auto flex items-center gap-2">
         {CHOICES.map(({ layout, icon, label, tone }) => (
           <ChoiceButton
