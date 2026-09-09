@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PullDiscussion } from './PullDiscussion';
 import { AllPullsColumn, RepoPullsColumn } from './PullListColumn';
 import { ReviewLoadNotice } from './ReviewLoadNotice';
@@ -9,6 +9,7 @@ import { setCurrentPull } from './currentPullStore';
 import { prefetchPull } from './prefetchPull';
 import { pullFilesPath, pullPath, pullSubject } from './pullPaths';
 import type { PullRequestCommits, PullRequestSummary } from './pullRequests';
+import type { ColumnSize } from './ResizableColumn';
 import { useStickyColumn } from './stickyColumns';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
@@ -27,11 +28,21 @@ export function PullRequestView({
 }) {
   const ready = useStoreReady();
   const token = useGithubToken();
-  const [listSize, setListSize] = useStickyColumn(acrossRepos ? 'all-pulls' : 'pulls');
+  const [storedListSize, setStoredListSize] = useStickyColumn(acrossRepos ? 'all-pulls' : 'pulls');
+  const [listOpen, setListOpen] = useState(false);
+  const listSize = { ...storedListSize, open: listOpen };
+  const setListSize = (size: ColumnSize) => {
+    setListOpen(size.open);
+    setStoredListSize(size);
+  };
   const pullState = useCachedJson<PullRequestCommits>(pullPath(owner, repo, number), token, ready);
   const pull = pullState.data;
 
   usePollWhileVisible(pullState.reload, ready);
+
+  useEffect(() => {
+    setListOpen(false);
+  }, [owner, repo, number, acrossRepos]);
 
   // Without this the file list waits on the pull call before anything asks for it.
   useEffect(() => {
