@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { repoRoute } from '@/features/codebases/repoPaths';
 import { repoFilesPath } from '@/features/pull-requests/pullPaths';
 import type { RepoFileSet } from '@/features/pull-requests/repoFiles';
@@ -11,7 +11,7 @@ import { MapCanvas } from './MapCanvas';
 import { MapSidebar } from './MapSidebar';
 import { buildMap, type MapLayout, type MapNode } from './mapLayout';
 import { sourceFileSet } from './mapFiles';
-import type { CodePreview } from './mapRenderer';
+import { useMapPreviews } from './useMapPreviews';
 import styles from './codebaseMap.module.css';
 
 export function CodebaseMap({ owner, repo }: { owner: string; repo: string }) {
@@ -19,7 +19,6 @@ export function CodebaseMap({ owner, repo }: { owner: string; repo: string }) {
   const ready = useStoreReady();
   const { data, error, reload } = useCachedJson<RepoFileSet>(repoFilesPath(owner, repo), token, ready);
   const [includeAssets, setIncludeAssets] = useState(false);
-  const layout = useMemo(() => data ? buildMap(sourceFileSet(data, includeAssets)) : null, [data, includeAssets]);
   return (
     <section className={styles.page} aria-label={`${owner}/${repo} code map`}>
       <div className={styles.titlebar}>
@@ -28,32 +27,40 @@ export function CodebaseMap({ owner, repo }: { owner: string; repo: string }) {
         <Link href={repoRoute(owner, repo)}>Back to repository</Link>
       </div>
       {error && <div className={styles.notice} role="alert">{error} <button onClick={() => void reload().catch(() => {})}>Retry</button></div>}
-      {!layout && !error && <div className={styles.loading} role="status">Mapping repository…<span>Loading folders and file sizes</span></div>}
-      {layout && data && <MapWorkspace key={`${data.sha}:${includeAssets}`} owner={owner} repo={repo} fileSet={data} layout={layout} />}
+      {!data && !error && <div className={styles.loading} role="status">Mapping repository…<span>Loading folders and file sizes</span></div>}
+      {data && <MapRepository key={`${owner}/${repo}/${data.sha}`} owner={owner} repo={repo} fileSet={data} includeAssets={includeAssets} />}
     </section>
   );
 }
 
-function MapWorkspace({ owner, repo, fileSet, layout }: { owner: string; repo: string; fileSet: RepoFileSet; layout: MapLayout }) {
+interface RepositoryProps { owner: string; repo: string; fileSet: RepoFileSet }
+
+function MapRepository({ owner, repo, fileSet, includeAssets }: RepositoryProps & { includeAssets: boolean }) {
+  const previews = useMapPreviews(owner, repo, fileSet.sha);
+  const layout = useMemo(() => buildMap(sourceFileSet(fileSet, includeAssets)), [fileSet, includeAssets]);
+  return <MapWorkspace key={String(includeAssets)} owner={owner} repo={repo} fileSet={fileSet} layout={layout} previews={previews} />;
+}
+
+function MapWorkspace({ owner, repo, fileSet, layout, previews }: RepositoryProps & { layout: MapLayout; previews: ReturnType<typeof useMapPreviews> }) {
   const [selected, setSelected] = useState<MapNode | null>(null);
   const [focus, setFocus] = useState<MapNode | null>(null);
   const [query, setQuery] = useState('');
-  const [expanded, setExpanded] = useState<ReadonlyMap<string, CodePreview>>(new Map());
-  const preview = useCallback((path: string, code: CodePreview) => setExpanded((held) => rememberPreview(held, path, code)), []);
   const jump = (node: MapNode) => { setSelected(node); setFocus({ ...node }); };
-  const scene = useMemo(() => ({ root: layout.root, selected: selected?.path ?? null, query: query.trim().toLowerCase(), expanded }), [layout, selected, query, expanded]);
+  const scene = useMemo(() => ({ root: layout.root, selected: selected?.path ?? null, query: query.trim().toLowerCase(), previews: previews.files, loading: previews.loading }), [layout, selected, query, previews.files, previews.loading]);
   return (
     <>
       <MapBreadcrumbs layout={layout} selected={selected} onSelect={jump} />
       {fileSet.truncated && <div className={styles.notice}>GitHub returned a partial tree. This map shows {fileSet.files.length.toLocaleString()} available files.</div>}
+      {previews.error && <div className={styles.notice} role="alert">Code previews: {previews.error} <button onClick={previews.retry}>Retry</button></div>}
+      {previews.tooLarge && <div className={styles.notice}>Some code previews exceeded the repository preview limits. Select a file to read it individually.</div>}
       <div className={styles.workspace}>
         <MapCanvas scene={scene} focus={focus} onSelect={setSelected} />
-        <MapSidebar owner={owner} repo={repo} sha={fileSet.sha} layout={layout} selected={selected} query={query} onQuery={setQuery} onSelect={jump} onPreview={preview} />
+        <MapSidebar owner={owner} repo={repo} sha={fileSet.sha} layout={layout} selected={selected} query={query} onQuery={setQuery} onSelect={jump} />
       </div>
       <footer className={styles.statusbar}>
         <span>{layout.files.length.toLocaleString()} of {fileSet.files.length.toLocaleString()} files <span className={styles.muted}>at {fileSet.sha.slice(0, 7)}</span></span>
         <span className={styles.areaNote}>Area follows file size, compressed for readability</span>
-        <button disabled={!expanded.size} onClick={() => setExpanded(new Map())}>Collapse code ({expanded.size})</button>
+        <span role="status" aria-label="Code preview loading">{previews.loading ? `Loading folded code… ${previews.files.size.toLocaleString()} files` : `${previews.files.size.toLocaleString()} folded code previews`}</span>
         <a href="https://x.com/rikarends/status/2098710248164868534" target="_blank" rel="noreferrer">Inspired by Rik Arends ↗</a>
       </footer>
     </>
@@ -72,12 +79,4 @@ function MapBreadcrumbs({ layout, selected, onSelect }: { layout: MapLayout; sel
       {!selected && <span className={styles.muted}>/ all files, one canvas</span>}
     </nav>
   );
-}
-
-function rememberPreview(held: ReadonlyMap<string, CodePreview>, path: string, code: CodePreview): ReadonlyMap<string, CodePreview> {
-  const next = new Map(held);
-  next.delete(path);
-  next.set(path, code);
-  if (next.size > 8) next.delete(next.keys().next().value!);
-  return next;
 }

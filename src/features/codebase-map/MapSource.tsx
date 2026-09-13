@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { fileTextPath } from '@/features/pull-requests/pullPaths';
 import type { FileText } from '@/features/pull-requests/pullRequests';
 import { CodeTokens, langForPath, useTokenized } from '@/features/pull-requests/diffHighlight';
@@ -8,19 +8,16 @@ import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { formatBytes, type MapNode } from './mapLayout';
 import { isMapAsset } from './mapFiles';
-import type { CodePreview } from './mapRenderer';
 import styles from './codebaseMap.module.css';
 
-export default function MapSource({ owner, repo, sha, node, onPreview }: {
-  owner: string; repo: string; sha: string; node: MapNode; onPreview: (path: string, code: CodePreview) => void;
+export default function MapSource({ owner, repo, sha, node }: {
+  owner: string; repo: string; sha: string; node: MapNode;
 }) {
   const token = useGithubToken();
   const ready = useStoreReady();
   const skipped = unavailableSource(node);
   const { data, error, reload } = useCachedJson<FileText>(skipped ? null : fileTextPath(owner, repo, sha, node.path), token, ready);
   const text = data?.text != null && !data.text.includes('\0') ? data.text : null;
-  const preview = useMemo(() => text === null ? null : { lines: text.slice(0, 60_000).split('\n').slice(0, 400) }, [text]);
-  useEffect(() => { if (preview) onPreview(node.path, preview); }, [node.path, onPreview, preview]);
   return (
     <section className={styles.source} aria-label={`Source of ${node.path}`}>
       <div className={styles.sourceHeading}><h2 title={node.path}>{node.name}</h2><span>{formatBytes(data?.byteSize ?? node.bytes)}</span></div>
@@ -29,7 +26,6 @@ export default function MapSource({ owner, repo, sha, node, onPreview }: {
       {!skipped && !data && !error && <p className={styles.message} role="status">Loading source…</p>}
       {data && text === null && <p className={styles.message}>Binary or oversized file. Source preview is unavailable.</p>}
       {text !== null && <SourceCode text={text} path={node.path} />}
-      {preview && <button className={styles.expandButton} onClick={() => onPreview(node.path, preview)}>Expand code on map</button>}
     </section>
   );
 }

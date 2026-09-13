@@ -68,15 +68,14 @@
 .sourceScroll pre { font: 11px/1.7 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px 12px 10px 0; width: max-content; min-width: 100%; tab-size: 2; }
 .sourceScroll pre span { color: var(--shiki-dark, inherit); }
 .lineNumber { display: inline-block; width: 42px; padding-right: 10px; text-align: right; color: #788e99 !important; user-select: none; }
-.expandButton, .moreLines { padding: 8px 12px; background: #354148; color: #cbd9de; text-align: left; }
-.expandButton:hover, .moreLines:hover { background: #43525a; }
+.moreLines { padding: 8px 12px; background: #354148; color: #cbd9de; text-align: left; }
+.moreLines:hover { background: #43525a; }
 .message { color: #b6c5cb; padding: 12px; line-height: 1.7; }
 .notice { padding: 8px 16px; color: #f0dbaa; background: #453d2c; }
 .notice button { text-decoration: underline; margin-left: 6px; }
 .loading { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 14px; }
 .loading span { font-size: 11px; color: var(--map-dim); }
 .statusbar { flex-shrink: 0; display: flex; align-items: center; gap: 18px; padding: 7px 12px; border-top: 1px solid #434e54; background: #2b3035; font-size: 10px; }
-.statusbar button { color: #d5d8bc; }
 .statusbar a { margin-left: auto; color: var(--map-dim); }
 .areaNote { color: var(--map-dim); }
 @media (max-width: 1000px) {

@@ -1,12 +1,13 @@
-import { contentRect, formatBytes, hasMapDetail, type MapNode, type MapPartition, type Rect } from './mapLayout';
+import { contentRect, hasMapDetail, type MapNode, type MapPartition, type Rect } from './mapLayout';
 import { screenRect, visibleRect, type Camera, type Viewport } from './mapCamera';
 
-export interface CodePreview { lines: string[] }
+import type { CodePreview } from './mapPreviewTypes';
 export interface MapScene {
   root: MapNode;
   selected: string | null;
   query: string;
-  expanded: ReadonlyMap<string, CodePreview>;
+  previews: ReadonlyMap<string, CodePreview>;
+  loading?: boolean;
 }
 export interface PaintView { camera: Camera; viewport: Viewport; hover: string | null }
 
@@ -70,8 +71,8 @@ function tileContent(ctx: CanvasRenderingContext2D, node: MapNode, rect: Rect, s
   ctx.rect(rect.x + 3, rect.y + 2, rect.width - 6, rect.height - 4);
   ctx.clip();
   tileLabel(ctx, node, rect, view.camera);
-  const code = scene.expanded.get(node.path);
-  if (!node.directory && rect.height > 45) fileBody(ctx, node, rect, code, view.viewport);
+  const code = scene.previews.get(node.path);
+  if (!node.directory && rect.height > 22) fileBody(ctx, rect, code, view.viewport, scene.loading === true);
   ctx.restore();
 }
 
@@ -81,30 +82,40 @@ function tileLabel(ctx: CanvasRenderingContext2D, node: MapNode, rect: Rect, cam
   const fontSize = Math.min(12, headerHeight * 0.7);
   ctx.font = `${node.directory ? '600 ' : ''}${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
   ctx.fillStyle = node.directory ? nodeColor(node.path) : '#d4dedf';
-  ctx.fillText(`${node.directory ? '▾ ' : '▸ '}${node.name}`, rect.x + 5, rect.y + Math.min(16, headerHeight - 2));
+  ctx.fillText(`▾ ${node.name}`, rect.x + 5, rect.y + Math.min(16, headerHeight - 2));
 }
 
-function fileBody(ctx: CanvasRenderingContext2D, node: MapNode, rect: Rect, code: CodePreview | undefined, viewport: Viewport): void {
+function fileBody(ctx: CanvasRenderingContext2D, rect: Rect, code: CodePreview | undefined, viewport: Viewport, loading: boolean): void {
   if (code) return paintCode(ctx, rect, code, viewport);
-  if (rect.width < 70) return;
+  if (rect.width < 70 || rect.height < 45) return;
   ctx.font = '10px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = '#82959d';
-  ctx.fillText(formatBytes(node.bytes), rect.x + 6, rect.y + 35);
-  if (rect.height > 85 && rect.width > 145) ctx.fillText('Double-click to read', rect.x + 6, rect.y + 53);
+  ctx.fillText(loading ? 'Loading code…' : 'No text preview', rect.x + 6, rect.y + 35);
 }
 
 function paintCode(ctx: CanvasRenderingContext2D, rect: Rect, code: CodePreview, viewport: Viewport): void {
-  const fontSize = Math.max(2, Math.min(12, (rect.width - 14) / 65));
+  const columns = Math.max(30, ...code.lines.map((line) => Math.min(120, line.length)));
+  const fontSize = Math.max(0.7, Math.min(12, (rect.width - 14) / (columns * 0.62), (rect.height - 30) / ((code.lines.length + 1) * 1.5)));
   const lineHeight = fontSize * 1.5;
-  const start = Math.max(0, Math.floor((-rect.y - 30) / lineHeight));
-  const end = Math.min(code.lines.length, Math.floor((Math.min(rect.height, viewport.height - rect.y) - 30) / lineHeight));
+  const start = Math.max(0, Math.floor((-rect.y - 27) / lineHeight));
+  const end = Math.min(code.lines.length, Math.floor((Math.min(rect.height, viewport.height - rect.y) - 27) / lineHeight));
   ctx.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-  for (let i = start; i < end; i++) paintCodeLine(ctx, code.lines[i]!, rect.x + 6, rect.y + 30 + i * lineHeight);
+  for (let i = start; i < end; i++) paintCodeLine(ctx, code.lines[i]!, rect.x + 6, rect.y + 27 + i * lineHeight, fontSize);
+  if (!code.lines.length && rect.width > 90) codeNote(ctx, rect, 'Empty file');
+  else if (code.truncated && rect.width > 140) codeNote(ctx, rect, '… more source in inspector');
 }
 
-function paintCodeLine(ctx: CanvasRenderingContext2D, line: string, x: number, y: number): void {
+function paintCodeLine(ctx: CanvasRenderingContext2D, line: string, x: number, y: number, size: number): void {
   ctx.fillStyle = /^\s*(\/\/|#|\/\*|\*)/.test(line) ? '#789184' : /^\s*(import|export|pub|fn|def|class|function|const|let|type|interface)\b/.test(line) ? '#a3bad7' : '#bdc8c9';
-  ctx.fillText(line.slice(0, 240), x, y);
+  if (size >= 3) return ctx.fillText(line, x, y);
+  const indent = line.length - line.trimStart().length;
+  ctx.fillRect(x + indent * size * 0.62, y - size * 0.7, Math.min(120, line.trim().length) * size * 0.62, Math.max(0.4, size * 0.65));
+}
+
+function codeNote(ctx: CanvasRenderingContext2D, rect: Rect, text: string): void {
+  ctx.font = '9px ui-monospace, SFMono-Regular, Menlo, monospace';
+  ctx.fillStyle = '#93a5ad';
+  ctx.fillText(text, rect.x + 6, rect.y + rect.height - 6);
 }
 
 export function paintMinimap(ctx: CanvasRenderingContext2D, root: MapNode, camera: Camera, viewport: Viewport): void {

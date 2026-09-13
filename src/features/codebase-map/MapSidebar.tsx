@@ -3,7 +3,7 @@
 import { useDeferredValue, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { formatBytes, type MapLayout, type MapNode } from './mapLayout';
-import { nodeColor, type CodePreview } from './mapRenderer';
+import { nodeColor } from './mapRenderer';
 import styles from './codebaseMap.module.css';
 
 const MapSource = dynamic(() => import('./MapSource'), { loading: () => <p className={styles.message}>Loading reader…</p> });
@@ -14,11 +14,10 @@ interface SidebarProps {
   layout: MapLayout; selected: MapNode | null;
   query: string; onQuery: (query: string) => void;
   onSelect: (node: MapNode) => void;
-  onPreview: (path: string, code: CodePreview) => void;
 }
 
 export function MapSidebar(props: SidebarProps) {
-  const { owner, repo, sha, layout, selected, query, onQuery, onSelect, onPreview } = props;
+  const { owner, repo, sha, layout, selected, query, onQuery, onSelect } = props;
   const deferred = useDeferredValue(query.trim().toLowerCase());
   const folder = selectedFolder(layout, selected);
   const results = useMemo(() => findNodes(layout, folder, deferred), [layout, folder, deferred]);
@@ -37,7 +36,7 @@ export function MapSidebar(props: SidebarProps) {
         {results.length > LIST_LIMIT && <p className={styles.message}>Showing the first {LIST_LIMIT}. Refine the search to find more.</p>}
       </div>
       {selected && !selected.directory ? (
-        <MapSource key={`${sha}:${selected.path}`} owner={owner} repo={repo} sha={sha} node={selected} onPreview={onPreview} />
+        <MapSource key={`${sha}:${selected.path}`} owner={owner} repo={repo} sha={sha} node={selected} />
       ) : <MapGuide folder={folder} onSelect={onSelect} />}
     </aside>
   );
@@ -58,10 +57,10 @@ function MapGuide({ folder, onSelect }: { folder: MapNode; onSelect: (node: MapN
     <div className={styles.guide}>
       <h2>{folder.path || 'Explore the codebase'}</h2>
       <p>{folder.count.toLocaleString()} files · {formatBytes(folder.bytes)}</p>
-      <p>Folders contain files. Colors follow the top-level folders. Zoom into a neighborhood, then open a file to read its source.</p>
+      <p>Folders contain files. Colors follow the top-level folders. Zoom into a neighborhood to read the folded code, or select a file for its full source.</p>
       <button onClick={() => onSelect(folder)}>Focus {folder.path ? 'folder' : 'repository'}</button>
       <dl><dt>Pan</dt><dd>Drag / arrow keys</dd><dt>Zoom</dt><dd>Scroll / pinch / + −</dd><dt>Focus</dt><dd>Double-click a tile</dd><dt>Reset</dt><dd>0 / Fit repo</dd></dl>
-      <p className={styles.muted}>Source stays collapsed until selected. The map keeps previews of your last eight files.</p>
+      <p className={styles.muted}>Every source file is open on the map, with inner blocks folded. Select a file to read its full source.</p>
     </div>
   );
 }

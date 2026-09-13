@@ -33,6 +33,15 @@ assert.ok(Math.abs((anchor.x - camera.x) / camera.scale - (anchor.x - zoomed.x) 
 assert.ok(Math.abs((anchor.y - camera.y) / camera.scale - (anchor.y - zoomed.y) / zoomed.scale) < 1e-8);
 assert.ok(Number.isFinite(zoomCamera(camera, 1e20, 0, 0).scale));
 
+const opened = buildMap({ sha: 'folded', files: ['one.ts', 'two.ts'], truncated: false });
+const textDraws = [];
+const sourceContext = new Proxy({}, { set: () => true, get: (_, key) => key === 'fillText' ? (text) => textDraws.push(text) : () => {} });
+const previews = new Map(opened.files.map((node) => [node.path, { lines: [`function ${node.name} { … }  [12 lines]`] }]));
+paintMap(sourceContext, { root: opened.root, selected: null, query: '', previews }, { camera: fitCamera(opened.root, viewport), viewport, hover: null });
+assert(textDraws.some((text) => text.includes('function one.ts')));
+assert(textDraws.some((text) => text.includes('function two.ts')));
+assert(!textDraws.some((text) => text.includes('Loading code') || text.includes('No text preview')));
+
 const many = Array.from({ length: 50_000 }, (_, i) => `packages/p${i % 80}/src/group${i % 13}/file${i}.ts`);
 const start = performance.now();
 const large = buildMap({ sha: 'large', files: many, truncated: true });
@@ -60,7 +69,7 @@ console.log(`Code map checks passed: 50k nested + 100k flat files, ${overviewDra
 
 function countDraws(root, camera) {
   const canvas = canvasCounter();
-  paintMap(canvas.context, { root, selected: null, query: '', expanded: new Map() }, { camera, viewport, hover: null });
+  paintMap(canvas.context, { root, selected: null, query: '', previews: new Map() }, { camera, viewport, hover: null });
   return canvas.draws;
 }
 
