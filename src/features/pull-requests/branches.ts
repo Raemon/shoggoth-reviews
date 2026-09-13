@@ -1,5 +1,6 @@
 import { githubJson } from '@/features/codebases/githubRequest';
 import { defaultBranch } from '@/features/codebases/repoDirectory';
+import { encodePath } from '@/features/codebases/repoPaths';
 import {
   changedFile,
   summarizeCommits,
@@ -8,7 +9,6 @@ import {
   type GithubChangedFile,
   type GithubCommit,
 } from './pullRequests';
-import { encodePath } from './repoFiles';
 import { BRANCH_NAME_PATTERN } from './routeParams';
 import { mapWithWorkers } from './workerPool';
 
@@ -80,7 +80,8 @@ export async function listBranchOptions(owner: string, name: string): Promise<Br
 export async function longestBranchPrefix(owner: string, name: string, segments: string[]): Promise<string | null> {
   const candidates = refPrefixes(segments.slice(0, REF_SEGMENT_LIMIT));
   const exists = await Promise.all(candidates.map((candidate) => branchExists(owner, name, candidate)));
-  return candidates.filter((_, index) => exists[index]).pop() ?? null;
+  const existing = candidates.filter((_, index) => exists[index]);
+  return existing.pop() ?? null;
 }
 
 function refPrefixes(segments: string[]): string[] {
@@ -89,10 +90,14 @@ function refPrefixes(segments: string[]): string[] {
 
 async function branchExists(owner: string, name: string, branch: string): Promise<boolean> {
   if (!BRANCH_NAME_PATTERN.test(branch)) return false;
-  return githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(branch)}`).then(
+  return fetchBranch(owner, name, branch).then(
     () => true,
     () => false,
   );
+}
+
+function fetchBranch(owner: string, name: string, branch: string): Promise<GithubBranch> {
+  return githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(branch)}`);
 }
 
 async function datedBranches(owner: string, name: string, trunk: string): Promise<DatedBranch[]> {
@@ -108,8 +113,7 @@ function allBranches(owner: string, name: string): Promise<GithubBranch[]> {
 // /branches pages alphabetically, so past 100 branches the trunk falls off the page.
 async function withTrunk(owner: string, name: string, trunk: string, listed: GithubBranch[]): Promise<GithubBranch[]> {
   if (listed.some((branch) => branch.name === trunk)) return listed;
-  const held = await githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(trunk)}`);
-  return [held, ...listed];
+  return [await fetchBranch(owner, name, trunk), ...listed];
 }
 
 export async function describeBranch(owner: string, name: string, branch: string, fresh = false): Promise<ChangeSummary> {

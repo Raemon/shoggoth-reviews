@@ -1,5 +1,6 @@
 import { githubJson } from '@/features/codebases/githubRequest';
 import { defaultBranch } from '@/features/codebases/repoDirectory';
+import { encodePath } from '@/features/codebases/repoPaths';
 import { COMMIT_SHA_PATTERN } from '@/features/sources/sourceTypes';
 
 export interface RepoFileSet {
@@ -26,10 +27,6 @@ export async function resolveCommit(owner: string, name: string, ref: string, fr
   if (COMMIT_SHA_PATTERN.test(ref)) return ref;
   const commit = await githubJson<{ sha: string }>(`${API}/repos/${owner}/${name}/commits/${encodePath(ref)}`, fresh);
   return commit.sha;
-}
-
-export function encodePath(ref: string): string {
-  return ref.split('/').map(encodeURIComponent).join('/');
 }
 
 function blobPaths(tree: GithubTree): string[] {

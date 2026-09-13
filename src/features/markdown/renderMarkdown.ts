@@ -25,8 +25,8 @@ function hovercardAttribute(title: string | null | undefined): string {
 
 function renderLink(href: string | null, title: string | null | undefined, inner: string): string {
   if (!href) return inner;
-  const leavesTheSite = href.startsWith('/') ? '' : ' target="_blank" rel="noopener noreferrer"';
-  return `<a href="${escapeHtml(href)}"${hovercardAttribute(title)}${leavesTheSite}>${inner}</a>`;
+  const newTabAttributes = href.startsWith('/') ? '' : ' target="_blank" rel="noopener noreferrer"';
+  return `<a href="${escapeHtml(href)}"${hovercardAttribute(title)}${newTabAttributes}>${inner}</a>`;
 }
 
 function renderImage(src: string | null, title: string | null | undefined, alt: string): string {

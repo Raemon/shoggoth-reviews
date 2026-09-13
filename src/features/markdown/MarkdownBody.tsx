@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type MouseEvent } from 'react';
 import { HoverCardHtml } from '@/features/surface-ui/HoverCard';
+import { opensAnotherTab } from '@/features/surface-ui/selectableClick';
 import { ImageViewerModal, type ImageSlide } from '@/features/surface-ui/ImageViewerModal';
 
 interface OpenGallery {
@@ -15,8 +16,8 @@ export function MarkdownBody({ html, className, tooltipStyle = false }: { html: 
   const router = useRouter();
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     const gallery = galleryUnderClick(event);
-    if (gallery) return setOpen(gallery);
-    navigateUnderClick(event, router);
+    if (gallery) setOpen(gallery);
+    else navigateUnderClick(event, router);
   };
   return (
     <div onClick={handleClick}>
@@ -38,18 +39,17 @@ function Gallery({ open, onOpen }: { open: OpenGallery | null; onOpen: (open: Op
   );
 }
 
-function navigateUnderClick(event: MouseEvent<HTMLDivElement>, router: { push: (route: string) => void }): boolean {
+function navigateUnderClick(event: MouseEvent<HTMLDivElement>, router: { push: (route: string) => void }): void {
   const route = routeUnderClick(event);
-  if (route === null) return false;
+  if (route === null) return;
   event.preventDefault();
   router.push(route);
-  return true;
 }
 
 function routeUnderClick(event: MouseEvent<HTMLDivElement>): string | null {
   if (isModifiedClick(event)) return null;
   const href = clickedAncestor(event, 'a')?.getAttribute('href') ?? null;
-  return href?.startsWith('/') && !href.startsWith('//') ? href : null;
+  return href?.startsWith('/') ? href : null;
 }
 
 function clickedAncestor<E extends Element>(event: MouseEvent<HTMLDivElement>, selector: string): E | null {
@@ -57,7 +57,7 @@ function clickedAncestor<E extends Element>(event: MouseEvent<HTMLDivElement>, s
 }
 
 function isModifiedClick(event: MouseEvent<HTMLDivElement>): boolean {
-  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+  return event.button !== 0 || opensAnotherTab(event);
 }
 
 function galleryUnderClick(event: MouseEvent<HTMLDivElement>): OpenGallery | null {
