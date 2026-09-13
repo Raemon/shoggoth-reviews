@@ -31,11 +31,11 @@ export function githubTarget(owner: string, repo: string, rest: string[]): Githu
   return parsed.ok ? sectionTarget(parsed.value, rest) : null;
 }
 
-// A ref target keeps GitHub's own path shape, which the [...rest] page resolves to a branch.
 export function targetRoute(target: GithubTarget): string {
   if (target.kind === 'pull') return pullRoute(target.owner, target.repo, target.number);
-  if (target.kind === 'ref') return `${repoRoute(target.owner, target.repo)}/tree/${encodePath(target.segments.join('/'))}`;
-  return repoRoute(target.owner, target.repo);
+  if (target.kind === 'repo') return repoRoute(target.owner, target.repo);
+  // Refs keep GitHub's path shape; the [...rest] page resolves it to a branch.
+  return `${repoRoute(target.owner, target.repo)}/tree/${encodePath(target.segments.join('/'))}`;
 }
 
 function sectionTarget({ owner, name: repo }: RepoRef, [section, ...tail]: string[]): GithubTarget | null {

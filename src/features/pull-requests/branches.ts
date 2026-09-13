@@ -77,11 +77,12 @@ export async function listBranchOptions(owner: string, name: string): Promise<Br
   return branches.map(({ name: branch, updatedAt }) => ({ name: branch, updatedAt })).sort(byRecent);
 }
 
-export async function longestBranchPrefix(owner: string, name: string, segments: string[]): Promise<string | null> {
-  const candidates = refPrefixes(segments.slice(0, REF_SEGMENT_LIMIT));
-  const exists = await Promise.all(candidates.map((candidate) => branchExists(owner, name, candidate)));
-  const existing = candidates.filter((_, index) => exists[index]);
-  return existing.pop() ?? null;
+// Git forbids branches a and a/b coexisting, so the first prefix that exists is the only one.
+export async function branchPrefix(owner: string, name: string, segments: string[]): Promise<string | null> {
+  for (const candidate of refPrefixes(segments.slice(0, REF_SEGMENT_LIMIT))) {
+    if (await branchExists(owner, name, candidate)) return candidate;
+  }
+  return null;
 }
 
 function refPrefixes(segments: string[]): string[] {

@@ -15,6 +15,7 @@ export function MarkdownBody({ html, className, tooltipStyle = false }: { html: 
   const [open, setOpen] = useState<OpenGallery | null>(null);
   const router = useRouter();
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (isModifiedClick(event)) return;
     const gallery = galleryUnderClick(event);
     if (gallery) setOpen(gallery);
     else navigateUnderClick(event, router);
@@ -47,8 +48,7 @@ function navigateUnderClick(event: MouseEvent<HTMLDivElement>, router: { push: (
 }
 
 function routeUnderClick(event: MouseEvent<HTMLDivElement>): string | null {
-  if (isModifiedClick(event)) return null;
-  const href = clickedAncestor(event, 'a')?.getAttribute('href') ?? null;
+  const href = clickedAncestor(event, 'a')?.getAttribute('href');
   return href?.startsWith('/') ? href : null;
 }
 
@@ -61,7 +61,6 @@ function isModifiedClick(event: MouseEvent<HTMLDivElement>): boolean {
 }
 
 function galleryUnderClick(event: MouseEvent<HTMLDivElement>): OpenGallery | null {
-  if (isModifiedClick(event)) return null;
   const clicked = clickedAncestor<HTMLImageElement>(event, 'img');
   const images = clicked ? [...event.currentTarget.querySelectorAll('img')] : [];
   const index = clicked ? images.indexOf(clicked) : -1;
