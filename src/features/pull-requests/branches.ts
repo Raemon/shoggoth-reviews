@@ -9,6 +9,7 @@ import {
   type GithubCommit,
 } from './pullRequests';
 import { encodePath } from './repoFiles';
+import { BRANCH_NAME_PATTERN } from './routeParams';
 import { mapWithWorkers } from './workerPool';
 
 export interface BranchPull {
@@ -60,6 +61,7 @@ interface GithubCompare {
 const API = 'https://api.github.com';
 const BRANCH_LIMIT = 100;
 const BRANCH_DATE_WORKERS = 8;
+const REF_SEGMENT_LIMIT = 8;
 const COMMIT_LIMIT = 100;
 
 export async function listBranches(owner: string, name: string): Promise<BranchSummary[]> {
@@ -73,6 +75,24 @@ export async function listBranches(owner: string, name: string): Promise<BranchS
 export async function listBranchOptions(owner: string, name: string): Promise<BranchOption[]> {
   const branches = await datedBranches(owner, name, await defaultBranch(owner, name));
   return branches.map(({ name: branch, updatedAt }) => ({ name: branch, updatedAt })).sort(byRecent);
+}
+
+export async function longestBranchPrefix(owner: string, name: string, segments: string[]): Promise<string | null> {
+  const candidates = refPrefixes(segments.slice(0, REF_SEGMENT_LIMIT));
+  const exists = await Promise.all(candidates.map((candidate) => branchExists(owner, name, candidate)));
+  return candidates.filter((_, index) => exists[index]).pop() ?? null;
+}
+
+function refPrefixes(segments: string[]): string[] {
+  return segments.map((_, index) => segments.slice(0, index + 1).join('/'));
+}
+
+async function branchExists(owner: string, name: string, branch: string): Promise<boolean> {
+  if (!BRANCH_NAME_PATTERN.test(branch)) return false;
+  return githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(branch)}`).then(
+    () => true,
+    () => false,
+  );
 }
 
 async function datedBranches(owner: string, name: string, trunk: string): Promise<DatedBranch[]> {

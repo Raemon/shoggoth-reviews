@@ -1,7 +1,7 @@
-import { repoRoute } from './repoPaths';
+import { decodePathSegments, repoRoute } from './repoPaths';
 import { BRANCH_NAME_PATTERN, PULL_NUMBER_PATTERN } from '@/features/pull-requests/routeParams';
-import { branchRoute, pullRoute } from '@/features/pull-requests/pullPaths';
-import { LOGIN_PATTERN, REPO_NAME_PATTERN } from '@/features/sources/sourceTypes';
+import { pullRoute } from '@/features/pull-requests/pullPaths';
+import { parseRepoLink, type RepoRef } from '@/features/sources/parseRepoLink';
 
 const GITHUB_HOST = /^(?:www\.)?github\.com$/i;
 const REPO_LANDING_SECTIONS = new Set(['pulls', 'branches', 'commits']);
@@ -9,18 +9,21 @@ const REPO_LANDING_SECTIONS = new Set(['pulls', 'branches', 'commits']);
 export function githubUrlRoute(href: string): string | null {
   const url = parseUrl(href);
   if (url === null || !GITHUB_HOST.test(url.hostname)) return null;
-  const [owner, repo, ...rest] = decodeSegments(url.pathname);
+  const [owner, repo, ...rest] = decodePathSegments(url.pathname);
   if (owner === undefined || repo === undefined) return null;
   return repoSubpathRoute(owner, repo, rest);
 }
 
 export function repoSubpathRoute(owner: string, repo: string, rest: string[]): string | null {
-  if (!LOGIN_PATTERN.test(owner) || !REPO_NAME_PATTERN.test(repo)) return null;
-  const [section, ...tail] = rest;
-  if (section === undefined) return repoRoute(owner, repo);
-  if (section === 'pull') return pullSectionRoute(owner, repo, tail[0]);
-  if (section === 'tree' || section === 'blob') return refSectionRoute(owner, repo, tail[0]);
-  return REPO_LANDING_SECTIONS.has(section) ? repoRoute(owner, repo) : null;
+  const parsed = parseRepoLink(`${owner}/${repo}`);
+  return parsed.ok ? sectionRoute(parsed.value, rest) : null;
+}
+
+function sectionRoute({ owner, name }: RepoRef, [section, ...tail]: string[]): string | null {
+  if (section === undefined) return repoRoute(owner, name);
+  if (section === 'pull') return pullSectionRoute(owner, name, tail[0]);
+  if (section === 'tree' || section === 'blob') return refSectionRoute(owner, name, tail);
+  return REPO_LANDING_SECTIONS.has(section) ? repoRoute(owner, name) : null;
 }
 
 function pullSectionRoute(owner: string, repo: string, number: string | undefined): string | null {
@@ -28,21 +31,10 @@ function pullSectionRoute(owner: string, repo: string, number: string | undefine
   return pullRoute(owner, repo, Number(number));
 }
 
-function refSectionRoute(owner: string, repo: string, ref: string | undefined): string | null {
+function refSectionRoute(owner: string, repo: string, tail: string[]): string | null {
+  const [ref] = tail;
   if (ref === undefined || ref === 'HEAD' || !BRANCH_NAME_PATTERN.test(ref)) return null;
-  return branchRoute(owner, repo, ref);
-}
-
-function decodeSegments(pathname: string): string[] {
-  return pathname.split('/').filter(Boolean).map(decodeSegment);
-}
-
-function decodeSegment(segment: string): string {
-  try {
-    return decodeURIComponent(segment);
-  } catch {
-    return segment;
-  }
+  return `${repoRoute(owner, repo)}/tree/${tail.map(encodeURIComponent).join('/')}`;
 }
 
 function parseUrl(href: string): URL | null {

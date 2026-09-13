@@ -1,6 +1,5 @@
 import { Marked, type Tokens } from 'marked';
-import { safeUrl, sanitizeHtml, type UrlBases } from './sanitizeHtml';
-import { githubUrlRoute } from '@/features/codebases/githubUrlRoutes';
+import { safeHref, safeUrl, sanitizeHtml, type UrlBases } from './sanitizeHtml';
 
 export interface RepoRef {
   owner: string;
@@ -26,9 +25,8 @@ function hovercardAttribute(title: string | null | undefined): string {
 
 function renderLink(href: string | null, title: string | null | undefined, inner: string): string {
   if (!href) return inner;
-  const onSite = githubUrlRoute(href);
-  const offSite = onSite === null ? ' target="_blank" rel="noopener noreferrer"' : '';
-  return `<a href="${escapeHtml(onSite ?? href)}"${hovercardAttribute(title)}${offSite}>${inner}</a>`;
+  const leavesTheSite = href.startsWith('/') ? '' : ' target="_blank" rel="noopener noreferrer"';
+  return `<a href="${escapeHtml(href)}"${hovercardAttribute(title)}${leavesTheSite}>${inner}</a>`;
 }
 
 function renderImage(src: string | null, title: string | null | undefined, alt: string): string {
@@ -43,7 +41,7 @@ function createMarked(repo: RepoRef): Marked {
     renderer: {
       html: ({ text }: Tokens.HTML | Tokens.Tag) => sanitizeHtml(text, bases),
       link(token: Tokens.Link) {
-        return renderLink(safeUrl(token.href, bases.href), token.title, this.parser.parseInline(token.tokens));
+        return renderLink(safeHref(token.href, bases.href), token.title, this.parser.parseInline(token.tokens));
       },
       image: (token: Tokens.Image) => renderImage(safeUrl(token.href, bases.src), token.title, token.text),
     },

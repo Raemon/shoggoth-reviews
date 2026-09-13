@@ -14,12 +14,7 @@ export function MarkdownBody({ html, className, tooltipStyle = false }: { html: 
   const [open, setOpen] = useState<OpenGallery | null>(null);
   const router = useRouter();
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-    const route = routeUnderClick(event);
-    if (route !== null) {
-      event.preventDefault();
-      router.push(route);
-      return;
-    }
+    if (navigateUnderClick(event, router)) return;
     const gallery = galleryUnderClick(event);
     if (gallery) setOpen(gallery);
   };
@@ -43,10 +38,22 @@ function Gallery({ open, onOpen }: { open: OpenGallery | null; onOpen: (open: Op
   );
 }
 
+function navigateUnderClick(event: MouseEvent<HTMLDivElement>, router: { push: (route: string) => void }): boolean {
+  const route = routeUnderClick(event);
+  if (route === null) return false;
+  event.preventDefault();
+  router.push(route);
+  return true;
+}
+
 function routeUnderClick(event: MouseEvent<HTMLDivElement>): string | null {
   if (isModifiedClick(event)) return null;
-  const href = event.target instanceof Element ? event.target.closest('a')?.getAttribute('href') : null;
+  const href = clickedAncestor(event, 'a')?.getAttribute('href') ?? null;
   return href?.startsWith('/') ? href : null;
+}
+
+function clickedAncestor<E extends Element>(event: MouseEvent<HTMLDivElement>, selector: string): E | null {
+  return event.target instanceof Element ? event.target.closest<E>(selector) : null;
 }
 
 function isModifiedClick(event: MouseEvent<HTMLDivElement>): boolean {
@@ -55,7 +62,7 @@ function isModifiedClick(event: MouseEvent<HTMLDivElement>): boolean {
 
 function galleryUnderClick(event: MouseEvent<HTMLDivElement>): OpenGallery | null {
   if (isModifiedClick(event)) return null;
-  const clicked = event.target instanceof Element ? event.target.closest('img') : null;
+  const clicked = clickedAncestor<HTMLImageElement>(event, 'img');
   const images = clicked ? [...event.currentTarget.querySelectorAll('img')] : [];
   const index = clicked ? images.indexOf(clicked) : -1;
   if (index < 0) return null;
