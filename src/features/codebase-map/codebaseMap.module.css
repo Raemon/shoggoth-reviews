@@ -19,6 +19,9 @@
 .repoName { color: var(--map-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .titlebar a { margin-left: auto; color: #b4c9d7; white-space: nowrap; }
 .titlebar a:hover { text-decoration: underline; }
+.assetsToggle { display: flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; color: var(--map-dim); cursor: pointer; }
+.assetsToggle input { accent-color: #a5c3c7; }
+.titlebar .assetsToggle + a { margin-left: 0; }
 .breadcrumbs { display: flex; align-items: center; gap: 8px; min-height: 35px; padding: 5px 16px; overflow-x: auto; white-space: nowrap; border-bottom: 1px solid #434e5466; background: #252a2e; }
 .breadcrumbs button { padding: 2px 0; }
 .breadcrumbs button:hover, .breadcrumbs button[aria-current] { color: #ebdfa9; }

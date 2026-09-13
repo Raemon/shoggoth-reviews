@@ -4,6 +4,10 @@ import './codeMapTestLoader.mjs';
 import { buildMap, contains, hitNode, WORLD } from '../src/features/codebase-map/mapLayout.ts';
 import { fitCamera, screenRect, zoomCamera } from '../src/features/codebase-map/mapCamera.ts';
 
+const { sourceFileSet } = await import('../src/features/codebase-map/mapFiles.ts');
+const mixed = { sha: 'mixed', files: ['src/main.ts', 'photo.PNG', 'font.woff2', 'README.md'], truncated: false };
+assert.deepEqual(sourceFileSet(mixed, false).files, ['src/main.ts', 'README.md']);
+assert.equal(sourceFileSet(mixed, true), mixed);
 const { paintMap, paintMinimap } = await import('../src/features/codebase-map/mapRenderer.ts');
 const files = ['__proto__/constructor.ts', 'src/main.ts', 'src/lib/math.ts', 'empty.txt', 'image.png'];
 const layout = buildMap({ sha: 'test', files, sizes: { 'empty.txt': 0, 'image.png': 20_000_000 }, truncated: false });

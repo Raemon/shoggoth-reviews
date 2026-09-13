@@ -10,6 +10,7 @@ import { useCachedJson } from '@/features/sources/useCachedJson';
 import { MapCanvas } from './MapCanvas';
 import { MapSidebar } from './MapSidebar';
 import { buildMap, type MapLayout, type MapNode } from './mapLayout';
+import { sourceFileSet } from './mapFiles';
 import type { CodePreview } from './mapRenderer';
 import styles from './codebaseMap.module.css';
 
@@ -17,16 +18,18 @@ export function CodebaseMap({ owner, repo }: { owner: string; repo: string }) {
   const token = useGithubToken();
   const ready = useStoreReady();
   const { data, error, reload } = useCachedJson<RepoFileSet>(repoFilesPath(owner, repo), token, ready);
-  const layout = useMemo(() => data ? buildMap(data) : null, [data]);
+  const [includeAssets, setIncludeAssets] = useState(false);
+  const layout = useMemo(() => data ? buildMap(sourceFileSet(data, includeAssets)) : null, [data, includeAssets]);
   return (
     <section className={styles.page} aria-label={`${owner}/${repo} code map`}>
       <div className={styles.titlebar}>
         <h1>Code map</h1><span className={styles.repoName}>{owner}/{repo}</span>
+        <label className={styles.assetsToggle}><input type="checkbox" checked={includeAssets} onChange={(event) => setIncludeAssets(event.target.checked)} /> Include assets</label>
         <Link href={repoRoute(owner, repo)}>Back to repository</Link>
       </div>
       {error && <div className={styles.notice} role="alert">{error} <button onClick={() => void reload().catch(() => {})}>Retry</button></div>}
       {!layout && !error && <div className={styles.loading} role="status">Mapping repository…<span>Loading folders and file sizes</span></div>}
-      {layout && data && <MapWorkspace key={data.sha} owner={owner} repo={repo} fileSet={data} layout={layout} />}
+      {layout && data && <MapWorkspace key={`${data.sha}:${includeAssets}`} owner={owner} repo={repo} fileSet={data} layout={layout} />}
     </section>
   );
 }
@@ -48,7 +51,7 @@ function MapWorkspace({ owner, repo, fileSet, layout }: { owner: string; repo: s
         <MapSidebar owner={owner} repo={repo} sha={fileSet.sha} layout={layout} selected={selected} query={query} onQuery={setQuery} onSelect={jump} onPreview={preview} />
       </div>
       <footer className={styles.statusbar}>
-        <span>{layout.files.length.toLocaleString()} files <span className={styles.muted}>at {fileSet.sha.slice(0, 7)}</span></span>
+        <span>{layout.files.length.toLocaleString()} of {fileSet.files.length.toLocaleString()} files <span className={styles.muted}>at {fileSet.sha.slice(0, 7)}</span></span>
         <span className={styles.areaNote}>Area follows file size, compressed for readability</span>
         <button disabled={!expanded.size} onClick={() => setExpanded(new Map())}>Collapse code ({expanded.size})</button>
         <a href="https://x.com/rikarends/status/2098710248164868534" target="_blank" rel="noreferrer">Inspired by Rik Arends ↗</a>

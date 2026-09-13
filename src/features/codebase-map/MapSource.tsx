@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { fileTextPath } from '@/features/pull-requests/pullPaths';
 import type { FileText } from '@/features/pull-requests/pullRequests';
 import { CodeTokens, langForPath, useTokenized } from '@/features/pull-requests/diffHighlight';
-import { isImagePath } from '@/features/pull-requests/imageFiles';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { formatBytes, type MapNode } from './mapLayout';
+import { isMapAsset } from './mapFiles';
 import type { CodePreview } from './mapRenderer';
 import styles from './codebaseMap.module.css';
 
@@ -50,6 +50,6 @@ function SourceCode({ text, path }: { text: string; path: string }) {
 }
 
 function unavailableSource(node: MapNode): string | null {
-  if (isImagePath(node.path) || /\.(wasm|woff2?|ttf|otf|zip|gz|pdf|mp[34]|mov|ico|exe|dll|so|dylib)$/i.test(node.path)) return 'Binary asset. Its location and size are shown on the map.';
+  if (isMapAsset(node.path)) return 'Binary asset. Its location and size are shown on the map.';
   return node.bytes > 512_000 ? 'Source exceeds the 500 KB preview limit. Its location and size are shown on the map.' : null;
 }
