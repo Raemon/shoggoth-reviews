@@ -1,3 +1,5 @@
+import { githubUrlRoute } from '@/features/codebases/githubUrlRoutes';
+
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'source', 'input']);
 const URL_ATTRIBUTES = new Set(['href', 'src', 'srcset']);
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
@@ -68,7 +70,8 @@ function attributeValue(name: string, value: string, bases: UrlBases): string | 
   if (!URL_ATTRIBUTES.has(name)) return escapeAttribute(value);
   const base = name === 'href' ? bases.href : bases.src;
   const resolved = name === 'srcset' ? safeSrcset(value, base) : safeUrl(value, base);
-  return resolved === null ? null : escapeAttribute(resolved);
+  if (resolved === null) return null;
+  return escapeAttribute(name === 'href' ? (githubUrlRoute(resolved) ?? resolved) : resolved);
 }
 
 function safeSrcset(value: string, base: string): string | null {

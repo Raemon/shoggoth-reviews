@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, type MouseEvent } from 'react';
 import { HoverCardHtml } from '@/features/surface-ui/HoverCard';
 import { ImageViewerModal, type ImageSlide } from '@/features/surface-ui/ImageViewerModal';
@@ -11,12 +12,19 @@ interface OpenGallery {
 
 export function MarkdownBody({ html, className, tooltipStyle = false }: { html: string; className: string; tooltipStyle?: boolean }) {
   const [open, setOpen] = useState<OpenGallery | null>(null);
-  const openGallery = (event: MouseEvent<HTMLDivElement>) => {
+  const router = useRouter();
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    const route = routeUnderClick(event);
+    if (route !== null) {
+      event.preventDefault();
+      router.push(route);
+      return;
+    }
     const gallery = galleryUnderClick(event);
     if (gallery) setOpen(gallery);
   };
   return (
-    <div onClick={openGallery}>
+    <div onClick={handleClick}>
       <HoverCardHtml html={html} className={className} tooltipStyle={tooltipStyle} />
       <Gallery open={open} onOpen={setOpen} />
     </div>
@@ -35,8 +43,18 @@ function Gallery({ open, onOpen }: { open: OpenGallery | null; onOpen: (open: Op
   );
 }
 
+function routeUnderClick(event: MouseEvent<HTMLDivElement>): string | null {
+  if (isModifiedClick(event)) return null;
+  const href = event.target instanceof Element ? event.target.closest('a')?.getAttribute('href') : null;
+  return href?.startsWith('/') ? href : null;
+}
+
+function isModifiedClick(event: MouseEvent<HTMLDivElement>): boolean {
+  return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+}
+
 function galleryUnderClick(event: MouseEvent<HTMLDivElement>): OpenGallery | null {
-  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
+  if (isModifiedClick(event)) return null;
   const clicked = event.target instanceof Element ? event.target.closest('img') : null;
   const images = clicked ? [...event.currentTarget.querySelectorAll('img')] : [];
   const index = clicked ? images.indexOf(clicked) : -1;

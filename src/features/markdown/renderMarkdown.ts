@@ -1,5 +1,6 @@
 import { Marked, type Tokens } from 'marked';
 import { safeUrl, sanitizeHtml, type UrlBases } from './sanitizeHtml';
+import { githubUrlRoute } from '@/features/codebases/githubUrlRoutes';
 
 export interface RepoRef {
   owner: string;
@@ -25,7 +26,9 @@ function hovercardAttribute(title: string | null | undefined): string {
 
 function renderLink(href: string | null, title: string | null | undefined, inner: string): string {
   if (!href) return inner;
-  return `<a href="${escapeHtml(href)}"${hovercardAttribute(title)} target="_blank" rel="noopener noreferrer">${inner}</a>`;
+  const onSite = githubUrlRoute(href);
+  const offSite = onSite === null ? ' target="_blank" rel="noopener noreferrer"' : '';
+  return `<a href="${escapeHtml(onSite ?? href)}"${hovercardAttribute(title)}${offSite}>${inner}</a>`;
 }
 
 function renderImage(src: string | null, title: string | null | undefined, alt: string): string {
