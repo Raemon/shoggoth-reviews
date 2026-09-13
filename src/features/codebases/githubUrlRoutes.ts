@@ -5,16 +5,23 @@ import { parseRepoLink, type RepoRef } from '@/features/sources/parseRepoLink';
 
 const GITHUB_HOST = /^(?:www\.)?github\.com$/i;
 const REPO_LANDING_SECTIONS = new Set(['pulls', 'branches', 'commits']);
+const RESERVED_OWNERS = new Set([
+  'about', 'apps', 'collections', 'codespaces', 'contact', 'dashboard', 'enterprise', 'events', 'explore',
+  'features', 'issues', 'join', 'login', 'marketplace', 'new', 'notifications', 'orgs', 'pricing', 'pulls',
+  'search', 'security', 'settings', 'site', 'sponsors', 'topics', 'trending', 'users',
+]);
 
 export function githubUrlRoute(href: string): string | null {
   const url = parseUrl(href);
   if (url === null || !GITHUB_HOST.test(url.hostname)) return null;
   const [owner, repo, ...rest] = decodePathSegments(url.pathname);
   if (owner === undefined || repo === undefined) return null;
-  return repoSubpathRoute(owner, repo, rest);
+  const route = repoSubpathRoute(owner, repo, rest);
+  return route === null ? null : `${route}${url.search}${url.hash}`;
 }
 
 export function repoSubpathRoute(owner: string, repo: string, rest: string[]): string | null {
+  if (RESERVED_OWNERS.has(owner.toLowerCase())) return null;
   const parsed = parseRepoLink(`${owner}/${repo}`);
   return parsed.ok ? sectionRoute(parsed.value, rest) : null;
 }

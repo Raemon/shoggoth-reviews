@@ -31,9 +31,12 @@ export interface UrlBases {
   src: string;
 }
 
+const ABSOLUTE_URL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+
 export function safeHref(value: string, base: string): string | null {
   const resolved = safeUrl(value, base);
-  return resolved === null ? null : githubUrlRoute(resolved) ?? resolved;
+  if (resolved === null || !ABSOLUTE_URL.test(value.trim())) return resolved;
+  return githubUrlRoute(resolved) ?? resolved;
 }
 
 export function safeUrl(href: string, base: string): string | null {
