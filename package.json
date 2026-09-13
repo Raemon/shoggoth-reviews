@@ -14,7 +14,8 @@
     "check:caching": "node scripts/checkGithubCaching.mjs",
     "predev": "node scripts/copyTreeSitterWasm.mjs",
     "prebuild": "node scripts/copyTreeSitterWasm.mjs",
-    "check:folds": "tsx scripts/checkFolds.mjs"
+    "check:folds": "tsx scripts/checkFolds.mjs",
+    "check:map": "tsx scripts/checkCodeMap.mjs && tsx scripts/checkMapGestures.mjs && tsx scripts/checkMapPreviews.mjs"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.3.3",

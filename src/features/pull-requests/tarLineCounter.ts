@@ -18,6 +18,8 @@ interface OpenEntry {
   contentLeft: number;
   blockLeft: number;
   textChunks: Buffer[] | null;
+  sourceChunks: Buffer[] | null;
+  sourceBytes: number;
   probedBytes: number;
   binary: boolean;
   newlines: number;
@@ -29,8 +31,12 @@ export interface TarballLines {
   tooLarge: boolean;
 }
 
-export async function countTarballLines(body: ReadableStream<Uint8Array> | null): Promise<TarballLines> {
-  const counter = new TarLineCounter();
+export interface TarTextFile { path: string; text: string; lines: number; truncated: boolean }
+export type TarTextVisitor = (file: TarTextFile) => void;
+const MAX_SOURCE_BYTES = 512_000;
+
+export async function countTarballLines(body: ReadableStream<Uint8Array> | null, visit?: TarTextVisitor): Promise<TarballLines> {
+  const counter = new TarLineCounter(visit);
   if (body === null) return counter.result();
   for await (const chunk of gunzipped(body)) {
     counter.push(chunk as Buffer);
@@ -52,6 +58,10 @@ class TarLineCounter {
   private unpacked = 0;
   private tooLarge = false;
   ended = false;
+
+  private readonly visit?: TarTextVisitor;
+
+  constructor(visit?: TarTextVisitor) { this.visit = visit; }
 
   push(chunk: Buffer): void {
     this.guardSize(chunk);
@@ -83,7 +93,7 @@ class TarLineCounter {
   private beginEntry(header: Buffer): void {
     this.header = Buffer.alloc(0);
     if (header[0] === 0 || ((header[124] ?? 0) & BASE_256_SIZE_BIT) !== 0) this.ended = true;
-    else this.entry = entryFromHeader(header);
+    else this.entry = entryFromHeader(header, this.visit !== undefined);
   }
 
   private feedEntry(entry: OpenEntry, chunk: Buffer, at: number): number {
@@ -97,14 +107,22 @@ class TarLineCounter {
   private closeEntry(entry: OpenEntry): void {
     this.entry = null;
     const nameAhead = longNameIn(entry);
-    if (countable(entry, nameAhead)) this.lines[withoutRoot(this.longName ?? entry.name)] = lineCount(entry);
+    if (countable(entry, nameAhead)) this.recordFile(entry);
     this.longName = nameAhead;
+  }
+
+  private recordFile(entry: OpenEntry): void {
+    const path = withoutRoot(this.longName ?? entry.name);
+    const lines = lineCount(entry);
+    this.lines[path] = lines;
+    if (entry.sourceChunks) this.visit?.({ path, lines, text: Buffer.concat(entry.sourceChunks).toString('utf8'), truncated: entry.sourceBytes < entry.size });
   }
 }
 
-function entryFromHeader(header: Buffer): OpenEntry {
+function entryFromHeader(header: Buffer, collectSource: boolean): OpenEntry {
   const head = headerFields(header);
-  return { ...head, contentLeft: head.size, blockLeft: Math.ceil(head.size / BLOCK) * BLOCK, ...blankCounts(head.flag) };
+  const sourceChunks = collectSource && REGULAR_FILE_FLAGS.includes(head.flag) ? [] : null;
+  return { ...head, contentLeft: head.size, blockLeft: Math.ceil(head.size / BLOCK) * BLOCK, ...blankCounts(head.flag), sourceChunks, sourceBytes: 0 };
 }
 
 function headerFields(header: Buffer): { name: string; flag: string; size: number } {
@@ -124,6 +142,13 @@ function takeContent(entry: OpenEntry, bytes: Buffer): void {
   entry.contentLeft -= bytes.length;
   if (entry.textChunks) entry.textChunks.push(Buffer.from(bytes));
   else countContent(entry, bytes);
+  if (entry.sourceChunks && entry.sourceBytes < MAX_SOURCE_BYTES) retainSource(entry, bytes);
+}
+
+function retainSource(entry: OpenEntry, bytes: Buffer): void {
+  const kept = bytes.subarray(0, MAX_SOURCE_BYTES - entry.sourceBytes);
+  entry.sourceChunks!.push(Buffer.from(kept));
+  entry.sourceBytes += kept.length;
 }
 
 function countContent(entry: OpenEntry, bytes: Buffer): void {
