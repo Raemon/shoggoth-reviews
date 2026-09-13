@@ -37,6 +37,7 @@ export function CodebaseHeader() {
   const pullNumber = pullBeingRead(pathname);
   const branch = branchBeingRead(pathname);
   const readingPullList = reading !== null && pathname === repoRoute(reading.owner, reading.name);
+  const readingMap = reading !== null && pathname === `${repoRoute(reading.owner, reading.name)}/map`;
   const readingChange = reading !== null && (pullNumber !== null || branch !== null);
   return (
     <header className={`relative z-40 flex items-center gap-2 bg-panel px-2 py-5 ${central ? '' : 'border-b border-panel-edge'}`}>
@@ -44,8 +45,14 @@ export function CodebaseHeader() {
         <ScopeMark size={20} title="reposcope home" />
       </Link>
       <CodebaseMenu reading={reading} />
+      {reading && (
+        <Link href={`${repoRoute(reading.owner, reading.name)}/map`} aria-current={readingMap ? 'page' : undefined}
+          className="shrink-0 rounded border border-panel-edge px-2 py-1 text-[11px] text-ink-dim hover:bg-btn-hover aria-[current=page]:text-accent">
+          Code map
+        </Link>
+      )}
       {central && readingChange && <PullFilterMenu />}
-      {reading && !readingPullList && <HeaderSubject repo={reading} pullNumber={pullNumber} branch={branch} />}
+      {reading && !readingPullList && !readingMap && <HeaderSubject repo={reading} pullNumber={pullNumber} branch={branch} />}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GithubSignedOutNotice />
         {reading && pullNumber !== null && (
