@@ -9,23 +9,24 @@ import type { RepoRef } from '@/features/sources/parseRepoLink';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { errorMessage } from '@/features/sources/errorMessage';
 import { useCachedJson, type CachedJson } from '@/features/sources/useCachedJson';
+import { TEXT_ACTION } from '@/features/surface-ui/buttonStyles';
+import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { FilterField } from '@/features/surface-ui/FilterField';
 import { FailureNote } from '@/features/surface-ui/FailureNote';
-import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 import { PopoverMenu, type PopoverTrigger } from '@/features/surface-ui/PopoverMenu';
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
+import { StrokeIcon } from '@/features/surface-ui/StrokeIcon';
 
 const REF_TEXT = 'max-w-40 truncate font-mono text-[10px]';
+const REF_BUTTON = 'flex items-center gap-1 rounded px-1 py-0.5';
 
 export function PullBranchRefs({ repo, number }: { repo: RepoRef; number: number }) {
   const pull = useCurrentPull(repo.owner, repo.name, number);
   if (pull === null) return null;
   return (
     <div className="hidden shrink-0 items-center gap-1.5 text-[10px] text-ink-dim md:flex">
-      <HoverCardTrigger label={headRefLabel(pull.headRef)} focusable={false} tooltipStyle>
-        <span className={REF_TEXT}>{pull.headRef}</span>
-      </HoverCardTrigger>
+      <HeadRefCopy headRef={pull.headRef} />
       <span aria-hidden className="text-ink-dim/40">
         →
       </span>
@@ -34,8 +35,28 @@ export function PullBranchRefs({ repo, number }: { repo: RepoRef; number: number
   );
 }
 
-function headRefLabel(headRef: string): string {
-  return `${headRef} — GitHub cannot move a pull request to a different head branch; open a new one instead`;
+function HeadRefCopy({ headRef }: { headRef: string }) {
+  return (
+    <CopyButton
+      value={headRef}
+      what={headRef}
+      ariaLabel={`Copy branch name ${headRef}`}
+      className={REF_BUTTON}
+      idleClassName={TEXT_ACTION}
+    >
+      <span className={REF_TEXT}>{headRef}</span>
+      <ClipboardIcon />
+    </CopyButton>
+  );
+}
+
+function ClipboardIcon() {
+  return (
+    <StrokeIcon size={10} className="shrink-0">
+      <rect x="9" y="9" width="11" height="12" rx="1.5" />
+      <path d="M15 5.5H5.5a1.5 1.5 0 0 0-1.5 1.5v9" />
+    </StrokeIcon>
+  );
 }
 
 function BaseRefPicker({
@@ -98,9 +119,7 @@ function BaseRefButton({ baseRef, retargeting, open, toggle }: PopoverTrigger & 
       aria-label={`Base branch ${baseRef} — choose another`}
       onClick={toggle}
       disabled={retargeting}
-      className={`flex items-center gap-1 rounded px-1 py-0.5 disabled:opacity-40 ${
-        open ? 'bg-btn-active text-accent' : 'text-ink-dim hover:bg-btn-hover hover:text-ink'
-      }`}
+      className={`${REF_BUTTON} disabled:opacity-40 ${open ? 'bg-btn-active text-accent' : TEXT_ACTION}`}
     >
       <span className={REF_TEXT}>{retargeting ? 'retargeting…' : baseRef}</span>
       <span aria-hidden className="text-[9px] text-ink-dim/60">
