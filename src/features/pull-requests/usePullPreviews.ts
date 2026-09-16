@@ -151,7 +151,6 @@ function stateAmong(entries: PreviewEntry[]): PreviewState {
   return 'none';
 }
 
-// Repos without Vercel stay 'none' forever; only poll once some entry proves Vercel exists.
 function headPending(state: PreviewState, entries: PreviewEntry[]): boolean {
   if (state === 'building') return true;
   return state === 'none' && entries.some((entry) => entry.state !== 'none');

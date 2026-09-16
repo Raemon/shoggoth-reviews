@@ -30,9 +30,13 @@ export interface UrlBases {
 }
 
 export function safeUrl(href: string, base: string): string | null {
+  return urlWithProtocol(href, SAFE_PROTOCOLS, base);
+}
+
+export function urlWithProtocol(href: string, allowed: Set<string>, base?: string): string | null {
   try {
     const url = new URL(href.trim(), base);
-    return SAFE_PROTOCOLS.has(url.protocol) ? url.href : null;
+    return allowed.has(url.protocol) ? url.href : null;
   } catch {
     return null;
   }
