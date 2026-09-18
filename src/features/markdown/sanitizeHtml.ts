@@ -1,3 +1,5 @@
+import { githubUrlRoute } from '@/features/codebases/githubUrlRoutes';
+
 const VOID_TAGS = new Set(['br', 'hr', 'img', 'source', 'input']);
 const URL_ATTRIBUTES = new Set(['href', 'src', 'srcset']);
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
@@ -27,6 +29,11 @@ function plain(tag: string): [string, string[]] {
 export interface UrlBases {
   href: string;
   src: string;
+}
+
+export function safeHref(value: string, base: string): string | null {
+  const resolved = safeUrl(value, base);
+  return resolved === null ? null : (githubUrlRoute(resolved) ?? resolved);
 }
 
 export function safeUrl(href: string, base: string): string | null {
@@ -70,9 +77,14 @@ function keptAttributes(rawAttributes: string, allowed: string[], bases: UrlBase
 
 function attributeValue(name: string, value: string, bases: UrlBases): string | null {
   if (!URL_ATTRIBUTES.has(name)) return escapeAttribute(value);
-  const base = name === 'href' ? bases.href : bases.src;
-  const resolved = name === 'srcset' ? safeSrcset(value, base) : safeUrl(value, base);
+  const resolved = resolvedUrlAttribute(name, value, bases);
   return resolved === null ? null : escapeAttribute(resolved);
+}
+
+function resolvedUrlAttribute(name: string, value: string, bases: UrlBases): string | null {
+  if (name === 'href') return safeHref(value, bases.href);
+  if (name === 'srcset') return safeSrcset(value, bases.src);
+  return safeUrl(value, bases.src);
 }
 
 function safeSrcset(value: string, base: string): string | null {

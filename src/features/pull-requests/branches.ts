@@ -1,5 +1,6 @@
 import { githubJson } from '@/features/codebases/githubRequest';
 import { defaultBranch } from '@/features/codebases/repoDirectory';
+import { encodePath } from '@/features/codebases/repoPaths';
 import {
   changedFile,
   summarizeCommits,
@@ -8,7 +9,7 @@ import {
   type GithubChangedFile,
   type GithubCommit,
 } from './pullRequests';
-import { encodePath } from './repoFiles';
+import { BRANCH_NAME_PATTERN } from './routeParams';
 import { mapWithWorkers } from './workerPool';
 
 export interface BranchPull {
@@ -60,6 +61,7 @@ interface GithubCompare {
 const API = 'https://api.github.com';
 const BRANCH_LIMIT = 100;
 const BRANCH_DATE_WORKERS = 8;
+const REF_SEGMENT_LIMIT = 8;
 const COMMIT_LIMIT = 100;
 
 export async function listBranches(owner: string, name: string): Promise<BranchSummary[]> {
@@ -75,6 +77,30 @@ export async function listBranchOptions(owner: string, name: string): Promise<Br
   return branches.map(({ name: branch, updatedAt }) => ({ name: branch, updatedAt })).sort(byRecent);
 }
 
+// Git forbids branches a and a/b coexisting, so the first prefix that exists is the only one.
+export async function branchPrefix(owner: string, name: string, segments: string[]): Promise<string | null> {
+  for (const candidate of refPrefixes(segments.slice(0, REF_SEGMENT_LIMIT))) {
+    if (await branchExists(owner, name, candidate)) return candidate;
+  }
+  return null;
+}
+
+function refPrefixes(segments: string[]): string[] {
+  return segments.map((_, index) => segments.slice(0, index + 1).join('/'));
+}
+
+async function branchExists(owner: string, name: string, branch: string): Promise<boolean> {
+  if (!BRANCH_NAME_PATTERN.test(branch)) return false;
+  return fetchBranch(owner, name, branch).then(
+    () => true,
+    () => false,
+  );
+}
+
+function fetchBranch(owner: string, name: string, branch: string): Promise<GithubBranch> {
+  return githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(branch)}`);
+}
+
 async function datedBranches(owner: string, name: string, trunk: string): Promise<DatedBranch[]> {
   const branches = await withTrunk(owner, name, trunk, await allBranches(owner, name));
   const dates = await branchDates(owner, name, branches);
@@ -88,8 +114,7 @@ function allBranches(owner: string, name: string): Promise<GithubBranch[]> {
 // /branches pages alphabetically, so past 100 branches the trunk falls off the page.
 async function withTrunk(owner: string, name: string, trunk: string, listed: GithubBranch[]): Promise<GithubBranch[]> {
   if (listed.some((branch) => branch.name === trunk)) return listed;
-  const held = await githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(trunk)}`);
-  return [held, ...listed];
+  return [await fetchBranch(owner, name, trunk), ...listed];
 }
 
 export async function describeBranch(owner: string, name: string, branch: string, fresh = false): Promise<ChangeSummary> {

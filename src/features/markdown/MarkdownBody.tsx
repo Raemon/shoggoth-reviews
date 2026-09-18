@@ -1,7 +1,9 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, type MouseEvent } from 'react';
 import { HoverCardHtml } from '@/features/surface-ui/HoverCard';
+import { opensAnotherTab } from '@/features/surface-ui/selectableClick';
 import { ImageViewerModal, type ImageSlide } from '@/features/surface-ui/ImageViewerModal';
 
 interface OpenGallery {
@@ -11,12 +13,15 @@ interface OpenGallery {
 
 export function MarkdownBody({ html, className, tooltipStyle = false }: { html: string; className: string; tooltipStyle?: boolean }) {
   const [open, setOpen] = useState<OpenGallery | null>(null);
-  const openGallery = (event: MouseEvent<HTMLDivElement>) => {
+  const router = useRouter();
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (isModifiedClick(event)) return;
     const gallery = galleryUnderClick(event);
     if (gallery) setOpen(gallery);
+    else navigateUnderClick(event, router);
   };
   return (
-    <div onClick={openGallery}>
+    <div onClick={handleClick}>
       <HoverCardHtml html={html} className={className} tooltipStyle={tooltipStyle} />
       <Gallery open={open} onOpen={setOpen} />
     </div>
@@ -35,9 +40,28 @@ function Gallery({ open, onOpen }: { open: OpenGallery | null; onOpen: (open: Op
   );
 }
 
+function navigateUnderClick(event: MouseEvent<HTMLDivElement>, router: { push: (route: string) => void }): void {
+  const route = routeUnderClick(event);
+  if (route === null) return;
+  event.preventDefault();
+  router.push(route);
+}
+
+function routeUnderClick(event: MouseEvent<HTMLDivElement>): string | null {
+  const href = clickedAncestor(event, 'a')?.getAttribute('href');
+  return href?.startsWith('/') ? href : null;
+}
+
+function clickedAncestor<E extends Element>(event: MouseEvent<HTMLDivElement>, selector: string): E | null {
+  return event.target instanceof Element ? event.target.closest<E>(selector) : null;
+}
+
+function isModifiedClick(event: MouseEvent<HTMLDivElement>): boolean {
+  return event.button !== 0 || opensAnotherTab(event);
+}
+
 function galleryUnderClick(event: MouseEvent<HTMLDivElement>): OpenGallery | null {
-  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return null;
-  const clicked = event.target instanceof Element ? event.target.closest('img') : null;
+  const clicked = clickedAncestor<HTMLImageElement>(event, 'img');
   const images = clicked ? [...event.currentTarget.querySelectorAll('img')] : [];
   const index = clicked ? images.indexOf(clicked) : -1;
   if (index < 0) return null;
