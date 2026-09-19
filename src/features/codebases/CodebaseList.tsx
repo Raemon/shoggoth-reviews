@@ -1,9 +1,10 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { repoRoute } from './repoPaths';
+import { usePathname, useRouter } from 'next/navigation';
+import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { repoBeingRead, repoRoute } from './repoPaths';
 import { sidebarNotices, sidebarRepos, type SidebarGroup, type SidebarRepo } from './sidebarGroups';
+import type { RepoRef } from '@/features/sources/parseRepoLink';
 import { removeSource } from '@/features/sources/sourceStore';
 import type { CodebaseSource } from '@/features/sources/sourceTypes';
 import { FilterField } from '@/features/surface-ui/FilterField';
@@ -14,21 +15,21 @@ import { StrokeIcon } from '@/features/surface-ui/StrokeIcon';
 export function CodebaseList({
   groups,
   autoFocusFilter = false,
+  onOpenRepo,
   children,
 }: {
   groups: SidebarGroup[];
   autoFocusFilter?: boolean;
+  onOpenRepo?: () => void;
   children?: ReactNode;
 }) {
   const [filter, setFilter] = useState('');
   const pathname = usePathname();
-  const repos = useMemo(() => filterRepos(sidebarRepos(groups), filter), [groups, filter]);
+  const all = useMemo(() => sidebarRepos(groups), [groups]);
+  const reading = useMemo(() => currentRepo(all, repoBeingRead(pathname), filter), [all, pathname, filter]);
+  const repos = useMemo(() => filterRepos(all, filter).filter((repo) => !sameRepo(repo, reading)), [all, filter, reading]);
   const notices = useMemo(() => sidebarNotices(groups), [groups]);
-  const active = useRef<HTMLAnchorElement>(null);
-
-  useEffect(() => {
-    active.current?.scrollIntoView({ block: 'center' });
-  }, [pathname]);
+  const openTopRepo = useOpenTopRepo(reading ?? repos[0] ?? null, onOpenRepo);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -37,21 +38,51 @@ export function CodebaseList({
           autoFocus={autoFocusFilter}
           value={filter}
           onChange={setFilter}
+          onKeyDown={openTopRepo}
           placeholder="filter repositories"
           aria-label="Filter repositories"
         />
       </div>
+      {reading && (
+        <div className="border-b border-panel-edge">
+          <RepoRow repo={reading} active />
+        </div>
+      )}
       {children}
       <nav className="min-h-0 flex-1 overflow-auto py-1">
         {notices.map((group) => (
           <SourceNotice key={group.owner} group={group} />
         ))}
         {repos.map((repo) => (
-          <RepoRow key={`${repo.owner}/${repo.name}`} repo={repo} activeRef={active} />
+          <RepoRow key={`${repo.owner}/${repo.name}`} repo={repo} />
         ))}
       </nav>
     </div>
   );
+}
+
+function useOpenTopRepo(top: SidebarRepo | null, onOpenRepo?: () => void) {
+  const router = useRouter();
+  return (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || top === null) return;
+    event.preventDefault(); // else the re-focused menu button takes Enter's default click and reopens
+    router.push(repoRoute(top.owner, top.name));
+    onOpenRepo?.();
+  };
+}
+
+function currentRepo(repos: SidebarRepo[], reading: RepoRef | null, filter: string): SidebarRepo | null {
+  if (reading === null) return null;
+  const shown = repos.find((repo) => sameRepo(repo, reading)) ?? unlistedRepo(reading);
+  return matchesFilter(shown, filter) ? shown : null;
+}
+
+function sameRepo(repo: RepoRef, other: RepoRef | null): boolean {
+  return other !== null && repo.owner.toLowerCase() === other.owner.toLowerCase() && repo.name.toLowerCase() === other.name.toLowerCase();
+}
+
+function unlistedRepo({ owner, name }: RepoRef): SidebarRepo {
+  return { owner, name, description: '', language: '', updatedAt: '', private: false, defaultBranch: '', source: null };
 }
 
 function SourceNotice({ group }: { group: SidebarGroup }) {
@@ -71,19 +102,19 @@ function SourceNotice({ group }: { group: SidebarGroup }) {
   );
 }
 
-function RepoRow({ repo, activeRef }: { repo: SidebarRepo; activeRef: RefObject<HTMLAnchorElement | null> }) {
+function RepoRow({ repo, active = false }: { repo: SidebarRepo; active?: boolean }) {
   const pathname = usePathname();
   const href = repoRoute(repo.owner, repo.name);
-  const activeLink = pathname === href;
+  const onThisPage = pathname === href;
+  const highlighted = active || onThisPage;
   return (
-    <div className={`flex items-baseline gap-1.5 pr-2 ${activeLink ? 'bg-btn-active' : 'hover:bg-btn-hover'}`}>
+    <div className={`flex items-baseline gap-1.5 pr-2 ${highlighted ? 'bg-btn-active' : 'hover:bg-btn-hover'}`}>
       <HoverCardTrigger label={repo.description} className="min-w-0 flex-1" focusable={false} tooltipStyle>
         <SelectableLink
-          ref={activeLink ? activeRef : undefined}
           href={href}
-          current={activeLink}
+          current={onThisPage}
           className={`flex min-w-0 flex-1 items-baseline justify-between gap-2 py-[3px] pl-3 text-[11px] leading-4 ${
-            activeLink ? 'text-accent' : 'text-ink'
+            highlighted ? 'text-accent' : 'text-ink'
           }`}
         >
           <span className="truncate">
@@ -128,7 +159,10 @@ function RemoveControl({ source, label }: { source: CodebaseSource; label: strin
 }
 
 function filterRepos(repos: SidebarRepo[], filter: string): SidebarRepo[] {
+  return repos.filter((repo) => matchesFilter(repo, filter));
+}
+
+function matchesFilter(repo: SidebarRepo, filter: string): boolean {
   const needle = filter.trim().toLowerCase();
-  if (needle === '') return repos;
-  return repos.filter((repo) => `${repo.owner}/${repo.name} ${repo.description}`.toLowerCase().includes(needle));
+  return needle === '' || `${repo.owner}/${repo.name} ${repo.description}`.toLowerCase().includes(needle);
 }
