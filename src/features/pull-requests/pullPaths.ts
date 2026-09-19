@@ -1,4 +1,4 @@
-import { repoRoute } from '@/features/codebases/repoPaths';
+import { encodePath, repoRoute } from '@/features/codebases/repoPaths';
 
 export type PullState = 'open' | 'closed' | 'all';
 
@@ -124,7 +124,7 @@ export function pullRoute(owner: string, repo: string, number: number): string {
 }
 
 export function branchRoute(owner: string, repo: string, branch: string): string {
-  return `${repoRoute(owner, repo)}/branch/${branch.split('/').map(encodeURIComponent).join('/')}`;
+  return `${repoRoute(owner, repo)}/branch/${encodePath(branch)}`;
 }
 
 export function branchListingRoute(owner: string, repo: string, branch: { name: string; isDefault: boolean }): string {

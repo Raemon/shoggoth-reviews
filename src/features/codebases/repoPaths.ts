@@ -12,10 +12,22 @@ export function pullBeingRead(pathname: string): number | null {
 export function branchBeingRead(pathname: string): string | null {
   const match = pathname.match(/^\/[^/]+\/[^/]+\/branch\/(.+)$/);
   if (!match?.[1]) return null;
+  return decodePathSegments(match[1]).join('/');
+}
+
+export function decodePathSegments(pathname: string): string[] {
+  return pathname.split('/').filter(Boolean).map(decodeSegment);
+}
+
+export function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+function decodeSegment(segment: string): string {
   try {
-    return match[1].split('/').map(decodeURIComponent).join('/');
+    return decodeURIComponent(segment);
   } catch {
-    return match[1];
+    return segment;
   }
 }
 
