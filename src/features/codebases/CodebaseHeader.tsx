@@ -90,7 +90,7 @@ function CodebaseMenu({ reading }: { reading: RepoRef | null }) {
       {(close) => (
         <>
           {ready && sources.length > 0 ? (
-            <CodebaseList groups={sidebarGroups(sources, results)} autoFocusFilter>
+            <CodebaseList groups={sidebarGroups(sources, results)} autoFocusFilter onOpenRepo={close}>
               <AllPullsRows active={readingAllPulls} close={close} />
             </CodebaseList>
           ) : (
