@@ -16,6 +16,7 @@ import { useRepoFiles } from './repoFileStore';
 import { ResizableColumn, useCollapsibleColumn, type ColumnSize } from './ResizableColumn';
 import { useRegisterColumn } from './registerColumn';
 import { RevealCommentContext } from './revealComment';
+import { filterChangedFiles } from './changedFileFilter';
 import { commentCountsOf, sortChangedFiles } from './diffSort';
 import { useDiffSort } from './diffSortStore';
 import { DeleteFileModal } from './DeleteFileModal';
@@ -79,6 +80,7 @@ function Workspace({
   const [deleted, setDeleted] = useState<string[]>([]);
   const [browsed, setBrowsed] = useState<string | null>(null);
   const [fileQuery, setFileQuery] = useState('');
+  const [changedQuery, setChangedQuery] = useState('');
   const [scrollWanted, setScrollWanted] = useState<{ path: string; rootId?: number } | null>(null);
   const [allFilesOpen, setAllFilesOpen] = useStickyOpen('all-files');
   const [discussionSize, setDiscussionSize] = useStickyColumn('discussion');
@@ -100,6 +102,7 @@ function Workspace({
     setSelection(WHOLE_CHANGE);
     setNotice(null);
     setBrowsed(null);
+    setChangedQuery('');
   }, [subjectKey]);
 
   const showingWhole = selection === WHOLE_CHANGE;
@@ -142,9 +145,11 @@ function Workspace({
     () => sortChangedFiles(remaining(fileSet?.files ?? [], showingWhole ? deleted : []), sort, commentCountsOf(threads)),
     [fileSet, deleted, showingWhole, sort, threads],
   );
-  const fileItems = useMemo(() => files.map((file) => file.filename), [files]);
   const browseItems = allFilesOpen ? browseTree.navItems : [];
   const loadedFiles = fileSet === null ? null : files;
+  const shownFiles = useMemo(() => filterChangedFiles(loadedFiles, changedQuery), [loadedFiles, changedQuery]);
+  const fileItems = useMemo(() => (shownFiles ?? []).map((file) => file.filename), [shownFiles]);
+  const diffItems = useMemo(() => files.map((file) => file.filename), [files]);
 
   const editableFiles = showingWhole ? editableWhole : null;
   const deletion = useFileDeletion({
@@ -182,7 +187,7 @@ function Workspace({
   useRegisterColumn(
     'diff',
     {
-      items: fileItems,
+      items: diffItems,
       selected: path,
       open: true,
       collapsible: false,
@@ -236,7 +241,7 @@ function Workspace({
                 title="files"
                 note={filesNote(loadedFiles, showingWhole)}
                 tone="bg-shade"
-                preview={<ColumnPreview column="files" tokens={fileTokens(files, path)} />}
+                preview={<ColumnPreview column="files" tokens={fileTokens(shownFiles ?? [], path)} />}
                 size={fileSize}
                 onSize={setFileSize}
                 footer={
@@ -253,9 +258,12 @@ function Workspace({
                 }
               >
                 <PullFilesColumn
-                  files={loadedFiles}
+                  files={shownFiles}
+                  total={files.length}
                   fileError={fileError}
                   path={path}
+                  query={changedQuery}
+                  onQuery={setChangedQuery}
                   onSelect={revealFile}
                   onDelete={editableFiles !== null && fileSet !== null ? deletion.ask : null}
                 />
