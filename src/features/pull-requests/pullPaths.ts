@@ -50,8 +50,9 @@ export function repoBranchesPath(owner: string, repo: string): string {
   return `/api/github/branches?${repoParams(owner, repo)}`;
 }
 
-export function branchOptionsPath(owner: string, repo: string): string {
-  return `/api/github/branch-options?${repoParams(owner, repo)}`;
+export function branchOptionsPath(owner: string, repo: string, filter: string): string {
+  const query = filter ? `&filter=${encodeURIComponent(filter)}` : '';
+  return `/api/github/branch-options?${repoParams(owner, repo)}${query}`;
 }
 
 export function retargetPullPath(owner: string, repo: string, number: number, base: string): string {

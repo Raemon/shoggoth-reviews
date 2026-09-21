@@ -19,6 +19,10 @@ export function requireParam(request: Request, name: string, pattern: RegExp): s
   return value;
 }
 
+export function optionalParam(request: Request, name: string, maxLength: number): string {
+  return (new URL(request.url).searchParams.get(name) ?? '').slice(0, maxLength);
+}
+
 function bearerToken(request: Request): string | null {
   const match = request.headers.get('authorization')?.match(/^Bearer\s+(\S+)$/i);
   return match?.[1] ?? null;

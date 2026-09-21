@@ -1,10 +1,13 @@
 import {
-  GithubRequestError,
   dropGithubCache,
   githubBytes,
   githubGraphql,
   githubJson,
+  githubJsonPages,
+  githubPageUrl,
+  GithubRequestError,
   githubSend,
+  PAGE_SIZE,
 } from '@/features/codebases/githubRequest';
 import { requireGithubUser } from '@/features/github-auth/requireGithubUser';
 import { imageTypeOf } from './imageFiles';
@@ -175,7 +178,6 @@ export interface GithubCommit {
 }
 
 const API = 'https://api.github.com';
-const FILE_PAGE = 100;
 const MAX_FILE_PAGES = 10;
 const MAX_BLOB_BYTES = 6 * 1024 * 1024;
 const MAX_TEXT_BYTES = 2 * 1024 * 1024;
@@ -293,7 +295,7 @@ export async function listPullRequestFiles(
 // The pull request already counted its files, so every page can be asked for at once.
 function pageCount(changedFiles: number | undefined): number | null {
   if (changedFiles === undefined) return null;
-  return Math.min(MAX_FILE_PAGES, Math.max(1, Math.ceil(changedFiles / FILE_PAGE)));
+  return Math.min(MAX_FILE_PAGES, Math.max(1, Math.ceil(changedFiles / PAGE_SIZE)));
 }
 
 async function changedFilePages(
@@ -311,20 +313,16 @@ async function changedFilePages(
 }
 
 async function countedFilePages(owner: string, name: string, number: number, fresh: boolean): Promise<ChangedFile[]> {
-  const files: ChangedFile[] = [];
-  for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
-    const batch = await filePage(owner, name, number, page, fresh);
-    files.push(...batch.map(changedFile));
-    if (batch.length < FILE_PAGE) break;
-  }
-  return files;
+  const files = await githubJsonPages<GithubChangedFile>(filesUrl(owner, name, number), MAX_FILE_PAGES, fresh);
+  return files.map(changedFile);
 }
 
 function filePage(owner: string, name: string, number: number, page: number, fresh: boolean): Promise<GithubChangedFile[]> {
-  return githubJson<GithubChangedFile[]>(
-    `${API}/repos/${owner}/${name}/pulls/${number}/files?per_page=${FILE_PAGE}&page=${page}`,
-    fresh,
-  );
+  return githubJson<GithubChangedFile[]>(githubPageUrl(filesUrl(owner, name, number), page), fresh);
+}
+
+function filesUrl(owner: string, name: string, number: number): string {
+  return `${API}/repos/${owner}/${name}/pulls/${number}/files`;
 }
 
 export async function commitFileEdit(

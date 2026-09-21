@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { folderedPath, folderReadingOrder, treePath } from './fileTreeNodes';
 import { RepoFileReader } from './RepoFileReader';
 import { RepoFolderReader } from './RepoFolderReader';
 import type { RepoFileSet } from './repoFiles';
 import type { RepoFileTree } from './useRepoFileTree';
+import { useDebounced } from '@/features/surface-ui/useDebounced';
 
 const SETTLE_MS = 150;
 
@@ -22,7 +23,7 @@ export function RepoBrowseReader({
   tree: RepoFileTree;
   item: string;
 }) {
-  const settled = useSettled(item, SETTLE_MS);
+  const settled = useDebounced<string | null>(item, SETTLE_MS, null);
   const folder = settled === null ? null : folderedPath(settled);
   const items = useMemo(() => (folder === null ? [] : folderReadingOrder(tree.nodes, folder)), [tree.nodes, folder]);
   if (settled === null) return null;
@@ -30,13 +31,4 @@ export function RepoBrowseReader({
     return <RepoFolderReader key={`${fileSet.sha}:${folder}`} owner={owner} repo={repo} refName={fileSet.sha} items={items} />;
   const path = treePath(settled);
   return path === null ? null : <RepoFileReader owner={owner} repo={repo} refName={fileSet.sha} path={path} />;
-}
-
-function useSettled<T>(value: T, delayMs: number): T | null {
-  const [settled, setSettled] = useState<T | null>(null);
-  useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return settled;
 }
