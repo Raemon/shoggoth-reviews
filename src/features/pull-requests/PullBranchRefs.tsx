@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { BranchOption } from './branches';
 import { reloadCurrentPull, useCurrentPull } from './currentPullStore';
 import { branchOptionsPath, retargetPullPath } from './pullPaths';
@@ -17,8 +17,10 @@ import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 import { PopoverMenu, type PopoverTrigger } from '@/features/surface-ui/PopoverMenu';
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
 import { StrokeIcon } from '@/features/surface-ui/StrokeIcon';
+import { useDebounced } from '@/features/surface-ui/useDebounced';
 
 const REF_TEXT = 'max-w-40 truncate font-mono text-[10px]';
+const FILTER_DEBOUNCE_MS = 250;
 const REF_BUTTON = 'flex items-center gap-1 rounded px-1 py-0.5';
 
 export function PullBranchRefs({ repo, number }: { repo: RepoRef; number: number }) {
@@ -139,7 +141,7 @@ function BranchChoices({
   onChoose: (base: string) => void;
 }) {
   const [filter, setFilter] = useState('');
-  const branches = useBranchOptions(repo);
+  const branches = useBranchOptions(repo, filter);
   const shown = matchingBranches(branches.data ?? [], skip, filter);
   return (
     <>
@@ -191,10 +193,14 @@ function BranchChoice({ branch, onChoose }: { branch: BranchOption; onChoose: (b
   );
 }
 
-function useBranchOptions(repo: RepoRef) {
+function useBranchOptions(repo: RepoRef, filter: string): CachedJson<BranchOption[]> {
   const ready = useStoreReady();
   const token = useGithubToken();
-  return useCachedJson<BranchOption[]>(branchOptionsPath(repo.owner, repo.name), token, ready);
+  const wanted = useDebounced(filter.trim(), FILTER_DEBOUNCE_MS);
+  const held = useCachedJson<BranchOption[]>(branchOptionsPath(repo.owner, repo.name, wanted), token, ready);
+  const last = useRef<BranchOption[] | null>(null);
+  if (held.data !== null) last.current = held.data;
+  return { ...held, data: held.data ?? last.current };
 }
 
 function matchingBranches(branches: BranchOption[], skip: string[], filter: string): BranchOption[] {
