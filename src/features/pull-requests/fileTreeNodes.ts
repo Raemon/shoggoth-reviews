@@ -1,5 +1,6 @@
 import { baseName, folderOf } from './fileTree';
 import type { RepoFiles } from './repoFileStore';
+import { matchesQuery } from '@/features/surface-ui/matchesQuery';
 
 const SHOWN_LIMIT = 400;
 const FILE_PREFIX = 'file:';
@@ -124,9 +125,8 @@ export function rowKey(row: TreeRow): string {
 
 export function listedPaths(repoFiles: RepoFiles, query: string): { shown: string[]; total: number } {
   const paths = repoFiles.fileSet?.files ?? [];
-  const wanted = query.trim().toLowerCase();
-  if (!wanted) return { shown: paths, total: paths.length };
-  const matching = paths.filter((path) => path.toLowerCase().includes(wanted));
+  if (query.trim() === '') return { shown: paths, total: paths.length };
+  const matching = paths.filter((path) => matchesQuery(path, query));
   return { shown: matching.slice(0, SHOWN_LIMIT), total: matching.length };
 }
 
