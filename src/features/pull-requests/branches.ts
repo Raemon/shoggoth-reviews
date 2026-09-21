@@ -1,4 +1,4 @@
-import { githubJson } from '@/features/codebases/githubRequest';
+import { githubJson, githubJsonPages, PAGE_SIZE } from '@/features/codebases/githubRequest';
 import { defaultBranch } from '@/features/codebases/repoDirectory';
 import {
   changedFile,
@@ -8,7 +8,6 @@ import {
   type GithubChangedFile,
   type GithubCommit,
 } from './pullRequests';
-import { encodePath } from './repoFiles';
 import { mapWithWorkers } from './workerPool';
 
 export interface BranchPull {
@@ -58,38 +57,31 @@ interface GithubCompare {
 }
 
 const API = 'https://api.github.com';
-const BRANCH_LIMIT = 100;
+const BRANCH_PAGES = 20;
 const BRANCH_DATE_WORKERS = 8;
 const COMMIT_LIMIT = 100;
 
 export async function listBranches(owner: string, name: string): Promise<BranchSummary[]> {
   const trunk = await defaultBranch(owner, name);
-  const [branches, pulls] = await Promise.all([datedBranches(owner, name, trunk), recentPulls(owner, name)]);
+  const [branches, pulls] = await Promise.all([datedBranches(owner, name), recentPulls(owner, name)]);
   return branches
     .map((branch) => summarizeBranch(branch, pulls.get(branch.name) ?? null, trunk))
     .sort(byTrunkThenUnsettledThenRecent);
 }
 
 export async function listBranchOptions(owner: string, name: string): Promise<BranchOption[]> {
-  const branches = await datedBranches(owner, name, await defaultBranch(owner, name));
+  const branches = await datedBranches(owner, name);
   return branches.map(({ name: branch, updatedAt }) => ({ name: branch, updatedAt })).sort(byRecent);
 }
 
-async function datedBranches(owner: string, name: string, trunk: string): Promise<DatedBranch[]> {
-  const branches = await withTrunk(owner, name, trunk, await allBranches(owner, name));
+async function datedBranches(owner: string, name: string): Promise<DatedBranch[]> {
+  const branches = await allBranches(owner, name);
   const dates = await branchDates(owner, name, branches);
   return branches.map((branch) => ({ ...branch, updatedAt: dates.get(branch.commit.sha) ?? '' }));
 }
 
 function allBranches(owner: string, name: string): Promise<GithubBranch[]> {
-  return githubJson<GithubBranch[]>(`${API}/repos/${owner}/${name}/branches?per_page=${BRANCH_LIMIT}`);
-}
-
-// /branches pages alphabetically, so past 100 branches the trunk falls off the page.
-async function withTrunk(owner: string, name: string, trunk: string, listed: GithubBranch[]): Promise<GithubBranch[]> {
-  if (listed.some((branch) => branch.name === trunk)) return listed;
-  const held = await githubJson<GithubBranch>(`${API}/repos/${owner}/${name}/branches/${encodePath(trunk)}`);
-  return [held, ...listed];
+  return githubJsonPages<GithubBranch>(`${API}/repos/${owner}/${name}/branches`, BRANCH_PAGES);
 }
 
 export async function describeBranch(owner: string, name: string, branch: string, fresh = false): Promise<ChangeSummary> {
@@ -131,7 +123,7 @@ async function compareWithDefault(owner: string, name: string, branch: string, f
 
 async function recentPulls(owner: string, name: string): Promise<Map<string, GithubRefPull>> {
   const pulls = await githubJson<GithubRefPull[]>(
-    `${API}/repos/${owner}/${name}/pulls?state=all&sort=updated&direction=desc&per_page=${BRANCH_LIMIT}`,
+    `${API}/repos/${owner}/${name}/pulls?state=all&sort=updated&direction=desc&per_page=${PAGE_SIZE}`,
   );
   const here = `${owner}/${name}`.toLowerCase();
   const byRef = new Map<string, GithubRefPull>();

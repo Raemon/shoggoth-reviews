@@ -12,6 +12,7 @@ export class GithubRequestError extends Error {
 }
 
 const ACCEPT = 'application/vnd.github+json';
+export const PAGE_SIZE = 100;
 const DEFAULT_FRESHNESS_MS = 30_000;
 const IMMUTABLE_PATTERNS = [/\/(?:commits|git\/trees|tarball)\/[0-9a-f]{40}$/];
 const STALE_ON_STATUS = [403, 408, 429, 500, 502, 503, 504];
@@ -24,6 +25,20 @@ type Derivation = { what: string; derive: Derive<string> };
 
 export async function githubJson<T>(url: string, fresh = false): Promise<T> {
   return JSON.parse(decodeBody(await cachedResponse(url, ACCEPT, fresh)).toString('utf8')) as T;
+}
+
+export async function githubJsonPages<T>(url: string, maxPages: number, fresh = false): Promise<T[]> {
+  const items: T[] = [];
+  for (let page = 1; page <= maxPages; page += 1) {
+    const batch = await githubJson<T[]>(githubPageUrl(url, page), fresh);
+    items.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return items;
+}
+
+export function githubPageUrl(url: string, page: number): string {
+  return `${url}${url.includes('?') ? '&' : '?'}per_page=${PAGE_SIZE}&page=${page}`;
 }
 
 export async function githubBytes(url: string, accept: string): Promise<Uint8Array> {

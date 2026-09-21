@@ -1,4 +1,4 @@
-import { githubJson, GithubRequestError } from './githubRequest';
+import { githubJson, githubJsonPages, GithubRequestError } from './githubRequest';
 import { userGithubToken } from './githubToken';
 import type { GithubAccess } from '@/features/github-auth/githubAccess';
 
@@ -28,7 +28,7 @@ interface GithubRepo {
 }
 
 const API = 'https://api.github.com';
-const PAGE = 'per_page=100&sort=pushed';
+const PAGE = 'sort=pushed';
 const MAX_PAGES = 5;
 
 export async function listOwnerRepos(login: string): Promise<RepoSummary[]> {
@@ -60,13 +60,7 @@ export async function defaultBranch(owner: string, name: string, fresh = false):
 }
 
 async function fetchPages(source: string): Promise<RepoSummary[]> {
-  const repos: RepoSummary[] = [];
-  for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const batch = await githubJson<GithubRepo[]>(`${source}&page=${page}`);
-    repos.push(...batch.map(summarize));
-    if (batch.length < 100) break;
-  }
-  return repos;
+  return (await githubJsonPages<GithubRepo>(source, MAX_PAGES)).map(summarize);
 }
 
 async function ownerListUrl(login: string): Promise<string> {
