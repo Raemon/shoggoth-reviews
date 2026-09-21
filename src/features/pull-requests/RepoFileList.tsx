@@ -3,7 +3,7 @@
 import { RepoFileTreeRows } from './RepoFileTreeRows';
 import type { RepoFiles } from './repoFileStore';
 import type { RepoFileTree } from './useRepoFileTree';
-import { FilterField } from '@/features/surface-ui/FilterField';
+import { FilterRow } from '@/features/surface-ui/FilterRow';
 
 const NOTE = 'px-1.5 py-[1px] text-[11px] leading-4';
 
@@ -24,14 +24,7 @@ export function RepoFileList({
 }) {
   return (
     <div className="flex min-h-full flex-col">
-      <div className="border-b border-panel-edge px-1.5 py-[2px]">
-        <FilterField
-          value={query}
-          onChange={onQuery}
-          placeholder="filter files"
-          aria-label="Filter files"
-        />
-      </div>
+      <FilterRow value={query} onChange={onQuery} label="Filter files" />
       <FileRows repoFiles={repoFiles} tree={tree} selected={selected} onSelect={onSelect} />
       <ExpandAllSpace onActivate={tree.expandAll} />
     </div>

@@ -105,6 +105,8 @@ function Workspace({
     setChangedQuery('');
   }, [subjectKey]);
 
+  useEffect(() => setChangedQuery(''), [selection]);
+
   const showingWhole = selection === WHOLE_CHANGE;
   useReloadOnRetarget(subjectKey, baseRef, () => (showingWhole ? fileState.reload() : Promise.resolve()));
 
@@ -147,9 +149,10 @@ function Workspace({
   );
   const browseItems = allFilesOpen ? browseTree.navItems : [];
   const loadedFiles = fileSet === null ? null : files;
-  const shownFiles = useMemo(() => filterChangedFiles(loadedFiles, changedQuery), [loadedFiles, changedQuery]);
-  const fileItems = useMemo(() => (shownFiles ?? []).map((file) => file.filename), [shownFiles]);
-  const diffItems = useMemo(() => files.map((file) => file.filename), [files]);
+  const shownFiles = useMemo(() => filterChangedFiles(files, changedQuery), [files, changedQuery]);
+  const shownFileItems = useMemo(() => shownFiles.map((file) => file.filename), [shownFiles]);
+  const allFileItems = useMemo(() => files.map((file) => file.filename), [files]);
+  const shownPath = path !== null && shownFileItems.includes(path) ? path : shownFileItems[0] ?? null;
 
   const editableFiles = showingWhole ? editableWhole : null;
   const deletion = useFileDeletion({
@@ -178,8 +181,8 @@ function Workspace({
     'files',
     {
       ...useCollapsibleColumn('files', fileSize, setFileSize),
-      items: [...fileItems, ...browseItems],
-      selected: browsed ?? path,
+      items: [...shownFileItems, ...browseItems],
+      selected: browsed ?? shownPath,
       onSelect: selectFileItem,
       onActivate: activateFileItem,
     },
@@ -187,7 +190,7 @@ function Workspace({
   useRegisterColumn(
     'diff',
     {
-      items: diffItems,
+      items: allFileItems,
       selected: path,
       open: true,
       collapsible: false,
@@ -239,9 +242,9 @@ function Workspace({
                 navId="files"
                 icon="▤"
                 title="files"
-                note={filesNote(loadedFiles, showingWhole)}
+                note={filesNote(loadedFiles, shownFiles.length, showingWhole)}
                 tone="bg-shade"
-                preview={<ColumnPreview column="files" tokens={fileTokens(shownFiles ?? [], path)} />}
+                preview={<ColumnPreview column="files" tokens={fileTokens(shownFiles, path)} />}
                 size={fileSize}
                 onSize={setFileSize}
                 footer={
@@ -258,7 +261,7 @@ function Workspace({
                 }
               >
                 <PullFilesColumn
-                  files={shownFiles}
+                  files={fileSet === null ? null : shownFiles}
                   total={files.length}
                   fileError={fileError}
                   path={path}
@@ -316,9 +319,10 @@ const STACKED_ROW = 'flex h-full min-w-0 shrink-0 max-md:h-auto max-md:flex-col'
 
 const DISCUSSION_TOKENS: PreviewToken[] = [{ key: 'discussion', label: '❝', title: 'discussion' }];
 
-function filesNote(loaded: ChangedFile[] | null, showingWhole: boolean): string | undefined {
+function filesNote(loaded: ChangedFile[] | null, shown: number, showingWhole: boolean): string | undefined {
   if (!showingWhole) return 'read-only · historical commit';
-  return loaded === null ? undefined : plural(loaded.length, 'file');
+  if (loaded === null) return undefined;
+  return shown === loaded.length ? plural(loaded.length, 'file') : `${shown} of ${plural(loaded.length, 'file')}`;
 }
 
 function remaining(files: ChangedFile[], deleted: string[]): ChangedFile[] {
