@@ -30,6 +30,30 @@ Include screenshots as files in public/screenshots/
 
 If you make followup PRs after an existing merged PR, make it directly against origin/main instead of against the previous PR.  
 
+## Preview deployments
+
+`src/features/pull-requests/previewDeployment.ts` finds previews through the
+GitHub Deployments API alone — nothing is provider-specific beyond the creator
+allow-list. A repository's previews appear here once its deployments are:
+
+- created by `vercel[bot]`, `render[bot]`, or `github-actions[bot]`;
+- attached to the pull request's head commit (`GET /deployments?sha=`);
+- not the production environment (`production_environment` false, and the
+  environment is not named `production`);
+- given the app's own URL in the latest status's `environment_url`. Render's
+  `target_url` is its dashboard, so it is deliberately ignored.
+
+For a Render repository that means enabling automatic previews in
+`render.yaml` (`previews: generation: automatic`); Render then posts the
+deployment itself. A repository that would rather verify the preview really
+serves the commit can record the deployment from its own workflow instead —
+`Raemon/Rogue-Sokoban/.github/workflows/render-preview-deployment.yml` polls a
+health endpoint and only then reports `success` with `environment_url`.
+
+The "build a fresh preview branch" button pushes a `preview/pr-<n>-*` branch,
+which only produces a deployment where the provider builds every branch. Render
+builds per pull request, so that button does nothing on Render repositories.
+
 ## Self-Reviewing
 
 When you finish a PR, have multiple subagents in parallel (scopes optimized for speed) review for:
