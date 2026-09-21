@@ -90,7 +90,8 @@ export async function listBranchOptions(owner: string, name: string, filter: str
   return branches.map(({ name: branch, updatedAt }) => ({ name: branch, updatedAt }));
 }
 
-async function recentBranches(owner: string, name: string, filter: string, first: number): Promise<RecentBranches> {
+async function recentBranches(owner: string, name: string, rawFilter: string, first: number): Promise<RecentBranches> {
+  const filter = rawFilter.trim();
   const data = await githubGraphql<BranchQuery>(BRANCH_QUERY, { owner, name, filter: filter || null, first });
   const trunk = data.repository?.defaultBranchRef ? datedBranch(data.repository.defaultBranchRef) : null;
   const listed = (data.repository?.refs?.nodes ?? []).flatMap((ref) => (ref ? [datedBranch(ref)] : []));
@@ -109,7 +110,7 @@ function withTrunk(trunk: DatedBranch | null, listed: DatedBranch[], filter: str
 }
 
 function nameMatches(name: string, filter: string): boolean {
-  return name.toLowerCase().includes(filter.trim().toLowerCase());
+  return name.toLowerCase().includes(filter.toLowerCase());
 }
 
 function datedBranch(ref: GraphqlRef): DatedBranch {

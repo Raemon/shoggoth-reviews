@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import type { BranchOption } from './branches';
 import { reloadCurrentPull, useCurrentPull } from './currentPullStore';
 import { branchOptionsPath, retargetPullPath } from './pullPaths';
@@ -18,6 +18,7 @@ import { PopoverMenu, type PopoverTrigger } from '@/features/surface-ui/PopoverM
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
 import { StrokeIcon } from '@/features/surface-ui/StrokeIcon';
 import { useDebounced } from '@/features/surface-ui/useDebounced';
+import { useLastKnown } from '@/features/surface-ui/useLastKnown';
 
 const REF_TEXT = 'max-w-40 truncate font-mono text-[10px]';
 const FILTER_DEBOUNCE_MS = 250;
@@ -198,9 +199,7 @@ function useBranchOptions(repo: RepoRef, filter: string): CachedJson<BranchOptio
   const token = useGithubToken();
   const wanted = useDebounced(filter.trim(), FILTER_DEBOUNCE_MS);
   const held = useCachedJson<BranchOption[]>(branchOptionsPath(repo.owner, repo.name, wanted), token, ready);
-  const last = useRef<BranchOption[] | null>(null);
-  if (held.data !== null) last.current = held.data;
-  return { ...held, data: held.data ?? last.current };
+  return { ...held, data: useLastKnown(held.data, `${repo.owner}/${repo.name}`) };
 }
 
 function matchingBranches(branches: BranchOption[], skip: string[], filter: string): BranchOption[] {
