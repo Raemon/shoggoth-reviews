@@ -1,22 +1,15 @@
 'use client';
 
 import { DiffPanes } from './DiffPanes';
-import { sortChangedFiles } from './diffSort';
+import { NO_COMMENTS, sortChangedFiles } from './diffSort';
 import { useDiffSort } from './diffSortStore';
-import { commitFilesPath } from './pullPaths';
-import type { ChangedFileSet } from './pullRequests';
+import { useCommitDetail } from './useCommitDetail';
 import { ReviewThreadProvider } from './reviewThreadStore';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
-import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
-import { useCachedJson } from '@/features/sources/useCachedJson';
-
-const NO_COMMENTS = new Map<string, number>();
 
 export function CommitDiffReader({ owner, repo, sha }: { owner: string; repo: string; sha: string }) {
-  const ready = useStoreReady();
-  const token = useGithubToken();
   const sort = useDiffSort();
-  const { data, error, reload } = useCachedJson<ChangedFileSet>(commitFilesPath(owner, repo, sha), token, ready);
+  const { data, error, reload } = useCommitDetail(owner, repo, sha);
   if (error !== null) return <PaneStatusLine tone="error" onRetry={reload} className="flex-1">{error}</PaneStatusLine>;
   return (
     <ReviewThreadProvider owner={owner} repo={repo} number={null}>

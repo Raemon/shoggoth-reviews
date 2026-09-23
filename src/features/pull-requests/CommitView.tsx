@@ -1,30 +1,25 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { CommitHeader } from './CommitHeader';
 import { ColumnPreview } from './ColumnPreview';
 import { DiffPanes, type DiffPanesHandle } from './DiffPanes';
 import { filterChangedFiles } from './changedFileFilter';
-import { sortChangedFiles } from './diffSort';
+import { NO_COMMENTS, sortChangedFiles } from './diffSort';
 import { useDiffSort } from './diffSortStore';
 import { PullFilesColumn, fileTokens } from './PullFilesColumn';
-import { commitFilesPath } from './pullPaths';
-import type { CommitDetail } from './pullRequests';
-import { ResizableColumn, useCollapsibleColumn } from './ResizableColumn';
+import { shortSha } from './pullPaths';
+import type { ChangedFile, CommitDetail } from './pullRequests';
+import { ResizableColumn, useCollapsibleColumn, type ColumnSize } from './ResizableColumn';
 import { ReviewLoadNotice } from './ReviewLoadNotice';
 import { ReviewThreadProvider } from './reviewThreadStore';
 import { useRegisterColumn } from './registerColumn';
 import { useStickyColumn } from './stickyColumns';
-import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
-import { useCachedJson } from '@/features/sources/useCachedJson';
-
-const NO_COMMENTS = new Map<string, number>();
+import { useCommitDetail } from './useCommitDetail';
 
 export function CommitView({ owner, repo, sha }: { owner: string; repo: string; sha: string }) {
-  const ready = useStoreReady();
-  const token = useGithubToken();
-  const { data: commit, error, reload } = useCachedJson<CommitDetail>(commitFilesPath(owner, repo, sha), token, ready);
-  if (!commit) return <ReviewLoadNotice label={sha.slice(0, 7)} error={error} reload={reload} />;
+  const { data: commit, error, reload } = useCommitDetail(owner, repo, sha);
+  if (!commit) return <ReviewLoadNotice label={shortSha(sha)} error={error} reload={reload} />;
   return (
     <ReviewThreadProvider owner={owner} repo={repo} number={null}>
       <div className="flex h-full min-h-0 flex-col">
@@ -47,20 +42,7 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
     setPath(filename);
     diffPanes.current?.scrollToFile(filename);
   };
-  useRegisterColumn('files', {
-    ...useCollapsibleColumn('files', fileSize, setFileSize),
-    items: shownFiles.map((file) => file.filename),
-    selected: path,
-    onSelect: reveal,
-  });
-  useRegisterColumn('diff', {
-    items: files.map((file) => file.filename),
-    selected: path,
-    open: true,
-    collapsible: false,
-    onSelect: reveal,
-    onActivate: (filename) => diffPanes.current?.toggleFile(filename),
-  });
+  useCommitColumns({ files, shownFiles, path, reveal, fileSize, setFileSize, diffPanes });
   return (
     <div className="flex min-h-0 flex-1 max-md:flex-col max-md:overflow-y-auto">
       <ResizableColumn
@@ -88,4 +70,39 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
       </div>
     </div>
   );
+}
+
+function useCommitColumns({
+  files,
+  shownFiles,
+  path,
+  reveal,
+  fileSize,
+  setFileSize,
+  diffPanes,
+}: {
+  files: ChangedFile[];
+  shownFiles: ChangedFile[];
+  path: string | null;
+  reveal: (filename: string) => void;
+  fileSize: ColumnSize;
+  setFileSize: (next: ColumnSize) => void;
+  diffPanes: RefObject<DiffPanesHandle | null>;
+}) {
+  const filenames = (list: ChangedFile[]) => list.map((file) => file.filename);
+  useRegisterColumn('files', {
+    ...useCollapsibleColumn('files', fileSize, setFileSize),
+    items: filenames(shownFiles),
+    selected: path,
+    onSelect: reveal,
+    onActivate: reveal,
+  });
+  useRegisterColumn('diff', {
+    items: filenames(files),
+    selected: path,
+    open: true,
+    collapsible: false,
+    onSelect: reveal,
+    onActivate: (filename) => diffPanes.current?.toggleFile(filename),
+  });
 }

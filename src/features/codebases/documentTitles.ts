@@ -1,3 +1,4 @@
+import { shortSha } from '@/features/pull-requests/pullPaths';
 import { branchBeingRead, commitBeingRead, pullBeingRead, repoBeingRead } from './repoPaths';
 
 const SUFFIX = 'reposcope';
@@ -18,5 +19,6 @@ function pullLead(pathname: string, pullTitle: string | null): string | null {
 }
 
 function commitLead(pathname: string): string | null {
-  return commitBeingRead(pathname)?.slice(0, 7) ?? null;
+  const sha = commitBeingRead(pathname);
+  return sha && shortSha(sha);
 }

@@ -10,7 +10,8 @@ export function pullBeingRead(pathname: string): number | null {
 }
 
 export function commitBeingRead(pathname: string): string | null {
-  return pathname.match(/^\/[^/]+\/[^/]+\/commit\/([0-9a-f]{7,40})(?:\/|$)/)?.[1] ?? null;
+  const match = pathname.match(/^\/[^/]+\/[^/]+\/commit\/([0-9a-f]{7,40})(?:\/|$)/);
+  return match?.[1] ?? null;
 }
 
 export function branchBeingRead(pathname: string): string | null {

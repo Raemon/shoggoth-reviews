@@ -5,7 +5,7 @@ export default async function CommitPage({ params }: { params: Promise<{ owner: 
   const { owner, repo, sha } = await params;
   return (
     <ColumnNavProvider>
-      <CommitView owner={owner} repo={repo} sha={sha} />
+      <CommitView owner={owner} repo={repo} sha={sha.toLowerCase()} />
     </ColumnNavProvider>
   );
 }

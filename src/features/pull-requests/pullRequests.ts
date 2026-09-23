@@ -458,8 +458,7 @@ export async function describeCommit(owner: string, name: string, sha: string): 
     avatarUrl: commit.author?.avatar_url ?? '',
     date: commitDate(commit),
     parents: (commit.parents ?? []).map((parent) => parent.sha),
-    additions: commit.stats?.additions ?? 0,
-    deletions: commit.stats?.deletions ?? 0,
+    ...commitStats(commit),
   };
 }
 
@@ -544,10 +543,13 @@ function summarizeCommit(commit: GithubCommit): CommitSummary {
     message: commitTitle(commit),
     author: commitAuthor(commit),
     date: commitDate(commit),
-    additions: commit.stats?.additions ?? 0,
-    deletions: commit.stats?.deletions ?? 0,
+    ...commitStats(commit),
     fileCount: commit.files?.length ?? 0,
   };
+}
+
+function commitStats(commit: GithubCommit): { additions: number; deletions: number } {
+  return { additions: commit.stats?.additions ?? 0, deletions: commit.stats?.deletions ?? 0 };
 }
 
 export async function summarizeCommits(owner: string, name: string, commits: GithubCommit[]): Promise<CommitSummary[]> {
@@ -566,8 +568,7 @@ async function commitTotals(owner: string, name: string, sha: string): Promise<C
   try {
     const commit = await githubJson<GithubCommit>(`${API}/repos/${owner}/${name}/commits/${sha}`);
     return {
-      additions: commit.stats?.additions ?? 0,
-      deletions: commit.stats?.deletions ?? 0,
+      ...commitStats(commit),
       fileCount: commit.files?.length ?? 0,
     };
   } catch {

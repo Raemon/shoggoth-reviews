@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ChangeCountCells } from './ChangeCounts';
 import { AuthorPortrait } from './CommentByline';
-import { commitRoute, commitUrl } from './pullPaths';
+import { commitRoute, commitUrl, shortSha } from './pullPaths';
 import type { CommitDetail } from './pullRequests';
 import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { OpenOnGithubLink } from '@/features/surface-ui/OpenOnGithubLink';
@@ -46,10 +46,10 @@ function ParentLinks({ owner, repo, parents }: { owner: string; repo: string; pa
   if (parents.length === 0) return null;
   return (
     <>
-      <span>{parents.length === 1 ? '1 parent' : `${parents.length} parents`}</span>
+      <span>{plural(parents.length, 'parent')}</span>
       {parents.map((parent) => (
         <Link key={parent} href={commitRoute(owner, repo, parent)} className={SHA_LINK}>
-          {parent.slice(0, 7)}
+          {shortSha(parent)}
         </Link>
       ))}
     </>

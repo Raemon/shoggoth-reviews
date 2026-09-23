@@ -128,6 +128,10 @@ export function commitRoute(owner: string, repo: string, sha: string): string {
   return `${repoRoute(owner, repo)}/commit/${encodeURIComponent(sha)}`;
 }
 
+export function shortSha(sha: string): string {
+  return sha.slice(0, 7);
+}
+
 export function commitUrl(owner: string, repo: string, sha: string): string {
   return `https://github.com/${owner}/${repo}/commit/${sha}`;
 }
