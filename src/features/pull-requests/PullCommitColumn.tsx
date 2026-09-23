@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { ChangeCountCells } from './ChangeCounts';
 import type { PreviewToken } from './ColumnPreview';
 import { useColumnNav, type ColumnRow } from './columnNav';
+import { commitUrl } from './pullPaths';
 import type { ChangeSummary, CommitSummary } from './pullRequests';
 import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { OpenOnGithubLink } from '@/features/surface-ui/OpenOnGithubLink';
@@ -117,7 +118,7 @@ function CommitHash({ owner, repo, sha }: { owner: string; repo: string; sha: st
   return (
     <span className={HASH_CELL}>
       <CopyHash sha={sha} />
-      <OpenOnGithubLink href={`https://github.com/${owner}/${repo}/commit/${sha}`} label={`commit ${sha.slice(0, 7)}`} className={COMMIT_LINK} />
+      <OpenOnGithubLink href={commitUrl(owner, repo, sha)} label={`commit ${sha.slice(0, 7)}`} className={COMMIT_LINK} />
     </span>
   );
 }

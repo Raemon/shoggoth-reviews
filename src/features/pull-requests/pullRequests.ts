@@ -61,6 +61,16 @@ export interface ChangedFileSet {
   files: ChangedFile[];
 }
 
+export interface CommitDetail extends ChangedFileSet {
+  message: string;
+  author: string;
+  avatarUrl: string;
+  date: string;
+  parents: string[];
+  additions: number;
+  deletions: number;
+}
+
 export interface FileBlob {
   dataUrl: string | null;
   byteSize: number;
@@ -171,7 +181,7 @@ export interface GithubChangedFile {
 export interface GithubCommit {
   sha: string;
   commit: { message: string; author: { name: string; date: string } | null };
-  author: { login: string } | null;
+  author: { login: string; avatar_url?: string } | null;
   parents?: { sha: string }[];
   files?: GithubChangedFile[];
   stats?: { additions: number; deletions: number };
@@ -437,12 +447,19 @@ export async function listPullComments(owner: string, name: string, number: numb
   return [...conversation, ...review].map(pullComment).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export async function listCommitFiles(owner: string, name: string, sha: string): Promise<ChangedFileSet> {
+export async function describeCommit(owner: string, name: string, sha: string): Promise<CommitDetail> {
   const commit = await githubJson<GithubCommit>(`${API}/repos/${owner}/${name}/commits/${sha}`);
   return {
     baseRef: commit.parents?.[0]?.sha ?? commit.sha,
     headRef: commit.sha,
     files: (commit.files ?? []).map(changedFile),
+    message: commit.commit.message,
+    author: commitAuthor(commit),
+    avatarUrl: commit.author?.avatar_url ?? '',
+    date: commitDate(commit),
+    parents: (commit.parents ?? []).map((parent) => parent.sha),
+    additions: commit.stats?.additions ?? 0,
+    deletions: commit.stats?.deletions ?? 0,
   };
 }
 
@@ -517,11 +534,15 @@ export function commitDate(commit: GithubCommit): string {
   return commit.commit.author?.date ?? '';
 }
 
+function commitAuthor(commit: GithubCommit): string {
+  return commit.author?.login ?? commit.commit.author?.name ?? '';
+}
+
 function summarizeCommit(commit: GithubCommit): CommitSummary {
   return {
     sha: commit.sha,
     message: commitTitle(commit),
-    author: commit.author?.login ?? commit.commit.author?.name ?? '',
+    author: commitAuthor(commit),
     date: commitDate(commit),
     additions: commit.stats?.additions ?? 0,
     deletions: commit.stats?.deletions ?? 0,
