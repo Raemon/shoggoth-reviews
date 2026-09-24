@@ -89,7 +89,10 @@ function openLaunch(origin, { cwd, args }) {
 }
 
 function openWindow(url) {
-  void new BrowserWindow(APP_WINDOW).loadURL(url);
+  const window = new BrowserWindow({ ...APP_WINDOW, show: false });
+  window.maximize();
+  window.show();
+  void window.loadURL(url);
 }
 
 async function chooseDirectory(parent) {
