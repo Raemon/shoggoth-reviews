@@ -1,6 +1,6 @@
 'use client';
 
-import { ROW_HEIGHT, type RowHeight, type RowHeights } from './diffMetrics';
+import { ROW_HEIGHT, type RowHeight, type WrappedHeights } from './diffMetrics';
 
 export const WRAPPED_CELL = 'data-wrapped-cell';
 
@@ -20,11 +20,13 @@ function leadingColumns(text: string): number {
 }
 
 /** Read from the laid-out cells: line breaking is the browser's to know, not ours to predict. */
-export function measureRowHeights(container: HTMLElement): RowHeights {
+export function measureRowHeights(container: HTMLElement): WrappedHeights {
   const heights = new Map<number, RowHeight>();
   for (const cell of container.querySelectorAll<HTMLElement>(`[${WRAPPED_CELL}]`)) {
     const { row, side } = cellKey(cell);
-    heights.set(row, { ...rowHeightAt(heights, row), [side]: cell.offsetHeight });
+    // An empty cell measures 0, but its row is never drawn shorter than ROW_HEIGHT.
+    const height = Math.max(ROW_HEIGHT, cell.offsetHeight);
+    heights.set(row, { ...rowHeightAt(heights, row), [side]: height });
   }
   return heights;
 }
@@ -34,12 +36,12 @@ function cellKey(cell: HTMLElement): { row: number; side: 'left' | 'right' } {
   return { row: Number(row), side: side === 'left' ? 'left' : 'right' };
 }
 
-function rowHeightAt(heights: RowHeights, row: number): RowHeight {
+function rowHeightAt(heights: WrappedHeights, row: number): RowHeight {
   return heights?.get(row) ?? { left: ROW_HEIGHT, right: ROW_HEIGHT };
 }
 
 /** Split panes only line up if a row is as tall as the taller of the two cells across from it. */
-export function evenedRowHeights(left: RowHeights, right: RowHeights): RowHeights {
+export function evenedRowHeights(left: WrappedHeights, right: WrappedHeights): WrappedHeights {
   if (!left || !right) return null;
   const heights = new Map<number, RowHeight>();
   for (const row of new Set([...left.keys(), ...right.keys()])) {
@@ -49,7 +51,7 @@ export function evenedRowHeights(left: RowHeights, right: RowHeights): RowHeight
   return heights;
 }
 
-export function sameRowHeights(held: RowHeights, next: RowHeights): boolean {
+export function sameRowHeights(held: WrappedHeights, next: WrappedHeights): boolean {
   if (!held || !next) return held === next;
   if (held.size !== next.size) return false;
   return [...held].every(([row, { left, right }]) => sameHeight(next.get(row), left, right));

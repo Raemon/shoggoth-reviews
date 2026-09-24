@@ -1,44 +1,25 @@
 'use client';
 
-import { GithubSignedOutNotice } from './GithubSignedOutNotice';
-import { SourceControls } from './SourceControls';
-import { useGithubAccess, useGithubToken, useSources, useStoreReady } from './sourceStore';
-import { CodebaseList } from '@/features/codebases/CodebaseList';
-import { sidebarGroups } from '@/features/codebases/sidebarGroups';
-import { useSourceResults } from '@/features/codebases/useSourceResults';
+import { GithubSources, useOnboarding } from './GithubSources';
+import { PageHeading } from './PageHeading';
 
 export function Landing({ error, oauthConfigured }: { error: string | null; oauthConfigured: boolean }) {
-  const ready = useStoreReady();
-  const sources = useSources();
-  const token = useGithubToken();
-  const access = useGithubAccess();
-  const results = useSourceResults(sources, token, ready, access);
-  const onboarding = !ready || sources.length === 0;
+  const onboarding = useOnboarding();
   return (
     <section className="max-w-2xl">
-      <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-ink-dim">
-        {onboarding ? 'Choose what to read' : 'Read straight from GitHub'}
-      </p>
-      <h1 className="text-xl text-accent">reposcope</h1>
+      <PageHeading eyebrow={onboarding ? 'Choose what to read' : 'Read straight from GitHub'} title="reposcope" />
       <p className="mt-2 text-xs leading-5 text-ink-dim">
         {onboarding ? 'Point reposcope at GitHub repositories. ' : 'Pick a repository below to read it. '}
         Each one lists its open pull requests, read straight from GitHub: the discussion, the commits, and the diff
         side by side.
       </p>
-      {error && (
-        <p className="mt-3 rounded bg-error-bg px-3 py-2 text-xs text-error-ink">{error}</p>
-      )}
-      <GithubSignedOutNotice className="mt-3 rounded bg-error-bg px-3 py-2 !text-xs" />
-      {!onboarding && (
-        <>
-          <p className="mb-1 mt-5 text-[10px] uppercase tracking-[0.18em] text-ink-dim">Your codebases</p>
-          <div className="flex max-h-[26rem] flex-col overflow-hidden rounded bg-panel">
-            <CodebaseList groups={sidebarGroups(sources, results)} />
-          </div>
-          <p className="mt-5 text-[10px] uppercase tracking-[0.18em] text-ink-dim">Add more</p>
-        </>
-      )}
-      <SourceControls compact={!onboarding} oauthConfigured={oauthConfigured} />
+      <LandingError error={error} />
+      <GithubSources oauthConfigured={oauthConfigured} />
     </section>
   );
+}
+
+export function LandingError({ error }: { error: string | null }) {
+  if (!error) return null;
+  return <p className="mt-3 rounded bg-error-bg px-3 py-2 text-xs text-error-ink">{error}</p>;
 }

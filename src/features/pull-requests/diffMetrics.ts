@@ -1,7 +1,7 @@
 import type { DiffLine } from './diffLines';
+import type { BlankLineSetting } from '@/features/settings/settings';
 
 export const ROW_HEIGHT = 15;
-export const BLANK_ROW_HEIGHT = 2;
 export const COLLAPSED_ROW_GAP = 2;
 export const SAVE_BAR = 28;
 export const EXPAND_MS = 200;
@@ -12,11 +12,22 @@ export interface RowHeight {
 }
 
 /** Row index to per-side height, for rows wrapped past one line; null when wrapping is off. */
-export type RowHeights = Map<number, RowHeight> | null;
+export type WrappedHeights = Map<number, RowHeight> | null;
+
+export interface RowHeights {
+  wrapped: WrappedHeights;
+  blank: number;
+}
+
+const BLANK_ROW_HEIGHTS: Record<BlankLineSetting, number> = { full: ROW_HEIGHT, half: ROW_HEIGHT / 2, 'extra-small': 2 };
+
+export function blankRowHeight(setting: BlankLineSetting): number {
+  return BLANK_ROW_HEIGHTS[setting];
+}
 
 export function lineHeight(line: DiffLine, heights: RowHeights): number {
-  if (line.blank) return BLANK_ROW_HEIGHT;
-  return heights?.get(line.row)?.[line.side] ?? ROW_HEIGHT;
+  if (line.blank) return heights.blank;
+  return heights.wrapped?.get(line.row)?.[line.side] ?? ROW_HEIGHT;
 }
 
 export function collapsedRowGap(

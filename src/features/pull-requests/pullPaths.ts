@@ -1,4 +1,5 @@
 import { repoRoute } from '@/features/codebases/repoPaths';
+import { isLocalRepo } from '@/features/local-git/localRefs';
 
 export type PullState = 'open' | 'closed' | 'all';
 
@@ -11,7 +12,7 @@ export function pullFilesPath(owner: string, repo: string, number: number): stri
 }
 
 export function commitFilesPath(owner: string, repo: string, sha: string): string {
-  return `/api/github/commit?${repoParams(owner, repo)}&sha=${encodeURIComponent(sha)}`;
+  return `${readerPath(owner, repo, 'commit')}&sha=${encodeURIComponent(sha)}`;
 }
 
 export function deleteFilePath(owner: string, repo: string, number: number): string {
@@ -68,7 +69,7 @@ export function branchFilesPath(owner: string, repo: string, branch: string): st
 }
 
 export function repoFilesPath(owner: string, repo: string): string {
-  return `/api/github/repo-files?${repoParams(owner, repo)}`;
+  return readerPath(owner, repo, 'repo-files');
 }
 
 export function repoFilesAtRefPath(owner: string, repo: string, ref: string): string {
@@ -76,11 +77,21 @@ export function repoFilesAtRefPath(owner: string, repo: string, ref: string): st
 }
 
 export function repoLinesPath(owner: string, repo: string, ref: string): string {
-  return `/api/github/repo-lines?${repoParams(owner, repo)}&ref=${encodeURIComponent(ref)}`;
+  return `${readerPath(owner, repo, 'repo-lines')}&ref=${encodeURIComponent(ref)}`;
 }
 
 export function fileTextPath(owner: string, repo: string, ref: string, path: string): string {
-  return `/api/github/file?${repoParams(owner, repo)}&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`;
+  return `${readerPath(owner, repo, 'file')}&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`;
+}
+
+export function fileBlobPath(owner: string, repo: string, ref: string, path: string): string {
+  return `${readerPath(owner, repo, 'blob')}&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`;
+}
+
+// Each route here needs an /api/local twin; local diffs read only these.
+function readerPath(owner: string, repo: string, route: string): string {
+  if (isLocalRepo(owner)) return `/api/local/${route}?${new URLSearchParams({ repo })}`;
+  return `/api/github/${route}?${repoParams(owner, repo)}`;
 }
 
 export function repoPullsPath(owner: string, repo: string, state: PullState = 'open'): string {
@@ -116,6 +127,10 @@ export function branchSubject(owner: string, repo: string, branch: string): stri
   return `${owner}/${repo}@${branch}`;
 }
 
+export function githubUrl(owner: string, repo: string, rest: string): string | null {
+  return isLocalRepo(owner) ? null : `https://github.com/${owner}/${repo}/${rest}`;
+}
+
 export function pullUrl(owner: string, repo: string, number: number): string {
   return `https://github.com/${owner}/${repo}/pull/${number}`;
 }
@@ -132,8 +147,8 @@ export function shortSha(sha: string): string {
   return sha.slice(0, 7);
 }
 
-export function commitUrl(owner: string, repo: string, sha: string): string {
-  return `https://github.com/${owner}/${repo}/commit/${sha}`;
+export function commitUrl(owner: string, repo: string, sha: string): string | null {
+  return githubUrl(owner, repo, `commit/${sha}`);
 }
 
 export function branchRoute(owner: string, repo: string, branch: string): string {

@@ -36,6 +36,7 @@ export function BranchView({ owner, repo, branch }: { owner: string; repo: strin
       listColumn={<RepoPullsColumn owner={owner} repo={repo} size={listSize} onSize={setListSize} />}
       discussion={null}
       editableWhole={null}
+      aiChat
     />
   );
 }

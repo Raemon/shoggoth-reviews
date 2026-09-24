@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { ImageSource } from './imageView';
+import { fileBlobPath } from './pullPaths';
 import type { FileBlob } from './pullRequests';
 import { apiJson } from '@/features/sources/apiClient';
 import { useGithubToken } from '@/features/sources/sourceStore';
@@ -12,7 +13,7 @@ const loading = new Map<string, Promise<FileBlob>>();
 
 export function useFileBlob(owner: string, repo: string, source: ImageSource | null) {
   const token = useGithubToken();
-  const path = source ? blobPath(owner, repo, source) : null;
+  const path = source ? fileBlobPath(owner, repo, source.ref, source.path) : null;
   return useHeldBlob(path, token);
 }
 
@@ -81,8 +82,4 @@ function rememberBlob(path: string) {
 
 function readHeld(path: string | null): FileBlob | null {
   return path ? (blobs.get(path) ?? null) : null;
-}
-
-function blobPath(owner: string, repo: string, source: ImageSource): string {
-  return `/api/github/blob?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(repo)}&ref=${encodeURIComponent(source.ref)}&path=${encodeURIComponent(source.path)}`;
 }
