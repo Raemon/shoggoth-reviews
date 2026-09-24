@@ -100,7 +100,7 @@ function parseRaw(raw: string): unknown {
   }
 }
 
-function readItem(key: string): string | null {
+export function readItem(key: string): string | null {
   try {
     return window.localStorage.getItem(key);
   } catch {

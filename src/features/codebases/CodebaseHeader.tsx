@@ -10,6 +10,7 @@ import { branchBeingRead, pullBeingRead, repoBeingRead, repoRoute } from './repo
 import { sidebarGroups } from './sidebarGroups';
 import { useSourceResults } from './useSourceResults';
 import { ScopeMark } from '@/features/brand/ScopeMark';
+import { SettingsLink } from '@/features/settings/SettingsLink';
 import { useCurrentLocal } from '@/features/local-git/currentLocalStore';
 import { LocalHeaderSubject } from '@/features/local-git/LocalHeaderSubject';
 import { CurrentBranchTitle, CurrentPullTitle } from '@/features/pull-requests/CurrentPullTitle';
@@ -24,7 +25,6 @@ import { useViewMode } from '@/features/pull-requests/viewModeStore';
 import { type RepoRef } from '@/features/sources/parseRepoLink';
 import { opensAnotherTab } from '@/features/surface-ui/selectableClick';
 import { SelectableLink } from '@/features/surface-ui/SelectableLink';
-import { ThemeToggle } from '@/features/theme/ThemeToggle';
 import { disconnectGithub, useGithubAccess, useGithubToken, useSources, useStoreReady } from '@/features/sources/sourceStore';
 import { GithubSignedOutNotice } from '@/features/sources/GithubSignedOutNotice';
 
@@ -61,7 +61,7 @@ export function CodebaseHeader() {
           </>
         )}
         {showingChange && <ViewModeToggle />}
-        <ThemeToggle />
+        <SettingsLink />
       </div>
     </header>
   );
