@@ -3,6 +3,8 @@ import { sortByFolder } from './fileTree';
 import type { ChangedFile } from './pullRequests';
 import type { ReviewThread } from './reviewThreads';
 
+export const NO_COMMENTS: ReadonlyMap<string, number> = new Map();
+
 export function commentCountsOf(threads: ReviewThread[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const thread of threads) {
@@ -11,7 +13,7 @@ export function commentCountsOf(threads: ReviewThread[]): Map<string, number> {
   return counts;
 }
 
-export function sortChangedFiles(files: ChangedFile[], sort: DiffSort, comments: Map<string, number>): ChangedFile[] {
+export function sortChangedFiles(files: ChangedFile[], sort: DiffSort, comments: ReadonlyMap<string, number>): ChangedFile[] {
   const base = sortByFolder(files);
   if (sort === 'folder') return base;
   if (sort === 'diffAll') return byDescending(base, allDiffCount);

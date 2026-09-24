@@ -139,6 +139,18 @@ export function pullRoute(owner: string, repo: string, number: number): string {
   return `${repoRoute(owner, repo)}/pull/${number}`;
 }
 
+export function commitRoute(owner: string, repo: string, sha: string): string {
+  return `${repoRoute(owner, repo)}/commit/${encodeURIComponent(sha)}`;
+}
+
+export function shortSha(sha: string): string {
+  return sha.slice(0, 7);
+}
+
+export function commitUrl(owner: string, repo: string, sha: string): string | null {
+  return githubUrl(owner, repo, `commit/${sha}`);
+}
+
 export function branchRoute(owner: string, repo: string, branch: string): string {
   return `${repoRoute(owner, repo)}/branch/${branch.split('/').map(encodeURIComponent).join('/')}`;
 }
