@@ -10,6 +10,8 @@ import { branchBeingRead, pullBeingRead, repoBeingRead, repoRoute } from './repo
 import { sidebarGroups } from './sidebarGroups';
 import { useSourceResults } from './useSourceResults';
 import { ScopeMark } from '@/features/brand/ScopeMark';
+import { useCurrentLocal } from '@/features/local-git/currentLocalStore';
+import { LocalHeaderSubject } from '@/features/local-git/LocalHeaderSubject';
 import { CurrentBranchTitle, CurrentPullTitle } from '@/features/pull-requests/CurrentPullTitle';
 import { MergePullButton } from '@/features/pull-requests/MergePullButton';
 import { PreviewLink } from '@/features/pull-requests/PreviewLink';
@@ -38,6 +40,8 @@ export function CodebaseHeader() {
   const branch = branchBeingRead(pathname);
   const readingPullList = reading !== null && pathname === repoRoute(reading.owner, reading.name);
   const readingChange = reading !== null && (pullNumber !== null || branch !== null);
+  const local = useCurrentLocal();
+  const showingChange = readingChange || local?.target != null;
   return (
     <header className={`relative z-40 flex items-center gap-2 bg-panel px-2 py-5 ${central ? '' : 'border-b border-panel-edge'}`}>
       <Link href="/" aria-label="reposcope home" className="shrink-0">
@@ -46,6 +50,7 @@ export function CodebaseHeader() {
       <CodebaseMenu reading={reading} />
       {central && readingChange && <PullFilterMenu />}
       {reading && !readingPullList && <HeaderSubject repo={reading} pullNumber={pullNumber} branch={branch} />}
+      {local && <LocalHeaderSubject local={local} />}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <GithubSignedOutNotice />
         {reading && pullNumber !== null && (
@@ -55,7 +60,7 @@ export function CodebaseHeader() {
             <PullBranchRefs repo={reading} number={pullNumber} />
           </>
         )}
-        {readingChange && <ViewModeToggle />}
+        {showingChange && <ViewModeToggle />}
         <ThemeToggle />
       </div>
     </header>

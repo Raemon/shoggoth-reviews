@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AllPullRequestList } from './AllPullRequestList';
 import { BranchesSection, useBranches } from './BranchesSection';
-import { ColumnPreview, type PreviewToken } from './ColumnPreview';
+import { branchToken, ColumnPreview, type PreviewToken } from './ColumnPreview';
 import { useRegisterColumn } from './registerColumn';
 import { PullFilterMenu } from './PullFilterMenu';
 import { PullRequestList } from './PullRequestList';
@@ -132,8 +132,7 @@ function repoTargets(owner: string, repo: string, pulls: PullRequestSummary[], b
 
 function branchTarget(owner: string, repo: string, branch: BranchSummary): PullNavTarget {
   const route = branchListingRoute(owner, repo, branch);
-  const leaf = branch.name.split('/').pop() ?? branch.name;
-  return { route, href: route, label: leaf.slice(0, 2), title: `${owner}/${repo} · ${branch.name}`, pull: false };
+  return { route, href: route, label: branchToken(branch.name), title: `${owner}/${repo} · ${branch.name}`, pull: false };
 }
 
 function pullToken(target: PullNavTarget, accent: boolean): PreviewToken {

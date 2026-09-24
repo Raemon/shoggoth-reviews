@@ -23,6 +23,10 @@ const CHIP_TONE: Record<RowState, string> = {
 const CHIP =
   'shrink-0 rounded-[3px] px-[3px] py-[2px] font-mono text-[9px] leading-none tracking-tight normal-case outline-none focus-visible:ring-1 focus-visible:ring-accent';
 
+export function branchToken(name: string): string {
+  return (name.split('/').pop() ?? name).slice(0, 2);
+}
+
 export function ColumnPreview({ tokens, column }: { tokens: PreviewToken[]; column: ColumnId }) {
   const nav = useColumnNav(column);
   if (tokens.length === 0) return null;

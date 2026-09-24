@@ -1,25 +1,31 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState } from 'react';
 import { parseOwnerInput, parseRepoLink } from './parseRepoLink';
+import { SourceCard } from './SourceCard';
 import { repoRoute } from '@/features/codebases/repoPaths';
 import { addSource } from './sourceStore';
+import { DesktopSignIn } from '@/features/desktop/DesktopSignIn';
 import type { GithubAccess } from '@/features/github-auth/githubAccess';
-import { CHOICE } from '@/features/surface-ui/buttonStyles';
-import { MONO_FIELD } from '@/features/surface-ui/fieldStyles';
+import { FORM_ACTION } from '@/features/surface-ui/buttonStyles';
+import { FieldForm } from '@/features/surface-ui/FieldForm';
 
-const FIELD = `${MONO_FIELD} min-w-0 flex-1`;
-const ADD = `${CHOICE} shrink-0 active:bg-btn-active`;
-
-export function SourceControls({ compact = false, oauthConfigured }: { compact?: boolean; oauthConfigured: boolean }) {
+export function SourceControls({
+  compact = false,
+  oauthConfigured,
+  desktop = false,
+}: {
+  compact?: boolean;
+  oauthConfigured: boolean;
+  desktop?: boolean;
+}) {
   const router = useRouter();
   const [repoError, setRepoError] = useState<string | null>(null);
   const [ownerError, setOwnerError] = useState<string | null>(null);
 
-  const submitRepo = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const parsed = parseRepoLink(String(new FormData(event.currentTarget).get('repo') ?? ''));
+  const submitRepo = (link: string) => {
+    const parsed = parseRepoLink(link);
     if (!parsed.ok) {
       setRepoError(parsed.error);
       return;
@@ -29,10 +35,8 @@ export function SourceControls({ compact = false, oauthConfigured }: { compact?:
     router.push(repoRoute(parsed.value.owner, parsed.value.name));
   };
 
-  const submitOwner = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const parsed = parseOwnerInput(String(new FormData(form).get('owner') ?? ''));
+  const submitOwner = (login: string, form: HTMLFormElement) => {
+    const parsed = parseOwnerInput(login);
     if (!parsed.ok) {
       setOwnerError(parsed.error);
       return;
@@ -45,12 +49,7 @@ export function SourceControls({ compact = false, oauthConfigured }: { compact?:
   return (
     <div className={compact ? 'mt-5 flex flex-col gap-2' : 'mt-5 flex flex-col gap-3'}>
       <SourceCard compact={compact} title="A single repository" error={repoError}>
-        <form onSubmit={submitRepo} className="flex gap-2">
-          <input name="repo" placeholder="https://github.com/owner/repo" aria-label="Repository link" className={FIELD} />
-          <button type="submit" className={ADD}>
-            Add
-          </button>
-        </form>
+        <FieldForm name="repo" label="Repository link" placeholder="https://github.com/owner/repo" action="Add" onValue={submitRepo} />
       </SourceCard>
       <SourceCard
         compact={compact}
@@ -58,13 +57,16 @@ export function SourceControls({ compact = false, oauthConfigured }: { compact?:
         note="A GitHub login — either a person or an organization."
         error={ownerError}
       >
-        <form onSubmit={submitOwner} className="flex gap-2">
-          <input name="owner" placeholder="LessWrong2" aria-label="GitHub login" className={FIELD} />
-          <button type="submit" className={ADD}>
-            Add
-          </button>
-        </form>
+        <FieldForm name="owner" label="GitHub login" placeholder="LessWrong2" action="Add" onValue={submitOwner} />
       </SourceCard>
+      {desktop ? <DesktopSignIn compact={compact} /> : <OauthCards compact={compact} oauthConfigured={oauthConfigured} />}
+    </div>
+  );
+}
+
+function OauthCards({ compact, oauthConfigured }: { compact: boolean; oauthConfigured: boolean }) {
+  return (
+    <>
       <SourceCard
         compact={compact}
         title="Only the public repositories you can see on GitHub"
@@ -87,7 +89,7 @@ export function SourceControls({ compact = false, oauthConfigured }: { compact?:
       >
         <ConnectButton oauthConfigured={oauthConfigured} access="all" label="Connect GitHub" />
       </SourceCard>
-    </div>
+    </>
   );
 }
 
@@ -102,37 +104,14 @@ function ConnectButton({
 }) {
   if (!oauthConfigured) {
     return (
-      <button type="button" disabled className={`${ADD} cursor-not-allowed`}>
+      <button type="button" disabled className={`${FORM_ACTION} cursor-not-allowed`}>
         {label}
       </button>
     );
   }
   return (
-    <a href={`/api/github/connect?access=${access}`} className={`${ADD} inline-block`}>
+    <a href={`/api/github/connect?access=${access}`} className={`${FORM_ACTION} inline-block`}>
       {label}
     </a>
-  );
-}
-
-function SourceCard({
-  compact,
-  title,
-  note,
-  error,
-  children,
-}: {
-  compact: boolean;
-  title: string;
-  note?: string;
-  error?: string | null;
-  children: ReactNode;
-}) {
-  return (
-    <section className={`rounded bg-panel ${compact ? 'px-3 py-2' : 'px-4 py-3'}`}>
-      <h2 className={compact ? 'text-[11px] text-ink' : 'text-xs text-ink'}>{title}</h2>
-      <div className="mt-2">{children}</div>
-      {error && <p className="mt-1.5 text-[10px] leading-4 text-error-ink">{error}</p>}
-      {note && <p className="mt-2 text-[10px] leading-4 text-ink-dim">{note}</p>}
-    </section>
   );
 }

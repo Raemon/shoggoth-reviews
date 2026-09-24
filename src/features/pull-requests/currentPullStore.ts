@@ -17,7 +17,7 @@ export interface CurrentBranch {
   head: CommitSummary | null;
 }
 
-function subjectStore<T>() {
+export function subjectStore<T>() {
   let current: T | null = null;
   const listeners = new Set<() => void>();
   return {

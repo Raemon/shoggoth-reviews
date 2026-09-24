@@ -7,6 +7,18 @@ Next.js app for browsing GitHub repositories and pull requests.
 - Production: https://www.humanintheloop.review
 
 
+## Desktop app
+
+- `npm run desktop` opens the Electron app in dev mode on the git repository you run it
+  from. Arguments after `--` work like `git diff` / `git show`: `npm run desktop -- show HEAD~1`.
+- `npm link` puts `reposcope` on PATH. It runs the production build, so run `npm run build` first.
+- `npm run check:local-git` exercises the local git layer against scratch repositories.
+
+Local repository routes (`/local`, `/diff`, `/show`, `/launch`, `/api/local/*`) exist only when
+`desktop/server.mjs` starts the server. Start new ones with `localApiRoute` or `desktopOnly()` so
+the web deployment never reads its own filesystem. A layout can't gate them: Next renders pages
+alongside their layout, so a page runs even when its layout calls `notFound()`.
+
 ## GitHub access
 
 Every read from GitHub goes through `githubJson`/`githubBytes` in

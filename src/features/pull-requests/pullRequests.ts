@@ -179,8 +179,8 @@ export interface GithubCommit {
 
 const API = 'https://api.github.com';
 const MAX_FILE_PAGES = 10;
-const MAX_BLOB_BYTES = 6 * 1024 * 1024;
-const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+export const MAX_BLOB_BYTES = 6 * 1024 * 1024;
+export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 export const MAX_SCANNED_REPOS = 60;
 const SCAN_WORKERS = 6;
 const COMMIT_STAT_WORKERS = 12;
@@ -447,7 +447,14 @@ export async function listCommitFiles(owner: string, name: string, sha: string):
 }
 
 export async function readFileBlob(owner: string, name: string, ref: string, path: string): Promise<FileBlob> {
-  const bytes = await readRawFile(owner, name, ref, path);
+  return fileBlobOf(path, await readRawFile(owner, name, ref, path));
+}
+
+export async function readFileText(owner: string, name: string, ref: string, path: string): Promise<FileText> {
+  return fileTextOf(await readRawFile(owner, name, ref, path));
+}
+
+export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
   if (bytes.byteLength > MAX_BLOB_BYTES) return { dataUrl: null, byteSize: bytes.byteLength };
   const type = imageTypeOf(path) ?? 'application/octet-stream';
   return {
@@ -456,8 +463,7 @@ export async function readFileBlob(owner: string, name: string, ref: string, pat
   };
 }
 
-export async function readFileText(owner: string, name: string, ref: string, path: string): Promise<FileText> {
-  const bytes = await readRawFile(owner, name, ref, path);
+export function fileTextOf(bytes: Uint8Array): FileText {
   if (bytes.byteLength > MAX_TEXT_BYTES) return { text: null, byteSize: bytes.byteLength };
   return { text: new TextDecoder().decode(bytes), byteSize: bytes.byteLength };
 }
