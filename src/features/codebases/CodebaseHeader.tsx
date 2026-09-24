@@ -41,6 +41,7 @@ export function CodebaseHeader() {
   const readingPullList = reading !== null && pathname === repoRoute(reading.owner, reading.name);
   const readingChange = reading !== null && (pullNumber !== null || branch !== null);
   const local = useCurrentLocal();
+  const showingChange = readingChange || local?.target != null;
   return (
     <header className={`relative z-40 flex items-center gap-2 bg-panel px-2 py-5 ${central ? '' : 'border-b border-panel-edge'}`}>
       <Link href="/" aria-label="reposcope home" className="shrink-0">
@@ -59,7 +60,7 @@ export function CodebaseHeader() {
             <PullBranchRefs repo={reading} number={pullNumber} />
           </>
         )}
-        {(readingChange || local?.target) && <ViewModeToggle />}
+        {showingChange && <ViewModeToggle />}
         <ThemeToggle />
       </div>
     </header>

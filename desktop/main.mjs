@@ -1,15 +1,16 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { delimiter, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SECRET_HEADER, startServer } from './server.mjs';
 
 const APP_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
-const PRELOAD = join(APP_DIR, 'desktop', 'preload.cjs');
 const DEV = process.env.REPOSCOPE_DEV === '1';
-const BIN_DIRS = ['/opt/homebrew/bin', '/usr/local/bin'];
 const WINDOW_SIZE = { width: 1440, height: 900 };
+const APP_WINDOW = { ...WINDOW_SIZE, title: 'reposcope', webPreferences: { preload: join(APP_DIR, 'desktop', 'preload.cjs') } };
+// No scripts: an SVG opened as a blob: URL would otherwise run with this app's origin.
+const IMAGE_WINDOW = { ...WINDOW_SIZE, webPreferences: { javascript: false } };
 const launch = { cwd: process.cwd(), args: launchArgs(process.argv) };
 
 app.setName('reposcope');
@@ -23,7 +24,7 @@ if (app.requestSingleInstanceLock(launch)) {
   app.quit();
 }
 
-// bin/reposcope.mjs puts `--` before the user's arguments so Chromium never parses them as switches.
+// The launcher adds `--` so Chromium never parses the user's git arguments as switches.
 function launchArgs(argv) {
   const split = argv.indexOf('--');
   return split === -1 ? [] : argv.slice(split + 1);
@@ -33,7 +34,6 @@ async function startUp() {
   if (!DEV && !existsSync(join(APP_DIR, '.next', 'BUILD_ID'))) {
     throw new Error('There is no production build yet. Run `npm run build`, or start with `reposcope --dev`.');
   }
-  extendPath();
   const secret = randomBytes(32).toString('hex');
   const origin = await startServer({ dir: APP_DIR, dev: DEV, secret });
   signRequests(origin, secret);
@@ -48,41 +48,35 @@ function failStartUp(error) {
   app.quit();
 }
 
-// Apps opened from the Finder get a minimal PATH, without Homebrew's git or gh.
-function extendPath() {
-  const known = (process.env.PATH ?? '').split(delimiter);
-  process.env.PATH = [...known, ...BIN_DIRS.filter((dir) => !known.includes(dir))].join(delimiter);
-}
-
 function signRequests(origin, secret) {
-  const own = [`${origin}/`, `${origin.replace(/^http/, 'ws')}/`];
-  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    const signed = own.some((prefix) => details.url.startsWith(prefix));
-    callback({ requestHeaders: signed ? { ...details.requestHeaders, [SECRET_HEADER]: secret } : details.requestHeaders });
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: [`${origin}/*`] }, ({ requestHeaders }, callback) => {
+    callback({ requestHeaders: { ...requestHeaders, [SECRET_HEADER]: secret } });
   });
 }
 
+// Server redirects skip will-navigate, so both events keep other sites out of app windows.
 function guardNavigation(origin) {
+  const keepInApp = (event) => {
+    if (isOwn(origin, event.url)) return;
+    event.preventDefault();
+    openExternally(event.url);
+  };
   app.on('web-contents-created', (_event, contents) => {
     contents.setWindowOpenHandler(({ url }) => windowRequest(origin, url));
-    contents.on('will-navigate', (event, url) => {
-      if (isOwn(origin, url)) return;
-      event.preventDefault();
-      openExternally(url);
-    });
+    contents.on('will-navigate', keepInApp);
+    contents.on('will-redirect', keepInApp);
   });
 }
 
 function windowRequest(origin, url) {
-  if (isOwn(origin, url) || url.startsWith(`blob:${origin}/`)) {
-    return { action: 'allow', overrideBrowserWindowOptions: { ...WINDOW_SIZE, webPreferences: { preload: PRELOAD } } };
-  }
+  if (isOwn(origin, url)) return { action: 'allow', outlivesOpener: true, overrideBrowserWindowOptions: APP_WINDOW };
+  if (url.startsWith(`blob:${origin}/`)) return { action: 'allow', overrideBrowserWindowOptions: IMAGE_WINDOW };
   openExternally(url);
   return { action: 'deny' };
 }
 
 function isOwn(origin, url) {
-  return url === origin || url.startsWith(`${origin}/`);
+  return url.startsWith(`${origin}/`);
 }
 
 function openExternally(url) {
@@ -90,12 +84,12 @@ function openExternally(url) {
 }
 
 function openLaunch(origin, { cwd, args }) {
-  openWindow(`${origin}/launch?${new URLSearchParams([['cwd', cwd], ...args.map((arg) => ['arg', arg])])}`);
+  const params = [['cwd', cwd], ...args.map((arg) => ['arg', arg])];
+  openWindow(`${origin}/launch?${new URLSearchParams(params)}`);
 }
 
 function openWindow(url) {
-  const window = new BrowserWindow({ ...WINDOW_SIZE, title: 'reposcope', webPreferences: { preload: PRELOAD } });
-  void window.loadURL(url);
+  void new BrowserWindow(APP_WINDOW).loadURL(url);
 }
 
 async function chooseDirectory(parent) {
@@ -110,18 +104,26 @@ async function openRepository(origin) {
 }
 
 function appMenu(origin) {
-  const history = (step) => BrowserWindow.getFocusedWindow()?.webContents.navigationHistory[step]();
-  const file = [
+  const mac = process.platform === 'darwin' ? [{ role: 'appMenu' }] : [];
+  const menus = [fileMenu(origin), { role: 'editMenu' }, { role: 'viewMenu' }, goMenu(), { role: 'windowMenu' }];
+  return Menu.buildFromTemplate([...mac, ...menus]);
+}
+
+function fileMenu(origin) {
+  const submenu = [
     { label: 'New Window', accelerator: 'CmdOrCtrl+N', click: () => openWindow(`${origin}/`) },
     { label: 'Open Repository…', accelerator: 'CmdOrCtrl+O', click: () => void openRepository(origin) },
     { type: 'separator' },
     { role: 'close' },
   ];
-  const go = [
-    { label: 'Back', accelerator: 'CmdOrCtrl+[', click: () => history('goBack') },
-    { label: 'Forward', accelerator: 'CmdOrCtrl+]', click: () => history('goForward') },
+  return { label: 'File', submenu };
+}
+
+function goMenu() {
+  const history = () => BrowserWindow.getFocusedWindow()?.webContents.navigationHistory;
+  const submenu = [
+    { label: 'Back', accelerator: 'CmdOrCtrl+[', click: () => history()?.goBack() },
+    { label: 'Forward', accelerator: 'CmdOrCtrl+]', click: () => history()?.goForward() },
   ];
-  const mac = process.platform === 'darwin' ? [{ role: 'appMenu' }] : [];
-  const menus = [{ label: 'File', submenu: file }, { role: 'editMenu' }, { role: 'viewMenu' }, { label: 'Go', submenu: go }];
-  return Menu.buildFromTemplate([...mac, ...menus, { role: 'windowMenu' }]);
+  return { label: 'Go', submenu };
 }

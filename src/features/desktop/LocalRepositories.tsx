@@ -2,47 +2,43 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
-import { useDesktopBridge } from './desktopBridge';
+import { useState } from 'react';
+import { useDesktopBridge, type DesktopBridge } from './desktopBridge';
 import { forgetRepo, useRecentRepos } from './recentRepos';
 import { localRepoRoute, repoName } from '@/features/local-git/localRoutes';
-import { CHOICE } from '@/features/surface-ui/buttonStyles';
-import { MONO_FIELD } from '@/features/surface-ui/fieldStyles';
-
-const ACTION = `${CHOICE} shrink-0 active:bg-btn-active`;
+import { SourceCard } from '@/features/sources/SourceCard';
+import { FORM_ACTION } from '@/features/surface-ui/buttonStyles';
+import { FieldForm } from '@/features/surface-ui/FieldForm';
 
 export function LocalRepositories() {
   const router = useRouter();
   const bridge = useDesktopBridge();
   const [error, setError] = useState<string | null>(null);
-  const choose = async () => {
-    const path = await bridge?.chooseRepository();
-    if (path) router.push(localRepoRoute(path));
-  };
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const path = String(new FormData(event.currentTarget).get('path') ?? '').trim();
-    setError(path.startsWith('/') ? null : 'Enter an absolute path, like /Users/you/project');
-    if (path.startsWith('/')) router.push(localRepoRoute(path));
+  const openPath = (path: string) => {
+    const absolute = path.startsWith('/');
+    setError(absolute ? null : 'Enter an absolute path, like /Users/you/project');
+    if (absolute) router.push(localRepoRoute(path));
   };
   return (
-    <section className="rounded bg-panel px-4 py-3">
+    <SourceCard compact={false} title="A repository on this computer" error={error}>
       <div className="flex gap-2">
-        {bridge && (
-          <button type="button" onClick={() => void choose()} className={ACTION}>
-            Choose folder…
-          </button>
-        )}
-        <form onSubmit={submit} className="flex min-w-0 flex-1 gap-2">
-          <input name="path" placeholder="/path/to/repository" aria-label="Repository path" className={`${MONO_FIELD} min-w-0 flex-1`} />
-          <button type="submit" className={ACTION}>
-            Open
-          </button>
-        </form>
+        {bridge && <ChooseFolderButton bridge={bridge} onChosen={openPath} />}
+        <FieldForm name="path" label="Repository path" placeholder="/path/to/repository" action="Open" onValue={openPath} />
       </div>
-      {error && <p className="mt-1.5 text-[10px] leading-4 text-error-ink">{error}</p>}
       <RecentRepos />
-    </section>
+    </SourceCard>
+  );
+}
+
+function ChooseFolderButton({ bridge, onChosen }: { bridge: DesktopBridge; onChosen: (path: string) => void }) {
+  const choose = async () => {
+    const path = await bridge.chooseRepository();
+    if (path) onChosen(path);
+  };
+  return (
+    <button type="button" onClick={() => void choose()} className={FORM_ACTION}>
+      Choose folder…
+    </button>
   );
 }
 

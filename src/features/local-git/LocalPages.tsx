@@ -6,13 +6,13 @@ import { localChangeRoute, localRepoRoute, type LocalCommand } from './localRout
 import { paramList, paramValue, type PageParams } from './pageParams';
 import { CentralLayoutProvider } from '@/features/pull-requests/centralLayout';
 import { ColumnNavProvider } from '@/features/pull-requests/columnNav';
+import { desktopOnly } from '@/features/desktop/desktopMode';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 export async function LocalOverviewPage({ params }: { params: PageParams }) {
-  const repo = paramValue(params, 'repo');
-  const root = await rootOf(repo);
+  await desktopOnly();
+  const { repo, root } = await canonicalRoot(params, localRepoRoute);
   if (root === null) return <MissingRepo repo={repo} />;
-  if (root !== repo) redirect(localRepoRoute(root));
   return (
     <div className="p-6">
       <ColumnNavProvider>
@@ -23,22 +23,24 @@ export async function LocalOverviewPage({ params }: { params: PageParams }) {
 }
 
 export async function LocalChangePage({ params, command }: { params: PageParams; command: LocalCommand }) {
-  const repo = paramValue(params, 'repo');
-  const root = await rootOf(repo);
+  await desktopOnly();
+  const args = paramList(params, 'arg');
+  const { repo, root } = await canonicalRoot(params, (canonical) => localChangeRoute({ repo: canonical, command, args }));
   if (root === null) return <MissingRepo repo={repo} />;
-  const target = { repo: root, command, args: paramList(params, 'arg') };
-  if (root !== repo) redirect(localChangeRoute(target));
   return (
     <ColumnNavProvider>
       <CentralLayoutProvider>
-        <LocalChangeView target={target} />
+        <LocalChangeView target={{ repo: root, command, args }} />
       </CentralLayoutProvider>
     </ColumnNavProvider>
   );
 }
 
-function rootOf(repo: string | null): Promise<string | null> {
-  return repo === null ? Promise.resolve(null) : repositoryRoot(repo).catch(() => null);
+async function canonicalRoot(params: PageParams, routeFor: (root: string) => string) {
+  const repo = paramValue(params, 'repo');
+  const root = repo === null ? null : await repositoryRoot(repo).catch(() => null);
+  if (root !== null && root !== repo) redirect(routeFor(root));
+  return { repo, root };
 }
 
 function MissingRepo({ repo }: { repo: string | null }) {

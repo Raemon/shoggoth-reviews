@@ -1,5 +1,6 @@
 import type { LocalBranch, LocalOverview, LocalStash, WorktreeCounts } from './localOverview';
-import { localChangeRoute, type LocalCommand } from './localRoutes';
+import { localChangeRoute } from './localRoutes';
+import { branchToken } from '@/features/pull-requests/ColumnPreview';
 import { plural } from '@/features/surface-ui/plural';
 
 export interface LocalChangeEntry {
@@ -14,35 +15,40 @@ export interface LocalChangeEntry {
 export interface LocalChangeGroup {
   title: string;
   entries: LocalChangeEntry[];
-  empty: string;
+  empty?: string;
 }
 
 export function localChangeGroups(overview: LocalOverview): LocalChangeGroup[] {
   return [
-    { title: 'working tree', entries: workingEntries(overview), empty: '' },
+    { title: 'working tree', entries: workingEntries(overview) },
     { title: `branches ahead of ${overview.trunk ?? 'main'}`, entries: branchEntries(overview), empty: noBranches(overview) },
     { title: 'stashes', entries: overview.stashes.map((stash) => stashEntry(overview.root, stash)), empty: 'No stashes.' },
   ];
 }
 
 function workingEntries({ root, worktree, hasHead }: LocalOverview): LocalChangeEntry[] {
-  const unstaged = worktree.unstaged + worktree.untracked + worktree.conflicted;
-  const entries = [
-    entry(root, 'diff', [], 'unstaged changes', unstaged, unstagedNote(worktree)),
-    entry(root, 'diff', ['--cached'], 'staged changes', worktree.staged, plural(worktree.staged, 'file')),
-  ];
-  if (!hasHead) return entries;
-  return [...entries, entry(root, 'diff', ['HEAD'], 'all uncommitted changes', worktree.uncommitted, plural(worktree.uncommitted, 'file'))];
+  const unstaged = workingEntry(root, [], 'unstaged changes', unstagedCount(worktree), unstagedNote(worktree));
+  const staged = workingEntry(root, ['--cached'], 'staged changes', worktree.staged);
+  const all = workingEntry(root, ['HEAD'], 'all uncommitted changes', worktree.uncommitted);
+  return hasHead ? [unstaged, staged, all] : [unstaged, staged];
 }
 
-function unstagedNote({ unstaged, untracked, conflicted }: WorktreeCounts): string {
-  const extras = [untracked > 0 ? `${untracked} new` : '', conflicted > 0 ? `${conflicted} conflicted` : ''];
-  return [plural(unstaged + untracked + conflicted, 'file'), ...extras.filter(Boolean)].join(' · ');
+function workingEntry(root: string, args: string[], title: string, count: number, detail = plural(count, 'file')): LocalChangeEntry {
+  const route = localChangeRoute({ repo: root, command: 'diff', args });
+  return { route, title, detail, token: title.slice(0, 2), quiet: count === 0, date: null };
 }
 
-function entry(root: string, command: LocalCommand, args: string[], title: string, count: number, detail: string): LocalChangeEntry {
-  const token = title.slice(0, 2);
-  return { route: localChangeRoute({ repo: root, command, args }), title, detail, token, quiet: count === 0, date: null };
+function unstagedCount({ unstaged, untracked, conflicted }: WorktreeCounts): number {
+  return unstaged + untracked + conflicted;
+}
+
+function unstagedNote(worktree: WorktreeCounts): string {
+  const notes = [plural(unstagedCount(worktree), 'file'), countNote(worktree.untracked, 'new'), countNote(worktree.conflicted, 'conflicted')];
+  return notes.filter(Boolean).join(' · ');
+}
+
+function countNote(count: number, word: string): string {
+  return count > 0 ? `${count} ${word}` : '';
 }
 
 function branchEntries({ root, trunk, branches }: LocalOverview): LocalChangeEntry[] {
@@ -51,9 +57,11 @@ function branchEntries({ root, trunk, branches }: LocalOverview): LocalChangeEnt
 
 function branchEntry(root: string, trunk: string, branch: LocalBranch): LocalChangeEntry {
   const route = localChangeRoute({ repo: root, command: 'diff', args: [`${trunk}...${branch.name}`] });
-  const leaf = branch.name.split('/').pop() ?? branch.name;
-  const detail = `${branch.ahead} ahead${branch.behind > 0 ? ` · ${branch.behind} behind` : ''}`;
-  return { route, title: branch.name, detail, token: leaf.slice(0, 2), quiet: false, date: branch.date };
+  return { route, title: branch.name, detail: aheadBehind(branch), token: branchToken(branch.name), quiet: false, date: branch.date };
+}
+
+function aheadBehind({ ahead, behind }: LocalBranch): string {
+  return behind > 0 ? `${ahead} ahead · ${behind} behind` : `${ahead} ahead`;
 }
 
 function noBranches({ trunk }: LocalOverview): string {
@@ -62,5 +70,9 @@ function noBranches({ trunk }: LocalOverview): string {
 
 function stashEntry(root: string, stash: LocalStash): LocalChangeEntry {
   const route = localChangeRoute({ repo: root, command: 'show', args: [stash.sha] });
-  return { route, title: stash.message, detail: stash.name, token: `s${stash.name.replace(/\D/g, '')}`, quiet: false, date: stash.date };
+  return { route, title: stash.message, detail: stash.name, token: stashToken(stash.name), quiet: false, date: stash.date };
+}
+
+function stashToken(name: string): string {
+  return `s${name.replace(/\D/g, '')}`;
 }

@@ -88,7 +88,7 @@ export function fileBlobPath(owner: string, repo: string, ref: string, path: str
   return `${readerPath(owner, repo, 'blob')}&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`;
 }
 
-// These readers are all a diff needs, so a local repository answers them from git instead.
+// Each route here needs an /api/local twin; local diffs read only these.
 function readerPath(owner: string, repo: string, route: string): string {
   if (isLocalRepo(owner)) return `/api/local/${route}?${new URLSearchParams({ repo })}`;
   return `/api/github/${route}?${repoParams(owner, repo)}`;
@@ -125,6 +125,10 @@ export function pullSubject(owner: string, repo: string, number: number): string
 
 export function branchSubject(owner: string, repo: string, branch: string): string {
   return `${owner}/${repo}@${branch}`;
+}
+
+export function githubUrl(owner: string, repo: string, rest: string): string | null {
+  return isLocalRepo(owner) ? null : `https://github.com/${owner}/${repo}/${rest}`;
 }
 
 export function pullUrl(owner: string, repo: string, number: number): string {

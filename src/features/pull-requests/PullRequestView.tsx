@@ -79,6 +79,7 @@ export function PullRequestView({
       }
       discussion={<PullDiscussion owner={owner} repo={repo} number={number} pull={pull.pull} body={pull.body} />}
       editableWhole={editablePull(pull.pull)}
+      aiChat
     />
   );
 }

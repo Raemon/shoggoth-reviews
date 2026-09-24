@@ -2,14 +2,15 @@ import { createServer } from 'node:http';
 import next from 'next';
 
 export const SECRET_HEADER = 'x-reposcope-desktop';
+// localStorage belongs to the origin, so a new port each launch would forget sign-in.
+const PREFERRED_PORT = 47211;
 
-// Any page in the user's browser can reach a loopback port, so every request must carry
-// the secret that only this app's windows attach (see signRequests in main.mjs).
+// Browser pages can reach loopback ports; only this app's windows attach the secret.
 export async function startServer({ dir, dev, secret }) {
   process.env.REPOSCOPE_DESKTOP = '1';
   const server = createServer();
   const port = await listen(server);
-  const app = next({ dev, dir, hostname: '127.0.0.1', port, httpServer: server });
+  const app = next({ dev, dir, hostname: '127.0.0.1', port });
   await app.prepare();
   const handle = app.getRequestHandler();
   server.on('request', (request, response) => {
@@ -19,10 +20,17 @@ export async function startServer({ dir, dev, secret }) {
   return `http://127.0.0.1:${port}`;
 }
 
-function listen(server) {
+async function listen(server) {
+  return listenOn(server, PREFERRED_PORT).catch(() => listenOn(server, 0));
+}
+
+function listenOn(server, port) {
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => resolve(server.address().port));
+    server.listen(port, '127.0.0.1', () => {
+      server.off('error', reject);
+      resolve(server.address().port);
+    });
   });
 }
 

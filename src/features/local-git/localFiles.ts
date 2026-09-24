@@ -7,7 +7,7 @@ import { fileBlobOf, fileTextOf, MAX_BLOB_BYTES, MAX_TEXT_BYTES, type FileBlob, 
 import type { RepoFileSet } from '@/features/pull-requests/repoFiles';
 import type { RepoLineCounts } from '@/features/pull-requests/repoLineCounts';
 
-export interface HeldBytes {
+interface HeldBytes {
   bytes: Buffer | null;
   byteSize: number;
 }
@@ -32,42 +32,51 @@ export async function listLocalFiles(repo: string, ref: string = WORKTREE_REF): 
 
 export async function countLocalLines(repo: string, ref: string): Promise<RepoLineCounts> {
   const root = await repositoryRoot(repo);
-  const scope = ref === WORKTREE_REF ? ['--untracked'] : ref === INDEX_REF ? ['--cached'] : [];
-  const tree = scope.length === 0 ? [ref] : [];
-  const output = await gitText(root, ['grep', '-I', '-c', '-z', ...scope, '-e', '', ...tree, '--']).catch(() => '');
-  return { lines: lineCounts(output, tree.length === 0 ? '' : `${ref}:`), tooLarge: false };
+  const output = await gitText(root, ['grep', '-I', '-c', '-z', ...grepTarget(ref), '--']).catch(() => '');
+  return { lines: lineCounts(output, isSnapshot(ref) ? '' : `${ref}:`), tooLarge: false };
+}
+
+function grepTarget(ref: string): string[] {
+  if (ref === WORKTREE_REF) return ['--untracked', '-e', ''];
+  return ref === INDEX_REF ? ['--cached', '-e', ''] : ['-e', '', ref];
+}
+
+function isSnapshot(ref: string): boolean {
+  return ref === WORKTREE_REF || ref === INDEX_REF;
 }
 
 function lineCounts(output: string, prefix: string): Record<string, number> {
-  const lines: Record<string, number> = {};
-  for (const [, path = '', count] of output.matchAll(/([^\0]*)\0(\d+)\n/g)) lines[path.slice(prefix.length)] = Number(count);
-  return lines;
+  const counted = [...output.matchAll(/([^\0]*)\0(\d+)\n/g)];
+  return Object.fromEntries(counted.map(([, path = '', count]) => [path.slice(prefix.length), Number(count)]));
 }
 
-export function readAtRef(root: string, ref: string, path: string, maxBytes: number): Promise<HeldBytes> {
+function readAtRef(root: string, ref: string, path: string, maxBytes: number): Promise<HeldBytes> {
   if (ref === WORKTREE_REF) return readWorktree(root, path, maxBytes);
   return readObject(root, ref === INDEX_REF ? `:${path}` : `${ref}:${path}`, maxBytes);
 }
 
 async function readObject(root: string, object: string, maxBytes: number): Promise<HeldBytes> {
   const byteSize = Number((await gitText(root, ['cat-file', '-s', object])).trim());
-  if (byteSize > maxBytes) return { bytes: null, byteSize };
-  return { bytes: await gitBytes(root, ['cat-file', 'blob', object]), byteSize };
+  return readUpTo(byteSize, maxBytes, () => gitBytes(root, ['cat-file', 'blob', object]));
 }
 
 // Git stores a symlink as its target's path, so that is its content here too.
 export async function readWorktree(root: string, path: string, maxBytes: number): Promise<HeldBytes> {
   const full = insideRoot(root, path);
   const info = await lstat(full).catch(() => null);
-  if (info?.isSymbolicLink()) return withinLimit(Buffer.from(await readlink(full)), maxBytes);
+  if (info?.isSymbolicLink()) return readSymlink(full, maxBytes);
   if (!info?.isFile()) throw new LocalGitError(404, `${path} is not a file in the working tree`);
   await requireRealInside(root, full);
-  if (info.size > maxBytes) return { bytes: null, byteSize: info.size };
-  return { bytes: await readFile(full), byteSize: info.size };
+  return readUpTo(info.size, maxBytes, () => readFile(full));
 }
 
-function withinLimit(bytes: Buffer, maxBytes: number): HeldBytes {
-  return { bytes: bytes.length > maxBytes ? null : bytes, byteSize: bytes.length };
+async function readSymlink(full: string, maxBytes: number): Promise<HeldBytes> {
+  const target = Buffer.from(await readlink(full));
+  return readUpTo(target.length, maxBytes, async () => target);
+}
+
+async function readUpTo(byteSize: number, maxBytes: number, read: () => Promise<Buffer>): Promise<HeldBytes> {
+  return { bytes: byteSize > maxBytes ? null : await read(), byteSize };
 }
 
 function insideRoot(root: string, path: string): string {

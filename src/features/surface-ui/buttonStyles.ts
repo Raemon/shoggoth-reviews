@@ -9,6 +9,8 @@ export const BUTTON = `${BUTTON_SHAPE} text-ink-dim hover:text-ink disabled:hove
 
 export const CHOICE = `${BUTTON} ${CHOICE_SIZE}`;
 
+export const FORM_ACTION = `${CHOICE} shrink-0 active:bg-btn-active`;
+
 export const smallChoiceClass = (className?: string) => {
   const base = `${BUTTON} ${SMALL_CHOICE_SIZE}`;
   return className ? `${base} ${className}` : base;

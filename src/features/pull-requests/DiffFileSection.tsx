@@ -9,8 +9,8 @@ import { ImageDiff } from './ImageDiff';
 import { isImagePath } from './imageFiles';
 import { imageSides } from './imageView';
 import { useNearViewport } from './nearViewportStore';
+import { githubUrl } from './pullPaths';
 import type { ChangedFile } from './pullRequests';
-import { isLocalRepo } from '@/features/local-git/localRefs';
 import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { OpenOnGithubLink } from '@/features/surface-ui/OpenOnGithubLink';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
@@ -78,7 +78,7 @@ export function DiffFileSection({
           <span className="shrink-0 text-[9px] uppercase tracking-[0.18em] text-ink-dim">{file.status}</span>
           <ChangeCounts additions={file.additions} deletions={file.deletions} />
         </SelectableRow>
-        <HeaderActions path={file.filename} href={blobUrl(owner, repo, headRef, file.filename)} />
+        <HeaderActions path={file.filename} href={githubUrl(owner, repo, `blob/${headRef}/${file.filename}`)} />
       </div>
       {open &&
         (near ? (
@@ -90,17 +90,13 @@ export function DiffFileSection({
   );
 }
 
-function blobUrl(owner: string, repo: string, headRef: string, filename: string): string | null {
-  return isLocalRepo(owner) ? null : `https://github.com/${owner}/${repo}/blob/${headRef}/${filename}`;
-}
-
 function HeaderActions({ path, href }: { path: string; href: string | null }) {
   return (
     <span className={ACTION_BAR}>
       <CopyButton value={path} what="path" ariaLabel={`Copy path ${path}`} className={ACTION} idleClassName="text-ink-dim">
         ⧉
       </CopyButton>
-      {href !== null && <OpenOnGithubLink href={href} label={path} className={`${ACTION} text-ink-dim`} />}
+      <OpenOnGithubLink href={href} label={path} className={`${ACTION} text-ink-dim`} />
     </span>
   );
 }

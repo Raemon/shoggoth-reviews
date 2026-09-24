@@ -1,7 +1,7 @@
 import { planChange, refOf, type DiffPlan, type DiffSide } from './diffPlan';
 import { parseGitPatch } from './gitPatch';
 import { gitText } from './gitRun';
-import { listCommits } from './localCommits';
+import { lineTotals, listCommits } from './localCommits';
 import { repositoryRoot } from './localRepo';
 import type { LocalCommand } from './localRoutes';
 import { untrackedChanges } from './untrackedFiles';
@@ -9,13 +9,14 @@ import type { ChangedFile, ChangedFileSet, ChangeSummary } from '@/features/pull
 
 export interface LocalChangeSet extends ChangedFileSet, ChangeSummary {}
 
-// Pinned so user config (noprefix, mnemonicPrefix, external diff, textconv) can't reshape the patch.
+// Pinned so user diff config (noprefix, textconv, ...) can't reshape the patch.
 const DIFF_FLAGS = [
   '--no-color',
   '--no-ext-diff',
   '--no-textconv',
   '--no-relative',
   '--find-renames',
+  '--submodule=short',
   '--src-prefix=a/',
   '--dst-prefix=b/',
 ];
@@ -24,7 +25,7 @@ export async function describeLocalChange(repo: string, command: LocalCommand, a
   const root = await repositoryRoot(repo);
   const plan = await planChange(root, command, args);
   const [files, commits] = await Promise.all([diffFiles(root, plan), listCommits(root, plan.commits)]);
-  return { ...fileSetOf(plan, files), commits, additions: total(files, 'additions'), deletions: total(files, 'deletions') };
+  return { ...fileSetOf(plan, files), commits, ...lineTotals(files) };
 }
 
 export async function listLocalCommitFiles(repo: string, sha: string): Promise<ChangedFileSet> {
@@ -56,13 +57,9 @@ function sideArgs(base: DiffSide, head: DiffSide): string[] {
   return head.kind === 'tree' ? [base.sha, head.sha] : [base.sha];
 }
 
-// Git shows unmerged files as combined diffs; against our side, the conflict markers read as additions.
+// Unmerged paths only get combined diffs; --ours yields a plain parseable patch.
 async function conflictedFiles(root: string, paths: string[]): Promise<ChangedFile[]> {
   if (paths.length === 0) return [];
   const { files } = parseGitPatch(await gitText(root, ['diff', ...DIFF_FLAGS, '--ours', '--', ...paths]));
   return files.map((file) => ({ ...file, status: 'conflicted' }));
-}
-
-function total(files: ChangedFile[], field: 'additions' | 'deletions'): number {
-  return files.reduce((sum, file) => sum + file[field], 0);
 }

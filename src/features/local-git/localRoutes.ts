@@ -8,7 +8,11 @@ export interface LocalChangeTarget {
   args: string[];
 }
 
-const FULL_SHA = /^[0-9a-f]{40,64}$/;
+const FULL_SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+export function localCommandOf(text: string | null | undefined): LocalCommand | undefined {
+  return LOCAL_COMMANDS.find((known) => known === text);
+}
 
 export function localRepoRoute(repo: string): string {
   return `/local?${new URLSearchParams({ repo })}`;

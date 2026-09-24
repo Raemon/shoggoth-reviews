@@ -2,6 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import type { LocalChangeTarget } from './localRoutes';
+import { rememberRepo } from '@/features/desktop/recentRepos';
 import { subjectStore } from '@/features/pull-requests/currentPullStore';
 
 export interface CurrentLocal {
@@ -18,6 +19,7 @@ export function useCurrentLocal(): CurrentLocal | null {
 
 export function useShowingLocal(repo: string, target: LocalChangeTarget | null): void {
   useEffect(() => {
+    rememberRepo(repo);
     locals.set({ repo, target });
     return () => locals.set(null);
   }, [repo, target]);

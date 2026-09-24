@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
-import { gitSucceeds, LocalGitError } from './gitRun';
+import { LocalGitError } from './gitRun';
+import { commitSha } from './localRevs';
 
 export interface DiffArgs {
   cached: boolean;
@@ -10,7 +11,7 @@ export interface DiffArgs {
 }
 
 const CACHED_OPTIONS = ['--cached', '--staged'];
-// Options that only reshape the patch; anything else (--output, --ext-diff, ...) is refused.
+// Allowlist: others like --output or --ext-diff could write files or run programs.
 const PATCH_OPTIONS = [
   /^-[wb]$/,
   /^--ignore-(?:all-space|space-change|space-at-eol|blank-lines|cr-at-eol)$/,
@@ -18,14 +19,13 @@ const PATCH_OPTIONS = [
 ];
 
 export async function classifyArgs(root: string, cwd: string, args: string[]): Promise<DiffArgs> {
-  const split = args.indexOf('--');
-  const before = split === -1 ? args : args.slice(0, split);
+  const { before, after } = splitAtDashes(args);
   const flags = before.filter(isOption);
   const { revs, loose } = await splitRevisions(root, before.filter((arg) => !isOption(arg)));
-  const paths = [...loose.map((path) => existing(cwd, path)), ...(split === -1 ? [] : args.slice(split + 1))];
+  const paths = [...loose.map((path) => existing(cwd, path)), ...after];
   return {
-    cached: flags.some((flag) => CACHED_OPTIONS.includes(flag)),
-    options: flags.filter((flag) => !CACHED_OPTIONS.includes(flag)).map(supported),
+    cached: flags.some(isCachedFlag),
+    options: flags.filter((flag) => !isCachedFlag(flag)).map(supported),
     revs,
     paths: paths.map((path) => fromRoot(root, cwd, path)),
   };
@@ -33,12 +33,15 @@ export async function classifyArgs(root: string, cwd: string, args: string[]): P
 
 export async function canonicalArgs(root: string, cwd: string, args: string[]): Promise<string[]> {
   const { cached, options, revs, paths } = await classifyArgs(root, cwd, args);
-  return [...(cached ? ['--cached'] : []), ...options, ...revs, ...(paths.length > 0 ? ['--', ...paths] : [])];
+  const cachedFlag = cached ? ['--cached'] : [];
+  const pathArgs = paths.length > 0 ? ['--', ...paths] : [];
+  return [...cachedFlag, ...options, ...revs, ...pathArgs];
 }
 
 export function rangeEnds(rev: string): string[] {
-  const [left = '', right = ''] = rev.split(isSymmetric(rev) ? '...' : '..');
-  return isRange(rev) ? [left || 'HEAD', right || 'HEAD'] : [rev];
+  if (!isRange(rev)) return [rev];
+  const [left, right] = rev.split(isSymmetric(rev) ? '...' : '..');
+  return [left || 'HEAD', right || 'HEAD'];
 }
 
 export function isRange(rev: string): boolean {
@@ -49,8 +52,17 @@ export function isSymmetric(rev: string): boolean {
   return rev.includes('...');
 }
 
+function splitAtDashes(args: string[]): { before: string[]; after: string[] } {
+  const at = args.indexOf('--');
+  return at === -1 ? { before: args, after: [] } : { before: args.slice(0, at), after: args.slice(at + 1) };
+}
+
 function isOption(arg: string): boolean {
   return arg.startsWith('-') && arg !== '-';
+}
+
+function isCachedFlag(flag: string): boolean {
+  return CACHED_OPTIONS.includes(flag);
 }
 
 function supported(option: string): string {
@@ -58,7 +70,6 @@ function supported(option: string): string {
   throw new LocalGitError(400, `Unsupported option: ${option}`);
 }
 
-// Like git: leading words are revisions until one isn't, and the rest must be existing paths.
 async function splitRevisions(root: string, words: string[]): Promise<{ revs: string[]; loose: string[] }> {
   for (const [at, word] of words.entries()) {
     if (!(await isRevision(root, word))) return { revs: words.slice(0, at), loose: words.slice(at) };
@@ -67,8 +78,8 @@ async function splitRevisions(root: string, words: string[]): Promise<{ revs: st
 }
 
 async function isRevision(root: string, word: string): Promise<boolean> {
-  const ends = rangeEnds(word).map((end) => gitSucceeds(root, ['rev-parse', '--verify', '--quiet', `${end}^{commit}`]));
-  return (await Promise.all(ends)).every(Boolean);
+  const shas = await Promise.all(rangeEnds(word).map((end) => commitSha(root, end)));
+  return shas.every((sha) => sha !== null);
 }
 
 function existing(cwd: string, path: string): string {

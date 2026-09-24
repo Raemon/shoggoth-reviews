@@ -1,15 +1,14 @@
 import type { CommitRange } from './diffPlan';
-import { gitText } from './gitRun';
+import { FIELD, gitText } from './gitRun';
 import type { CommitSummary } from '@/features/pull-requests/pullRequests';
 
-interface LineCounts {
+export interface LineCounts {
   additions: number;
   deletions: number;
 }
 
 const MAX_COMMITS = 250;
 const RECORD = '\x1e';
-const FIELD = '\x1f';
 const LOG_FORMAT = '--format=%x1e%H%x1f%an%x1f%aI%x1f%s';
 
 export async function listCommits(root: string, range: CommitRange | null): Promise<CommitSummary[]> {
@@ -20,22 +19,26 @@ export async function listCommits(root: string, range: CommitRange | null): Prom
   return output.split(RECORD).slice(1).map(summarizeCommit).reverse();
 }
 
+export function lineTotals(counts: LineCounts[]): LineCounts {
+  return { additions: sumOf(counts, 'additions'), deletions: sumOf(counts, 'deletions') };
+}
+
+function sumOf(counts: LineCounts[], field: keyof LineCounts): number {
+  return counts.reduce((sum, count) => sum + count[field], 0);
+}
+
 function summarizeCommit(record: string): CommitSummary {
   const [header = '', ...stats] = record.split('\n');
   const [sha = '', author = '', date = '', message = ''] = header.split(FIELD);
   const counts = stats.map(numstatOf).filter((count) => count !== null);
-  return { sha, author, date, message, fileCount: counts.length, ...totals(counts) };
+  return { sha, author, date, message, fileCount: counts.length, ...lineTotals(counts) };
 }
 
-// Binary files count as "-" in numstat, and as no lines here.
 function numstatOf(line: string): LineCounts | null {
   const match = line.match(/^(\d+|-)\t(\d+|-)\t/);
-  return match ? { additions: Number(match[1]) || 0, deletions: Number(match[2]) || 0 } : null;
+  return match ? { additions: countOf(match[1]), deletions: countOf(match[2]) } : null;
 }
 
-function totals(counts: LineCounts[]): LineCounts {
-  return counts.reduce((sum, count) => ({ additions: sum.additions + count.additions, deletions: sum.deletions + count.deletions }), {
-    additions: 0,
-    deletions: 0,
-  });
+function countOf(field: string | undefined): number {
+  return field === '-' ? 0 : Number(field);
 }

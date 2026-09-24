@@ -1,13 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { localChangeGroups } from './localChangeGroups';
-import { LocalChangeList } from './LocalChangeList';
+import { localChangeGroups, type LocalChangeEntry } from './localChangeGroups';
+import { LocalOverviewList } from './LocalChangeList';
 import { useLocalOverview } from './useLocalOverview';
-import { ColumnPreview } from '@/features/pull-requests/ColumnPreview';
+import { ColumnPreview, type PreviewToken } from '@/features/pull-requests/ColumnPreview';
 import { useRegisterColumn } from '@/features/pull-requests/registerColumn';
 import { ResizableColumn, useCollapsibleColumn, type ColumnSize } from '@/features/pull-requests/ResizableColumn';
-import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 export function LocalChangesColumn({
   repo,
@@ -22,8 +21,7 @@ export function LocalChangesColumn({
 }) {
   const router = useRouter();
   const overview = useLocalOverview(repo);
-  const groups = overview.data ? localChangeGroups(overview.data) : [];
-  const entries = groups.flatMap((group) => group.entries);
+  const entries = overview.data ? localChangeGroups(overview.data).flatMap((group) => group.entries) : [];
   const selected = entries.some((entry) => entry.route === current) ? current : null;
   useRegisterColumn('pulls', {
     ...useCollapsibleColumn('pulls', size, onSize),
@@ -33,16 +31,14 @@ export function LocalChangesColumn({
       if (route !== selected) router.push(route);
     },
   });
-  const tokens = entries.map((entry) => ({ key: entry.route, label: entry.token, title: entry.title, accent: entry.route === selected }));
+  const preview = <ColumnPreview column="pulls" tokens={entries.map((entry) => entryToken(entry, selected))} />;
   return (
-    <ResizableColumn navId="pulls" icon="⎇" title="local changes" preview={<ColumnPreview column="pulls" tokens={tokens} />} size={size} onSize={onSize}>
-      {overview.data ? (
-        <LocalChangeList groups={groups} current={current} />
-      ) : (
-        <PaneStatusLine tone={overview.error ? 'error' : 'dim'} onRetry={overview.error ? overview.reload : undefined}>
-          {overview.error ?? 'Loading…'}
-        </PaneStatusLine>
-      )}
+    <ResizableColumn navId="pulls" icon="⎇" title="local changes" preview={preview} size={size} onSize={onSize}>
+      <LocalOverviewList overview={overview} current={current} />
     </ResizableColumn>
   );
+}
+
+function entryToken(entry: LocalChangeEntry, selected: string | null): PreviewToken {
+  return { key: entry.route, label: entry.token, title: entry.title, accent: entry.route === selected };
 }

@@ -16,6 +16,7 @@ const GIT_START = 'diff --git ';
 // "* Unmerged path" notes land between sections; only these prefixes belong to a hunk.
 const HUNK_LINE = /^(?:@@|[ +\-\\])/;
 const MAX_PATCH_CHARS = 1_000_000;
+const QUOTED_PIECE = /\\(?:([0-7]{3})|(.))|([^\\]+)/gsu;
 const ESCAPED: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
 
 export function parseGitPatch(output: string): ParsedPatch {
@@ -74,10 +75,10 @@ function movedPath(header: string[], end: 'from' | 'to'): string | null {
   return value === null ? null : unquote(value);
 }
 
-// Git follows a name containing a space with a tab here, so the name's end is unambiguous.
+// Git appends a tab to names containing spaces; strip it to recover the name.
 function sidePath(header: string[], marker: string, prefix: string): string | null {
   const value = headerValue(header, marker)?.replace(/\t$/, '');
-  if (value === undefined || value === null || value === '/dev/null') return null;
+  if (value === undefined || value === '/dev/null') return null;
   return withoutPrefix(unquote(value), prefix);
 }
 
@@ -121,7 +122,7 @@ function patchOf(hunks: string[]): string | null {
   return patch === '' || patch.length > MAX_PATCH_CHARS ? null : patch;
 }
 
-// A file that became a symlink (or back) diffs as a removal then an addition of one path.
+// A file<->symlink swap diffs as a removal plus an addition of the same path.
 function mergeTypeChanges(files: ChangedFile[]): ChangedFile[] {
   const byName = new Map<string, ChangedFile>();
   for (const file of files) {
@@ -142,7 +143,7 @@ function typeChanged(before: ChangedFile, after: ChangedFile): ChangedFile {
   };
 }
 
-export function unquote(value: string): string {
+function unquote(value: string): string {
   if (!value.startsWith('"')) return value;
   return decodeEscapes(value.slice(1, closingQuote(value)));
 }
@@ -154,11 +155,11 @@ function closingQuote(value: string): number {
 }
 
 function decodeEscapes(body: string): string {
-  const bytes: number[] = [];
-  for (const [, octal, escape, plain] of body.matchAll(/\\(?:([0-7]{3})|(.))|([^\\]+)/gsu)) {
-    if (octal) bytes.push(parseInt(octal, 8));
-    else if (escape) bytes.push(ESCAPED[escape] ?? escape.charCodeAt(0));
-    else bytes.push(...Buffer.from(plain ?? '', 'utf8'));
-  }
-  return Buffer.from(bytes).toString('utf8');
+  return Buffer.from([...body.matchAll(QUOTED_PIECE)].flatMap(pieceBytes)).toString('utf8');
+}
+
+function pieceBytes([, octal, escape, plain]: RegExpMatchArray): number[] {
+  if (octal) return [parseInt(octal, 8)];
+  if (escape) return [ESCAPED[escape] ?? escape.charCodeAt(0)];
+  return [...Buffer.from(plain ?? '', 'utf8')];
 }

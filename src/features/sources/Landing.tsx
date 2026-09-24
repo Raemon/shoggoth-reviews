@@ -1,15 +1,13 @@
 'use client';
 
 import { GithubSources, useOnboarding } from './GithubSources';
+import { PageHeading } from './PageHeading';
 
 export function Landing({ error, oauthConfigured }: { error: string | null; oauthConfigured: boolean }) {
   const onboarding = useOnboarding();
   return (
     <section className="max-w-2xl">
-      <p className="mb-1 text-[10px] uppercase tracking-[0.18em] text-ink-dim">
-        {onboarding ? 'Choose what to read' : 'Read straight from GitHub'}
-      </p>
-      <h1 className="text-xl text-accent">reposcope</h1>
+      <PageHeading eyebrow={onboarding ? 'Choose what to read' : 'Read straight from GitHub'} title="reposcope" />
       <p className="mt-2 text-xs leading-5 text-ink-dim">
         {onboarding ? 'Point reposcope at GitHub repositories. ' : 'Pick a repository below to read it. '}
         Each one lists its open pull requests, read straight from GitHub: the discussion, the commits, and the diff

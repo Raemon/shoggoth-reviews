@@ -33,7 +33,6 @@ import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
 import { errorMessage } from '@/features/sources/errorMessage';
-import { isLocalRepo } from '@/features/local-git/localRefs';
 import { plural } from '@/features/surface-ui/plural';
 
 interface ReviewWorkspaceProps {
@@ -49,6 +48,7 @@ interface ReviewWorkspaceProps {
   listColumn: ReactNode;
   discussion: ReactNode | null;
   editableWhole: PullRequestSummary | null;
+  aiChat: boolean;
 }
 
 export function ReviewWorkspace(props: ReviewWorkspaceProps) {
@@ -72,6 +72,7 @@ function Workspace({
   listColumn,
   discussion,
   editableWhole,
+  aiChat,
 }: ReviewWorkspaceProps) {
   const ready = useStoreReady();
   const token = useGithubToken();
@@ -295,7 +296,7 @@ function Workspace({
                   </div>
                 )}
               </ColumnBoundary>
-              {!isLocalRepo(owner) && (
+              {aiChat && (
                 <ColumnBoundary>
                   <AiChatColumn owner={owner} repo={repo} number={number} subject={subjectKey} headRef={headRef} headSha={headCommit(change)?.sha ?? null} />
                 </ColumnBoundary>
