@@ -5,6 +5,7 @@ import { ChangeCountCells } from './ChangeCounts';
 import type { PreviewToken } from './ColumnPreview';
 import { useColumnNav, type ColumnRow } from './columnNav';
 import type { ChangeSummary, CommitSummary } from './pullRequests';
+import { isLocalRepo } from '@/features/local-git/localRefs';
 import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { OpenOnGithubLink } from '@/features/surface-ui/OpenOnGithubLink';
 import { RelativeTime } from '@/features/surface-ui/RelativeTime';
@@ -117,7 +118,9 @@ function CommitHash({ owner, repo, sha }: { owner: string; repo: string; sha: st
   return (
     <span className={HASH_CELL}>
       <CopyHash sha={sha} />
-      <OpenOnGithubLink href={`https://github.com/${owner}/${repo}/commit/${sha}`} label={`commit ${sha.slice(0, 7)}`} className={COMMIT_LINK} />
+      {!isLocalRepo(owner) && (
+        <OpenOnGithubLink href={`https://github.com/${owner}/${repo}/commit/${sha}`} label={`commit ${sha.slice(0, 7)}`} className={COMMIT_LINK} />
+      )}
     </span>
   );
 }

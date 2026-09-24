@@ -10,6 +10,7 @@ import { isImagePath } from './imageFiles';
 import { imageSides } from './imageView';
 import { useNearViewport } from './nearViewportStore';
 import type { ChangedFile } from './pullRequests';
+import { isLocalRepo } from '@/features/local-git/localRefs';
 import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { OpenOnGithubLink } from '@/features/surface-ui/OpenOnGithubLink';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
@@ -89,17 +90,17 @@ export function DiffFileSection({
   );
 }
 
-function blobUrl(owner: string, repo: string, headRef: string, filename: string): string {
-  return `https://github.com/${owner}/${repo}/blob/${headRef}/${filename}`;
+function blobUrl(owner: string, repo: string, headRef: string, filename: string): string | null {
+  return isLocalRepo(owner) ? null : `https://github.com/${owner}/${repo}/blob/${headRef}/${filename}`;
 }
 
-function HeaderActions({ path, href }: { path: string; href: string }) {
+function HeaderActions({ path, href }: { path: string; href: string | null }) {
   return (
     <span className={ACTION_BAR}>
       <CopyButton value={path} what="path" ariaLabel={`Copy path ${path}`} className={ACTION} idleClassName="text-ink-dim">
         ⧉
       </CopyButton>
-      <OpenOnGithubLink href={href} label={path} className={`${ACTION} text-ink-dim`} />
+      {href !== null && <OpenOnGithubLink href={href} label={path} className={`${ACTION} text-ink-dim`} />}
     </span>
   );
 }

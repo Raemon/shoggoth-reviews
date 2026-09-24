@@ -33,6 +33,7 @@ import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
 import { useCachedJson } from '@/features/sources/useCachedJson';
 import { usePollWhileVisible } from '@/features/sources/usePollWhileVisible';
 import { errorMessage } from '@/features/sources/errorMessage';
+import { isLocalRepo } from '@/features/local-git/localRefs';
 import { plural } from '@/features/surface-ui/plural';
 
 interface ReviewWorkspaceProps {
@@ -294,9 +295,11 @@ function Workspace({
                   </div>
                 )}
               </ColumnBoundary>
-              <ColumnBoundary>
-                <AiChatColumn owner={owner} repo={repo} number={number} subject={subjectKey} headRef={headRef} headSha={headCommit(change)?.sha ?? null} />
-              </ColumnBoundary>
+              {!isLocalRepo(owner) && (
+                <ColumnBoundary>
+                  <AiChatColumn owner={owner} repo={repo} number={number} subject={subjectKey} headRef={headRef} headSha={headCommit(change)?.sha ?? null} />
+                </ColumnBoundary>
+              )}
             </div>
           )}
         </div>

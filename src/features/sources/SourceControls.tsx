@@ -1,10 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type FormEvent } from 'react';
 import { parseOwnerInput, parseRepoLink } from './parseRepoLink';
+import { SourceCard } from './SourceCard';
 import { repoRoute } from '@/features/codebases/repoPaths';
 import { addSource } from './sourceStore';
+import { DesktopSignIn } from '@/features/desktop/DesktopSignIn';
 import type { GithubAccess } from '@/features/github-auth/githubAccess';
 import { CHOICE } from '@/features/surface-ui/buttonStyles';
 import { MONO_FIELD } from '@/features/surface-ui/fieldStyles';
@@ -12,7 +14,15 @@ import { MONO_FIELD } from '@/features/surface-ui/fieldStyles';
 const FIELD = `${MONO_FIELD} min-w-0 flex-1`;
 const ADD = `${CHOICE} shrink-0 active:bg-btn-active`;
 
-export function SourceControls({ compact = false, oauthConfigured }: { compact?: boolean; oauthConfigured: boolean }) {
+export function SourceControls({
+  compact = false,
+  oauthConfigured,
+  desktop = false,
+}: {
+  compact?: boolean;
+  oauthConfigured: boolean;
+  desktop?: boolean;
+}) {
   const router = useRouter();
   const [repoError, setRepoError] = useState<string | null>(null);
   const [ownerError, setOwnerError] = useState<string | null>(null);
@@ -65,6 +75,14 @@ export function SourceControls({ compact = false, oauthConfigured }: { compact?:
           </button>
         </form>
       </SourceCard>
+      {desktop ? <DesktopSignIn compact={compact} /> : <OauthCards compact={compact} oauthConfigured={oauthConfigured} />}
+    </div>
+  );
+}
+
+function OauthCards({ compact, oauthConfigured }: { compact: boolean; oauthConfigured: boolean }) {
+  return (
+    <>
       <SourceCard
         compact={compact}
         title="Only the public repositories you can see on GitHub"
@@ -87,7 +105,7 @@ export function SourceControls({ compact = false, oauthConfigured }: { compact?:
       >
         <ConnectButton oauthConfigured={oauthConfigured} access="all" label="Connect GitHub" />
       </SourceCard>
-    </div>
+    </>
   );
 }
 
@@ -111,28 +129,5 @@ function ConnectButton({
     <a href={`/api/github/connect?access=${access}`} className={`${ADD} inline-block`}>
       {label}
     </a>
-  );
-}
-
-function SourceCard({
-  compact,
-  title,
-  note,
-  error,
-  children,
-}: {
-  compact: boolean;
-  title: string;
-  note?: string;
-  error?: string | null;
-  children: ReactNode;
-}) {
-  return (
-    <section className={`rounded bg-panel ${compact ? 'px-3 py-2' : 'px-4 py-3'}`}>
-      <h2 className={compact ? 'text-[11px] text-ink' : 'text-xs text-ink'}>{title}</h2>
-      <div className="mt-2">{children}</div>
-      {error && <p className="mt-1.5 text-[10px] leading-4 text-error-ink">{error}</p>}
-      {note && <p className="mt-2 text-[10px] leading-4 text-ink-dim">{note}</p>}
-    </section>
   );
 }
