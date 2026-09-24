@@ -15,7 +15,7 @@ import type { DiffRow } from './splitDiff';
 import type { CollapseAnchor } from './useCodeCollapse';
 import type { CodePointer } from './useDefinitionPointer';
 import type { SideTokens } from './useDiffSideHighlight';
-import { COLLAPSED_ROW_GAP, collapsedRowGap, lineHeight, type RowHeights } from './diffMetrics';
+import { COLLAPSED_ROW_GAP, collapsedRowGap, lineHeight, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { ROW_ATTR } from './litRow';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -24,8 +24,7 @@ import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
 const ROW = 'flex h-[15px] items-center gap-1 leading-[15px]';
 const WRAPPED_ROW = 'flex min-h-[15px] items-start gap-1 leading-[15px]';
-// Literal px; Tailwind can't compile computed classes. Sync with BLANK_ROW_HEIGHT.
-const BLANK_ROW = 'flex h-[2px] items-center gap-1 leading-[2px]';
+const BLANK_ROW = 'flex items-center gap-1';
 const GUTTER = 'relative flex w-[52px] shrink-0 select-none items-center pr-1 text-[9px] text-ink-dim';
 const FOLDING_GUTTER = 'cursor-pointer hover:text-ink';
 const TONED_GUTTER = 'self-stretch group-hover:row-shade group-[.diff-line-lit]:row-lit';
@@ -70,7 +69,7 @@ export interface SideProps {
   pointer?: CodePointer;
   wrap: boolean;
   heights: RowHeights;
-  onMeasured: (heights: RowHeights) => void;
+  onMeasured: (heights: WrappedHeights) => void;
   onUntruncate?: (run: number) => void;
   draftThreadAt?: (line: number, side: 'left' | 'right') => (() => void) | null;
 }
@@ -118,9 +117,9 @@ function foldsTail(line: DiffLine, collapsed: boolean, layout: FoldLayout): bool
 }
 
 /** No dep array: every render can rewrap, and a resize does so without one. */
-function useMeasuredRows(pane: React.RefObject<HTMLElement | null>, wrapping: boolean, onMeasured: (heights: RowHeights) => void) {
-  const held = useRef<RowHeights>(null);
-  const report = (next: RowHeights) => {
+function useMeasuredRows(pane: React.RefObject<HTMLElement | null>, wrapping: boolean, onMeasured: (heights: WrappedHeights) => void) {
+  const held = useRef<WrappedHeights>(null);
+  const report = (next: WrappedHeights) => {
     if (sameRowHeights(held.current, next)) return;
     held.current = next;
     onMeasured(next);
@@ -188,7 +187,7 @@ function DiffLines({
                 dim={dim}
                 longestPrefix={longestPrefix}
                 wrap={wrap}
-                height={heights ? lineHeight(line, heights) : null}
+                height={lineHeight(line, heights)}
                 editable={editable}
                 onEdit={editStarter(rows, line.row, onEditBlock)}
                 pointer={pointer}
@@ -279,7 +278,7 @@ function DiffLineView({
   dim: boolean;
   longestPrefix: number;
   wrap: boolean;
-  height: number | null;
+  height: number;
   editable?: boolean;
   onEdit?: () => void;
   pointer?: CodePointer;
@@ -295,7 +294,7 @@ function DiffLineView({
   }
   const wrapping = wrap && !line.blank;
   const row = line.blank ? BLANK_ROW : wrapping ? WRAPPED_ROW : ROW;
-  const sized = wrapping && height !== null ? { minHeight: height } : undefined;
+  const sized = rowSize(line.blank, wrapping, height);
   if (!cell) return <div className={`${row} bg-procgen/40`} style={sized} />;
   const changed = line.kind === 'change';
   const openable = Boolean(editable && side === 'right');
@@ -329,6 +328,11 @@ function DiffLineView({
       {collapsed && anchor && <FoldBadge anchor={anchor} />}
     </div>
   );
+}
+
+function rowSize(blank: boolean, wrapping: boolean, height: number): CSSProperties | undefined {
+  if (blank) return { height, lineHeight: `${height}px` };
+  return wrapping ? { minHeight: height } : undefined;
 }
 
 // One column for the pane's prefixes, as wide as the longest collapsed row's.

@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SECRET_HEADER, startServer } from './server.mjs';
+import { readSettingsFile, writeSettingsFile } from './settingsFile.mjs';
 
 const APP_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const DEV = process.env.REPOSCOPE_DEV === '1';
@@ -39,6 +40,8 @@ async function startUp() {
   signRequests(origin, secret);
   guardNavigation(origin);
   ipcMain.handle('choose-repository', (event) => chooseDirectory(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.on('read-settings', (event) => (event.returnValue = readSettingsFile()));
+  ipcMain.handle('save-settings', (_event, settings) => writeSettingsFile(settings));
   Menu.setApplicationMenu(appMenu(origin));
   return origin;
 }

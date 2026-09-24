@@ -19,6 +19,13 @@ Local repository routes (`/local`, `/diff`, `/show`, `/launch`, `/api/local/*`) 
 the web deployment never reads its own filesystem. A layout can't gate them: Next renders pages
 alongside their layout, so a page runs even when its layout calls `notFound()`.
 
+## Settings
+
+User settings live in `src/features/settings`: read one with `useSetting`, change it with
+`setSetting`. The web saves them in the `reposcope.settings` cookie; the desktop app saves them to
+`~/.reposcope/settings.json` through the preload bridge. `ThemeScript` reads the same sources
+before first paint, so keep the two in step.
+
 ## GitHub access
 
 Every read from GitHub goes through `githubJson`/`githubBytes` in

@@ -7,9 +7,9 @@ import { DiffSide, type HunkControl } from './DiffSide';
 import { useDiffLayout } from './diffLayoutStore';
 import { withDraftThread, type DraftAnchor } from './draftThread';
 import { startDraftThread, useDraftAnchor } from './draftThreadStore';
-import { columnLines, resultLines, shownLines, unifiedLines, type DiffLine } from './diffLines';
+import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, type DiffLine } from './diffLines';
 import { langForPath } from './diffHighlight';
-import { linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights } from './diffMetrics';
+import { blankRowHeight, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { useDiffWrap } from './diffWrapStore';
 import { evenedRowHeights } from './rowHeights';
 import { EditTarget } from './editTarget';
@@ -33,6 +33,8 @@ import { useHunkEdit, type HunkEdit, type HunkEditControls } from './useHunkEdit
 import { hunkHint, useWholeFile, type WholeFile } from './useWholeFile';
 import type { ChangedFile, PullRequestSummary } from './pullRequests';
 import { WHOLE_FILE_STATUS } from './wholeFileEntry';
+import type { BlankLineSetting } from '@/features/settings/settings';
+import { useSetting } from '@/features/settings/settingsStore';
 import { useGithubToken } from '@/features/sources/sourceStore';
 import { COMMIT_SHA_PATTERN } from '@/features/sources/sourceTypes';
 
@@ -90,9 +92,10 @@ export function FileDiff({
   const alwaysDrawn = useMemo(() => rowsAlwaysDrawn(commentedRows, editBlock), [commentedRows, editBlock]);
   const [truncation, untruncate] = useRowTruncation(rows, collapse.hidden, alwaysDrawn, showingWholeFile);
   const undrawn = useMemo(() => undrawnRows(collapse.hidden, truncation), [collapse.hidden, truncation]);
-  const rowHeights = singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right);
+  const blankLines = useSetting('blankLines');
+  const rowHeights = useRowHeights(singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right), blankLines);
   const resultView = layout === 'result' && !entireFile && anyLineSurvives(rows);
-  const drawn = { hidden: collapse.hidden, commentedRows, truncation };
+  const drawn = { hidden: collapse.hidden, commentedRows, truncation, blankLines };
   const mainLines = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
   const leftLines = useShownLines(rows, singleColumn ? null : 'left', drawn);
   const growing = useHeightTransition(rows, undrawn, rowHeights);
@@ -203,17 +206,21 @@ function lineKey(side: 'left' | 'right', line: number): string {
 }
 
 interface MeasuredSides {
-  left: RowHeights;
-  right: RowHeights;
-  onLeft: (heights: RowHeights) => void;
-  onRight: (heights: RowHeights) => void;
+  left: WrappedHeights;
+  right: WrappedHeights;
+  onLeft: (heights: WrappedHeights) => void;
+  onRight: (heights: WrappedHeights) => void;
 }
 
 // A single-column layout reports as the right side, the one every layout draws.
 function useMeasuredSides(): MeasuredSides {
-  const [left, onLeft] = useState<RowHeights>(null);
-  const [right, onRight] = useState<RowHeights>(null);
+  const [left, onLeft] = useState<WrappedHeights>(null);
+  const [right, onRight] = useState<WrappedHeights>(null);
   return { left, right, onLeft, onRight };
+}
+
+function useRowHeights(wrapped: WrappedHeights, blankLines: BlankLineSetting): RowHeights {
+  return useMemo(() => ({ wrapped, blank: blankRowHeight(blankLines) }), [wrapped, blankLines]);
 }
 
 function useFoldCommandWholeFile(hunkEdit: HunkEditControls, setWantWholeFile: (next: boolean) => void) {
@@ -247,6 +254,7 @@ interface DrawnRows {
   hidden: Set<number>;
   commentedRows: Set<number>;
   truncation: Truncation;
+  blankLines: BlankLineSetting;
 }
 
 function mainColumn(singleColumn: boolean, resultView: boolean): Column {
@@ -256,14 +264,19 @@ function mainColumn(singleColumn: boolean, resultView: boolean): Column {
 
 // A null column is one this layout never draws, so its lines are never laid out.
 function useShownLines(rows: DiffRow[], column: Column | null, drawn: DrawnRows): DiffLine[] {
-  const { hidden, commentedRows, truncation } = drawn;
+  const { hidden, commentedRows, truncation, blankLines } = drawn;
   return useMemo(
-    () => (column ? shownLines(columnOf(rows, column, commentedRows), hidden, truncation) : []),
-    [rows, column, commentedRows, hidden, truncation],
+    () => (column ? shownLines(columnOf(rows, column, commentedRows, blankLines), hidden, truncation) : []),
+    [rows, column, commentedRows, hidden, truncation, blankLines],
   );
 }
 
-function columnOf(rows: DiffRow[], column: Column, commentedRows: Set<number>): DiffLine[] {
+function columnOf(rows: DiffRow[], column: Column, commentedRows: Set<number>, blankLines: BlankLineSetting): DiffLine[] {
+  const lines = columnLinesOf(rows, column, commentedRows);
+  return blankLines === 'full' ? asOrdinaryLines(lines) : lines;
+}
+
+function columnLinesOf(rows: DiffRow[], column: Column, commentedRows: Set<number>): DiffLine[] {
   if (column === 'unified') return unifiedLines(rows);
   if (column === 'result') return resultLines(rows, commentedRows);
   return columnLines(rows, column);

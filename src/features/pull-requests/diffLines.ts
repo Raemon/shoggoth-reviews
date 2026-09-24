@@ -34,6 +34,10 @@ function keptInResult(line: DiffLine, commented: Set<number>): boolean {
   return line.kind === 'hunk' || line.cell !== null || commented.has(line.row);
 }
 
+export function asOrdinaryLines(lines: DiffLine[]): DiffLine[] {
+  return lines.map((line) => (line.blank ? { ...line, blank: false } : line));
+}
+
 export function shownLines(lines: DiffLine[], hidden: Set<number>, truncation: Truncation): DiffLine[] {
   if (hidden.size === 0 && truncation.runOf.size === 0) return lines;
   const shown: DiffLine[] = [];
