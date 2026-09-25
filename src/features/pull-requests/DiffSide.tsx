@@ -1,8 +1,9 @@
 'use client';
 
 import { Fragment, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
-import { hunkHasEditableLines, type EditableBlock } from './editableBlocks';
-import { codeSegments, type DimmedSegment, type SegmentRole } from './codeSegments';
+import { blockHasRow, hunkHasEditableLines, type EditableBlock } from './editableBlocks';
+import { codeSegments, withMargins, type DimmedSegment, type SegmentRole } from './codeSegments';
+import { commentMargins } from './commentMargins';
 import { collapsedSegments, expandedSegments, foldLayout, type FoldLayout } from './foldDimming';
 import { abbreviatedLength } from './keywordAbbreviations';
 import { collapsedPreview } from './collapsedPreview';
@@ -17,6 +18,8 @@ import type { CodePointer } from './useDefinitionPointer';
 import type { SideTokens } from './useDiffSideHighlight';
 import { COLLAPSED_ROW_GAP, collapsedRowGap, lineHeight, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { ROW_ATTR } from './litRow';
+import { SegmentSpan } from './SegmentSpan';
+import { SEMIBLANK_CODE } from './semiblankLines';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { plural } from '@/features/surface-ui/plural';
@@ -25,11 +28,12 @@ import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 const ROW = 'flex h-[15px] items-center gap-1 leading-[15px]';
 const WRAPPED_ROW = 'flex min-h-[15px] items-start gap-1 leading-[15px]';
 const BLANK_ROW = 'flex items-center gap-1';
+const SEMIBLANK_ROW = 'flex items-start gap-1 leading-[15px]';
 const GUTTER = 'relative flex w-[52px] shrink-0 select-none items-center pr-1 text-[9px] text-ink-dim';
 const FOLDING_GUTTER = 'cursor-pointer hover:text-ink';
 const TONED_GUTTER = 'self-stretch group-hover:row-shade group-[.diff-line-lit]:row-lit';
 const DRAFT_BTN =
-  'absolute left-0 flex h-[15px] w-[11px] items-center justify-center rounded-sm bg-btn text-[10px] leading-none text-ink-dim opacity-0 hover:bg-btn-hover hover:text-ink focus-visible:opacity-100 group-hover:opacity-100';
+  'absolute left-0 flex w-[11px] items-center justify-center rounded-sm bg-btn text-[10px] leading-none text-ink-dim opacity-0 hover:bg-btn-hover hover:text-ink focus-visible:opacity-100 group-hover:opacity-100';
 const TOUCHED_MARK = 'bg-add-bg/60 shadow-[inset_2px_0_0_var(--add-emph)]';
 const STICKY_CHIP = 'sticky right-0 shrink-0 rounded bg-procgen px-1 hover:bg-btn-hover hover:text-ink';
 const EDIT_BTN = `${STICKY_CHIP} uppercase tracking-[0.14em]`;
@@ -68,6 +72,7 @@ export interface SideProps {
   spacer?: { afterRow: number; height: number } | null;
   pointer?: CodePointer;
   wrap: boolean;
+  stackMargins: boolean;
   heights: RowHeights;
   onMeasured: (heights: WrappedHeights) => void;
   onUntruncate?: (run: number) => void;
@@ -138,7 +143,7 @@ function useMeasuredRows(pane: React.RefObject<HTMLElement | null>, wrapping: bo
 }
 
 function editedLineRange(lines: DiffLine[], block: EditableBlock): { first: number; last: number } {
-  const covered = lines.flatMap((line, index) => (line.row >= block.firstRow && line.row <= block.lastRow ? [index] : []));
+  const covered = lines.flatMap((line, index) => (blockHasRow(block, line.row) ? [index] : []));
   return { first: covered[0] ?? lines.length, last: covered[covered.length - 1] ?? lines.length - 1 };
 }
 
@@ -157,6 +162,7 @@ function DiffLines({
   spacer,
   pointer,
   wrap,
+  stackMargins,
   heights,
   onUntruncate,
   draftThreadAt,
@@ -187,6 +193,7 @@ function DiffLines({
                 dim={dim}
                 longestPrefix={longestPrefix}
                 wrap={wrap}
+                stackMargins={stackMargins}
                 height={lineHeight(line, heights)}
                 editable={editable}
                 onEdit={editStarter(rows, line.row, onEditBlock)}
@@ -260,6 +267,7 @@ function DiffLineView({
   dim,
   longestPrefix,
   wrap,
+  stackMargins,
   height,
   editable,
   onEdit,
@@ -278,6 +286,7 @@ function DiffLineView({
   dim: boolean;
   longestPrefix: number;
   wrap: boolean;
+  stackMargins: boolean;
   height: number;
   editable?: boolean;
   onEdit?: () => void;
@@ -292,13 +301,15 @@ function DiffLineView({
   if (line.kind === 'hunk') {
     return <HunkLine label={labels ? line.label : ''} expand={expand} onEdit={editable && side === 'right' ? onEdit : undefined} />;
   }
-  const wrapping = wrap && !line.blank;
-  const row = line.blank ? BLANK_ROW : wrapping ? WRAPPED_ROW : ROW;
-  const sized = rowSize(line.blank, wrapping, height);
+  const short = line.blank || line.semiblank !== null;
+  const wrapping = wrap && !short;
+  const row = rowClass(line, wrapping);
+  const sized = rowSize(line, wrapping, height);
   if (!cell) return <div className={`${row} bg-procgen/40`} style={sized} />;
   const changed = line.kind === 'change';
   const openable = Boolean(editable && side === 'right');
-  const raw = codeSegments(cell.text, lineTokens, changed ? ranges : null);
+  const margins = stackMargins ? commentMargins(cell.text, lineTokens) : [];
+  const raw = withMargins(codeSegments(cell.text, lineTokens, changed ? ranges : null), margins);
   const layout = dim ? foldLayout(lineTokens) : null;
   const folded = layout !== null && foldsTail(line, collapsed, layout);
   const segments = collapsed ? collapsedSegments(raw, layout, longestPrefix) : expandedSegments(raw, layout);
@@ -311,11 +322,11 @@ function DiffLineView({
       style={sized}
       onClick={rowClick(collapsed ? anchor : null, openable ? onEdit : undefined)}
     >
-      <GutterCell line={line.blank ? null : cell.line} anchor={anchor} tone={tones.gutter} onDraft={onDraft} />
+      <GutterCell line={short ? null : cell.line} anchor={anchor} tone={tones.gutter} short={short} onDraft={onDraft} />
       <span className={collapsed ? FOLDED_TEXT : 'contents'}>
         <span
           {...{ [WRAPPED_CELL]: `${side}:${line.row}` }}
-          className={collapsed ? CLIPPED_CODE : wrapping ? WRAPPED_CODE : CODE}
+          className={codeClass(line, collapsed, wrapping)}
           style={wrapping && !collapsed ? hangingIndentStyle(cell.text) : undefined}
           onClick={pointer && !collapsed ? (event) => pointer.press(line, event) : undefined}
           onMouseMove={pointer ? (event) => pointer.move(line, event) : undefined}
@@ -330,9 +341,22 @@ function DiffLineView({
   );
 }
 
-function rowSize(blank: boolean, wrapping: boolean, height: number): CSSProperties | undefined {
-  if (blank) return { height, lineHeight: `${height}px` };
+function rowClass(line: DiffLine, wrapping: boolean): string {
+  if (line.blank) return BLANK_ROW;
+  if (line.semiblank) return SEMIBLANK_ROW;
+  return wrapping ? WRAPPED_ROW : ROW;
+}
+
+function rowSize(line: DiffLine, wrapping: boolean, height: number): CSSProperties | undefined {
+  if (line.blank) return { height, lineHeight: `${height}px` };
+  if (line.semiblank) return { height };
   return wrapping ? { minHeight: height } : undefined;
+}
+
+function codeClass(line: DiffLine, collapsed: boolean, wrapping: boolean): string {
+  if (line.semiblank) return `${CODE} ${SEMIBLANK_CODE[line.semiblank]}`;
+  if (collapsed) return CLIPPED_CODE;
+  return wrapping ? WRAPPED_CODE : CODE;
 }
 
 // One column for the pane's prefixes, as wide as the longest collapsed row's.
@@ -394,14 +418,6 @@ function CodeText({ segments, side, fold }: { segments: DimmedSegment[]; side: '
   ));
 }
 
-function SegmentSpan({ segment, side }: { segment: DimmedSegment; side: 'left' | 'right' }) {
-  return (
-    <span hidden={segment.elided} className={segment.emphasized ? emphasisTone(side) : undefined} style={{ ...segment.style, opacity: segment.opacity }}>
-      {segment.content}
-    </span>
-  );
-}
-
 // The tail stays in the DOM while hidden so click offsets still match the source line.
 function RoleSpan({ role, prefix, children }: { role: SegmentRole | undefined; prefix: CSSProperties; children: ReactNode }) {
   if (role === 'prefix') return <span className="inline-block indent-0" style={prefix}>{children}</span>;
@@ -444,11 +460,13 @@ function GutterCell({
   line,
   anchor,
   tone,
+  short,
   onDraft,
 }: {
   line: number | null;
   anchor: CollapseAnchor | null;
   tone: string;
+  short: boolean;
   onDraft?: () => void;
 }) {
   const collapses = anchor && !anchor.collapsed ? anchor : null;
@@ -457,15 +475,15 @@ function GutterCell({
       className={`${GUTTER} ${tone ? `${TONED_GUTTER} ${tone}` : ''} ${collapses ? FOLDING_GUTTER : ''}`}
       onClick={collapses ? toggles(collapses) : undefined}
     >
-      {onDraft && <DraftThreadButton onDraft={onDraft} />}
+      {onDraft && <DraftThreadButton onDraft={onDraft} short={short} />}
       <span className="min-w-0 flex-1 text-right">{line}</span>
       {/* flex, not inline: an inline-block button leaves a baseline gap that unsettles a wrapped row. */}
-      <span className="flex w-4 shrink-0 justify-center">{anchor && <CollapseChevron anchor={anchor} />}</span>
+      <span className="flex w-4 shrink-0 justify-center">{anchor && <CollapseChevron anchor={anchor} short={short} />}</span>
     </span>
   );
 }
 
-function DraftThreadButton({ onDraft }: { onDraft: () => void }) {
+function DraftThreadButton({ onDraft, short }: { onDraft: () => void; short: boolean }) {
   return (
     <button
       type="button"
@@ -474,20 +492,20 @@ function DraftThreadButton({ onDraft }: { onDraft: () => void }) {
         event.stopPropagation();
         onDraft();
       }}
-      className={DRAFT_BTN}
+      className={`${DRAFT_BTN} ${short ? 'h-[7.5px]' : 'h-[15px]'}`}
     >
       +
     </button>
   );
 }
 
-function CollapseChevron({ anchor }: { anchor: CollapseAnchor }) {
+function CollapseChevron({ anchor, short }: { anchor: CollapseAnchor; short: boolean }) {
   return (
     <button
       type="button"
       onClick={toggles(anchor)}
       aria-label={anchor.collapsed ? 'Expand code block' : 'Collapse code block'}
-      className={`h-[15px] w-4 shrink-0 text-[13px] leading-[15px] text-ink-dim hover:text-ink ${
+      className={`${short ? 'h-[7.5px] leading-[7.5px]' : 'h-[15px] leading-[15px]'} w-4 shrink-0 text-[13px] text-ink-dim hover:text-ink ${
         anchor.collapsed ? '' : 'opacity-40 group-hover:opacity-100'
       }`}
     >
@@ -506,10 +524,6 @@ function changeBackground(side: 'left' | 'right'): string {
 
 function changeInk(side: 'left' | 'right'): string {
   return side === 'left' ? 'text-del-ink' : 'text-add-ink';
-}
-
-function emphasisTone(side: 'left' | 'right'): string {
-  return side === 'left' ? 'bg-del-emph' : 'bg-add-emph';
 }
 
 function HunkLine({ label, expand, onEdit }: { label: string; expand: HunkControl; onEdit?: () => void }) {
