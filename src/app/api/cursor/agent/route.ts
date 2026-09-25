@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       prUrl: optionalText(body, 'prUrl'),
       prompt: requireText(body, 'prompt'),
       model: optionalText(body, 'model'),
-      name: optionalText(body, 'name') ?? 'Shoggoth Reviews',
+      name: optionalText(body, 'name') ?? 'Human in the Loop',
     }),
   );
 }
