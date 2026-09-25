@@ -1,4 +1,4 @@
-# Shoggoth Reviews
+# Human in the Loop
 
 Next.js app for browsing GitHub repositories and pull requests.
 
