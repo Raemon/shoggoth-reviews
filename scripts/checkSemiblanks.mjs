@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { commentMargins } from '../src/features/pull-requests/commentMargins.ts';
+import { tokenizeCode } from '../src/features/pull-requests/diffHighlight.tsx';
 import { columnLines, unifiedLines } from '../src/features/pull-requests/diffLines.ts';
 import { semiblankKind, withSemiblanks } from '../src/features/pull-requests/semiblankLines.ts';
 import { splitDiff } from '../src/features/pull-requests/splitDiff.ts';
@@ -61,3 +63,19 @@ check('split: a filler follows the cell across from it', split(ADDED_BLOCK), { l
 const DISAGREE = '@@ -1,2 +1,2 @@\n-    a = 1;\n-  }\n+  a = 2;\n+  }';
 check('split: both cells must agree', split(DISAGREE), { left: [null, null, null], right: [null, null, null] });
 check('unified: each line judges its own neighbor', unified(DISAGREE), [null, null, 'up', null, null]);
+
+async function margins(code, lang) {
+  const tokens = await tokenizeCode(code, lang);
+  return code.split('\n').map((text, index) => marginTexts(text, tokens[index]));
+}
+
+function marginTexts(text, tokens) {
+  return commentMargins(text, tokens).map(({ start, end }) => text.slice(start, end));
+}
+
+check('margins: a line comment and a doc block', await margins('  // Reads it.\n/**\n * Reads it.\n */', 'typescript'), [['//'], [], ['*'], []]);
+check('margins: both ends of a one-line block comment', await margins('/* Reads it. */', 'typescript'), [['/*', '*/']]);
+check('margins: a slash inside the text is not a margin', await margins('// see a/b/', 'typescript'), [['//']]);
+check('margins: code before a comment rules it out', await margins('go(); // Reads it.', 'typescript'), [[]]);
+check('margins: hash comments count', await margins('# Reads it.', 'python'), [['#']]);
+check('margins: directives and headings are not comments', [await margins('#include <x.h>', 'c'), await margins('# Heading', 'markdown')], [[[]], [[]]]);

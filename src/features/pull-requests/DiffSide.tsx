@@ -2,7 +2,8 @@
 
 import { Fragment, useLayoutEffect, useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { blockHasRow, hunkHasEditableLines, type EditableBlock } from './editableBlocks';
-import { codeSegments, type DimmedSegment, type SegmentRole } from './codeSegments';
+import { codeSegments, withMargins, type DimmedSegment, type SegmentRole } from './codeSegments';
+import { commentMargins } from './commentMargins';
 import { collapsedSegments, expandedSegments, foldLayout, type FoldLayout } from './foldDimming';
 import { abbreviatedLength } from './keywordAbbreviations';
 import { collapsedPreview } from './collapsedPreview';
@@ -17,6 +18,7 @@ import type { CodePointer } from './useDefinitionPointer';
 import type { SideTokens } from './useDiffSideHighlight';
 import { COLLAPSED_ROW_GAP, collapsedRowGap, lineHeight, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { ROW_ATTR } from './litRow';
+import { SegmentSpan } from './SegmentSpan';
 import { SEMIBLANK_CODE } from './semiblankLines';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -70,6 +72,7 @@ export interface SideProps {
   spacer?: { afterRow: number; height: number } | null;
   pointer?: CodePointer;
   wrap: boolean;
+  stackMargins: boolean;
   heights: RowHeights;
   onMeasured: (heights: WrappedHeights) => void;
   onUntruncate?: (run: number) => void;
@@ -159,6 +162,7 @@ function DiffLines({
   spacer,
   pointer,
   wrap,
+  stackMargins,
   heights,
   onUntruncate,
   draftThreadAt,
@@ -189,6 +193,7 @@ function DiffLines({
                 dim={dim}
                 longestPrefix={longestPrefix}
                 wrap={wrap}
+                stackMargins={stackMargins}
                 height={lineHeight(line, heights)}
                 editable={editable}
                 onEdit={editStarter(rows, line.row, onEditBlock)}
@@ -262,6 +267,7 @@ function DiffLineView({
   dim,
   longestPrefix,
   wrap,
+  stackMargins,
   height,
   editable,
   onEdit,
@@ -280,6 +286,7 @@ function DiffLineView({
   dim: boolean;
   longestPrefix: number;
   wrap: boolean;
+  stackMargins: boolean;
   height: number;
   editable?: boolean;
   onEdit?: () => void;
@@ -301,7 +308,8 @@ function DiffLineView({
   if (!cell) return <div className={`${row} bg-procgen/40`} style={sized} />;
   const changed = line.kind === 'change';
   const openable = Boolean(editable && side === 'right');
-  const raw = codeSegments(cell.text, lineTokens, changed ? ranges : null);
+  const margins = stackMargins ? commentMargins(cell.text, lineTokens) : [];
+  const raw = withMargins(codeSegments(cell.text, lineTokens, changed ? ranges : null), margins);
   const layout = dim ? foldLayout(lineTokens) : null;
   const folded = layout !== null && foldsTail(line, collapsed, layout);
   const segments = collapsed ? collapsedSegments(raw, layout, longestPrefix) : expandedSegments(raw, layout);
@@ -410,14 +418,6 @@ function CodeText({ segments, side, fold }: { segments: DimmedSegment[]; side: '
   ));
 }
 
-function SegmentSpan({ segment, side }: { segment: DimmedSegment; side: 'left' | 'right' }) {
-  return (
-    <span hidden={segment.elided} className={segment.emphasized ? emphasisTone(side) : undefined} style={{ ...segment.style, opacity: segment.opacity }}>
-      {segment.content}
-    </span>
-  );
-}
-
 // The tail stays in the DOM while hidden so click offsets still match the source line.
 function RoleSpan({ role, prefix, children }: { role: SegmentRole | undefined; prefix: CSSProperties; children: ReactNode }) {
   if (role === 'prefix') return <span className="inline-block indent-0" style={prefix}>{children}</span>;
@@ -524,10 +524,6 @@ function changeBackground(side: 'left' | 'right'): string {
 
 function changeInk(side: 'left' | 'right'): string {
   return side === 'left' ? 'text-del-ink' : 'text-add-ink';
-}
-
-function emphasisTone(side: 'left' | 'right'): string {
-  return side === 'left' ? 'bg-del-emph' : 'bg-add-emph';
 }
 
 function HunkLine({ label, expand, onEdit }: { label: string; expand: HunkControl; onEdit?: () => void }) {
