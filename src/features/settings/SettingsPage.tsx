@@ -3,14 +3,34 @@
 import { setSetting, useSetting } from './settingsStore';
 import type { BlankLineSetting, Settings, ThemeSetting } from './settings';
 import { useDesktopBridge } from '@/features/desktop/desktopBridge';
-import { blankRowHeight, ROW_HEIGHT } from '@/features/pull-requests/diffMetrics';
+import { blankRowHeight, HALF_ROW_HEIGHT, ROW_HEIGHT } from '@/features/pull-requests/diffMetrics';
+import { SEMIBLANK_CODE, semiblankKind, type SemiblankKind } from '@/features/pull-requests/semiblankLines';
 import { PageHeading, SECTION_LABEL } from '@/features/sources/PageHeading';
 import { ACCENT_CHOICE, CHOICE } from '@/features/surface-ui/buttonStyles';
 
 const THEME_LABELS: Record<ThemeSetting, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 const BLANK_LINE_LABELS: Record<BlankLineSetting, string> = { full: 'Full height', half: 'Half height', 'extra-small': 'Extra small' };
 
-const PREVIEW_LINES = ["import { parse } from './parse';", '', 'export function read(text) {', '  const tree = parse(text);', '', '  return tree.root;', '}'];
+type ChoiceName = { [K in keyof Settings]: Settings[K] extends string ? K : never }[keyof Settings];
+type ToggleName = { [K in keyof Settings]: Settings[K] extends boolean ? K : never }[keyof Settings];
+
+const PREVIEW_LINES = [
+  "import { parse } from './parse';",
+  '',
+  '/**',
+  ' * Reads the tree out of some text.',
+  ' */',
+  'export function read(text) {',
+  '  const tree = parse(text, [',
+  '    {',
+  '      strict: true,',
+  '    },',
+  '  ]);',
+  '',
+  '  return tree.root;',
+  '}',
+];
+const PREVIEW_KINDS = PREVIEW_LINES.map((text, index) => semiblankKind(text, PREVIEW_LINES[index - 1] ?? null, PREVIEW_LINES[index + 1] ?? null));
 
 export function SettingsPage() {
   return (
@@ -19,7 +39,8 @@ export function SettingsPage() {
       <SavedWhere />
       <SettingChoices name="theme" legend="Theme" labels={THEME_LABELS} />
       <SettingChoices name="blankLines" legend="Blank lines in diffs" labels={BLANK_LINE_LABELS} />
-      <BlankLinePreview />
+      <SettingToggle name="semiblankLines" legend="Semiblank lines in diffs" label="Draw lines of only brackets or comment marks at half height" />
+      <DiffLinesPreview />
     </section>
   );
 }
@@ -29,7 +50,7 @@ function SavedWhere() {
   return <p className="mt-2 text-xs leading-5 text-ink-dim">Changes apply at once and are saved {where}.</p>;
 }
 
-function SettingChoices<K extends keyof Settings>({ name, legend, labels }: { name: K; legend: string; labels: Record<Settings[K], string> }) {
+function SettingChoices<K extends ChoiceName>({ name, legend, labels }: { name: K; legend: string; labels: Record<Settings[K], string> }) {
   const current = useSetting(name);
   const choices = Object.entries(labels) as [Settings[K], string][];
   return (
@@ -44,7 +65,7 @@ function SettingChoices<K extends keyof Settings>({ name, legend, labels }: { na
   );
 }
 
-function Choice<K extends keyof Settings>({ name, value, label, checked }: { name: K; value: Settings[K]; label: string; checked: boolean }) {
+function Choice<K extends ChoiceName>({ name, value, label, checked }: { name: K; value: Settings[K]; label: string; checked: boolean }) {
   return (
     <label className={`${checked ? ACCENT_CHOICE : CHOICE} cursor-pointer has-[:focus-visible]:ring-1 has-[:focus-visible]:ring-accent`}>
       <input type="radio" name={name} checked={checked} onChange={() => setSetting(name, value)} className="sr-only" />
@@ -53,15 +74,40 @@ function Choice<K extends keyof Settings>({ name, value, label, checked }: { nam
   );
 }
 
-function BlankLinePreview() {
-  const blank = blankRowHeight(useSetting('blankLines'));
+function SettingToggle({ name, legend, label }: { name: ToggleName; legend: string; label: string }) {
+  const on = useSetting(name);
   return (
-    <div aria-hidden className="mt-2 w-80 rounded bg-panel py-1 text-[11px] leading-[15px] text-ink">
+    <fieldset className="mt-5">
+      <legend className={`mb-1 ${SECTION_LABEL}`}>{legend}</legend>
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-xs text-ink">
+        <input type="checkbox" checked={on} onChange={(event) => setSetting(name, event.target.checked)} className="size-3 accent-accent" />
+        {label}
+      </label>
+    </fieldset>
+  );
+}
+
+function DiffLinesPreview() {
+  const blank = blankRowHeight(useSetting('blankLines'));
+  const semiblanks = useSetting('semiblankLines');
+  return (
+    <div aria-hidden className="mt-3 w-80 rounded bg-panel py-1 text-[11px] leading-[15px] text-ink">
       {PREVIEW_LINES.map((text, index) => (
-        <div key={index} className="diff-code whitespace-pre px-2" style={{ height: text ? ROW_HEIGHT : blank }}>
-          {text}
-        </div>
+        <PreviewLine key={index} text={text} blank={blank} kind={semiblanks ? PREVIEW_KINDS[index] : null} />
       ))}
     </div>
   );
+}
+
+function PreviewLine({ text, blank, kind }: { text: string; blank: number; kind: SemiblankKind | null | undefined }) {
+  return (
+    <div className="diff-code flex items-start whitespace-pre px-2" style={{ height: previewLineHeight(text, blank, kind) }}>
+      <span className={kind ? SEMIBLANK_CODE[kind] : undefined}>{text}</span>
+    </div>
+  );
+}
+
+function previewLineHeight(text: string, blank: number, kind: SemiblankKind | null | undefined): number {
+  if (!text) return blank;
+  return kind ? HALF_ROW_HEIGHT : ROW_HEIGHT;
 }

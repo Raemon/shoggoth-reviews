@@ -9,6 +9,10 @@ export interface EditableBlock {
   text: string;
 }
 
+export function blockHasRow(block: EditableBlock, row: number): boolean {
+  return row >= block.firstRow && row <= block.lastRow;
+}
+
 export interface BlockBounds {
   hidden: Set<number>;
   stopAtBlankLines: boolean;
