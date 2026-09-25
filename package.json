@@ -20,6 +20,7 @@
     "prebuild": "node scripts/copyTreeSitterWasm.mjs",
     "check:folds": "tsx scripts/checkFolds.mjs",
     "check:previews": "tsx scripts/checkPreviews.mjs",
+    "check:semiblanks": "tsx scripts/checkSemiblanks.mjs",
     "desktop": "node bin/reposcope.mjs --dev",
     "check:local-git": "tsx scripts/checkLocalGit.mjs"
   },
