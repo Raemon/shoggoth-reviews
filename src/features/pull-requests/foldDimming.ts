@@ -61,19 +61,13 @@ function sliceOf(explanation: Explanation[], from: number, length: number): Gram
 // The prefix is clipped only when its full words overflow the pane's prefix column.
 export function collapsedSegments(segments: CodeSegment[], layout: FoldLayout | null, column: number): DimmedSegment[] {
   if (!layout) return segments;
-  return roledSegments(segments, layout, wordsToClip(layout.prefix, column), true);
+  return roledSegments(segments, layout, wordsToClip(layout.prefix, column));
 }
 
-// An expanded row keeps its syntax colours; roles only place its prefix and tail.
-export function expandedSegments(segments: CodeSegment[], layout: FoldLayout | null): DimmedSegment[] {
-  if (!layout) return segments;
-  return roledSegments(segments, layout, new Set(), false);
-}
-
-function roledSegments(segments: CodeSegment[], layout: FoldLayout, clip: ReadonlySet<string>, dimmed: boolean): DimmedSegment[] {
+function roledSegments(segments: CodeSegment[], layout: FoldLayout, clip: ReadonlySet<string>): DimmedSegment[] {
   let offset = 0;
   return segments.flatMap((segment) => {
-    const pieces = roleSlices(segment, offset, layout, clip, dimmed);
+    const pieces = roleSlices(segment, offset, layout, clip);
     offset += segment.content.length;
     return pieces;
   });
@@ -99,10 +93,10 @@ function isKeyword({ content, scope }: GrammarPiece): boolean {
   return /\w/.test(content) && KEYWORD_SCOPES.test(scope);
 }
 
-function roleSlices(segment: CodeSegment, start: number, layout: FoldLayout, clip: ReadonlySet<string>, dimmed: boolean): DimmedSegment[] {
+function roleSlices(segment: CodeSegment, start: number, layout: FoldLayout, clip: ReadonlySet<string>): DimmedSegment[] {
   const boundaries = [layout.indent, layout.name.start, layout.name.end];
   return slicesAt(segment.content, start, boundaries).flatMap(([from, to]) => {
-    const piece = withRole(segment, segment.content.slice(from, to), roleAt(start + from, layout), dimmed);
+    const piece = withRole(segment, segment.content.slice(from, to), roleAt(start + from, layout));
     return piece.role === 'prefix' && clip.size > 0 ? abbreviated(piece, clip) : [piece];
   });
 }
@@ -113,9 +107,9 @@ function roleAt(position: number, { indent, name }: FoldLayout): SegmentRole | n
   return position < name.end ? 'name' : 'tail';
 }
 
-function withRole(segment: CodeSegment, content: string, role: SegmentRole | null, dimmed: boolean): DimmedSegment {
+function withRole(segment: CodeSegment, content: string, role: SegmentRole | null): DimmedSegment {
   if (role === null) return { ...segment, content };
-  if (role === 'name' || !dimmed) return { ...segment, content, role };
+  if (role === 'name') return { ...segment, content, role };
   return { ...segment, content, role, style: DIM_INK_STYLE, opacity: DIM_OPACITY };
 }
 
