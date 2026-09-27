@@ -6,6 +6,7 @@ export interface CodeSegment {
   content: string;
   style?: CSSProperties;
   emphasized: boolean;
+  margin?: boolean;
 }
 
 export type SegmentRole = 'prefix' | 'name' | 'tail';
@@ -24,6 +25,16 @@ export function codeSegments(
   const colored = coloredPieces(text, lineTokens);
   if (!ranges?.length) return colored.map((piece) => ({ ...piece, emphasized: false }));
   return splitColoredByRanges(colored, ranges);
+}
+
+export function withMargins(segments: CodeSegment[], margins: CharRange[]): CodeSegment[] {
+  if (!margins.length) return segments;
+  let offset = 0;
+  return segments.flatMap((segment) => {
+    const parts = splitAtRanges(offset, segment.content, margins);
+    offset += segment.content.length;
+    return parts.map(({ content, inside }) => ({ ...segment, content, margin: inside }));
+  });
 }
 
 const DECLARATION_WORDS = new Set([
@@ -59,7 +70,7 @@ function splitColoredByRanges(
   let offset = 0;
   for (const piece of colored) {
     for (const part of splitAtRanges(offset, piece.content, ranges)) {
-      segments.push({ content: part.content, style: piece.style, emphasized: part.emphasized });
+      segments.push({ content: part.content, style: piece.style, emphasized: part.inside });
     }
     offset += piece.content.length;
   }
@@ -67,14 +78,14 @@ function splitColoredByRanges(
 }
 
 function splitAtRanges(start: number, text: string, ranges: CharRange[]) {
-  const parts: { content: string; emphasized: boolean }[] = [];
+  const parts: { content: string; inside: boolean }[] = [];
   let position = 0;
   while (position < text.length) {
     const absolute = start + position;
     const inside = ranges.find((range) => absolute >= range.start && absolute < range.end);
     const nextStart = ranges.find((range) => range.start > absolute)?.start ?? start + text.length;
     const stop = Math.min(text.length, (inside ? inside.end : nextStart) - start);
-    parts.push({ content: text.slice(position, stop), emphasized: Boolean(inside) });
+    parts.push({ content: text.slice(position, stop), inside: Boolean(inside) });
     position = stop;
   }
   return parts;

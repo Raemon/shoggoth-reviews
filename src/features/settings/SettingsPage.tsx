@@ -3,7 +3,11 @@
 import { setSetting, useSetting } from './settingsStore';
 import type { BlankLineSetting, Settings, ThemeSetting } from './settings';
 import { useDesktopBridge } from '@/features/desktop/desktopBridge';
+import { codeSegments, withMargins } from '@/features/pull-requests/codeSegments';
+import { commentMargins } from '@/features/pull-requests/commentMargins';
+import { useTokenized, type ThemedToken } from '@/features/pull-requests/diffHighlight';
 import { blankRowHeight, HALF_ROW_HEIGHT, ROW_HEIGHT } from '@/features/pull-requests/diffMetrics';
+import { SegmentSpan } from '@/features/pull-requests/SegmentSpan';
 import { SEMIBLANK_CODE, semiblankKind, type SemiblankKind } from '@/features/pull-requests/semiblankLines';
 import { PageHeading, SECTION_LABEL } from '@/features/sources/PageHeading';
 import { ACCENT_CHOICE, CHOICE } from '@/features/surface-ui/buttonStyles';
@@ -21,6 +25,7 @@ const PREVIEW_LINES = [
   ' * Reads the tree out of some text.',
   ' */',
   'export function read(text) {',
+  '  // Strict mode rejects stray keys.',
   '  const tree = parse(text, [',
   '    {',
   '      strict: true,',
@@ -30,6 +35,7 @@ const PREVIEW_LINES = [
   '  return tree.root;',
   '}',
 ];
+const PREVIEW_TEXT = PREVIEW_LINES.join('\n');
 const PREVIEW_KINDS = PREVIEW_LINES.map((text, index) => semiblankKind(text, PREVIEW_LINES[index - 1] ?? null, PREVIEW_LINES[index + 1] ?? null));
 
 export function SettingsPage() {
@@ -39,7 +45,7 @@ export function SettingsPage() {
       <SavedWhere />
       <SettingChoices name="theme" legend="Theme" labels={THEME_LABELS} />
       <SettingChoices name="blankLines" legend="Blank lines in diffs" labels={BLANK_LINE_LABELS} />
-      <SettingToggle name="semiblankLines" legend="Semiblank lines in diffs" label="Draw lines of only brackets or comment marks at half height" />
+      <SettingToggle name="semiblankLines" legend="Semiblank lines in diffs" label="Draw lines of only brackets or comment marks at half height, and comment margins to match" />
       <DiffLinesPreview />
     </section>
   );
@@ -90,21 +96,33 @@ function SettingToggle({ name, legend, label }: { name: ToggleName; legend: stri
 function DiffLinesPreview() {
   const blank = blankRowHeight(useSetting('blankLines'));
   const semiblanks = useSetting('semiblankLines');
+  const tokens = useTokenized(PREVIEW_TEXT, 'typescript');
   return (
     <div aria-hidden className="mt-3 w-80 rounded bg-panel py-1 text-[11px] leading-[15px] text-ink">
-      {PREVIEW_LINES.map((text, index) => (
-        <PreviewLine key={index} text={text} blank={blank} kind={semiblanks ? PREVIEW_KINDS[index] : null} />
+      {PREVIEW_LINES.map((_, index) => (
+        <PreviewLine key={index} index={index} tokens={tokens?.[index] ?? null} blank={blank} semiblanks={semiblanks} />
       ))}
     </div>
   );
 }
 
-function PreviewLine({ text, blank, kind }: { text: string; blank: number; kind: SemiblankKind | null | undefined }) {
+function PreviewLine({ index, tokens, blank, semiblanks }: { index: number; tokens: ThemedToken[] | null; blank: number; semiblanks: boolean }) {
+  const text = PREVIEW_LINES[index] ?? '';
+  const kind = semiblanks ? PREVIEW_KINDS[index] : null;
+  const segments = previewSegments(text, tokens, semiblanks);
   return (
     <div className="diff-code flex items-start whitespace-pre px-2" style={{ height: previewLineHeight(text, blank, kind) }}>
-      <span className={kind ? SEMIBLANK_CODE[kind] : undefined}>{text}</span>
+      <span className={kind ? SEMIBLANK_CODE[kind] : undefined}>
+        {segments.map((segment, at) => (
+          <SegmentSpan key={at} segment={segment} side="right" />
+        ))}
+      </span>
     </div>
   );
+}
+
+function previewSegments(text: string, tokens: ThemedToken[] | null, semiblanks: boolean) {
+  return withMargins(codeSegments(text, tokens, null), semiblanks ? commentMargins(text, tokens) : []);
 }
 
 function previewLineHeight(text: string, blank: number, kind: SemiblankKind | null | undefined): number {

@@ -99,7 +99,8 @@ export function FileDiff({
   const drawn = { hidden: collapse.hidden, commentedRows, truncation, blankLines };
   const shownMain = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
   const shownLeft = useShownLines(rows, singleColumn ? null : 'left', drawn);
-  const [mainLines, leftLines] = useSemiblanks(shownMain, shownLeft, collapse.anchors, editBlock);
+  const semiblanks = useSetting('semiblankLines');
+  const [mainLines, leftLines] = useSemiblanks(semiblanks, shownMain, shownLeft, collapse.anchors, editBlock);
   const growing = useHeightTransition(rows, undrawn, rowHeights);
   const expand = expandControl(wholeFile, showingWholeFile, hunkEdit, setWantWholeFile);
   const pointer = useDefinitionPointer(file, baseRef, headRef);
@@ -113,6 +114,7 @@ export function FileDiff({
     anchors: collapse.anchors,
     pointer,
     wrap,
+    stackMargins: semiblanks,
     heights: rowHeights,
     onUntruncate: untruncate,
     draftThreadAt,
@@ -285,8 +287,7 @@ function columnLinesOf(rows: DiffRow[], column: Column, commentedRows: Set<numbe
 }
 
 // Judged on drawn lines: a line tucks into the neighbor actually drawn beside it.
-function useSemiblanks(main: DiffLine[], left: DiffLine[], anchors: WholeRows['anchors'], edited: EditableBlock | null): [DiffLine[], DiffLine[]] {
-  const on = useSetting('semiblankLines');
+function useSemiblanks(on: boolean, main: DiffLine[], left: DiffLine[], anchors: WholeRows['anchors'], edited: EditableBlock | null): [DiffLine[], DiffLine[]] {
   return useMemo(() => (on ? withSemiblanks(main, left, { anchors, edited }) : [main, left]), [on, main, left, anchors, edited]);
 }
 
