@@ -1,3 +1,4 @@
+import type { SemiblankKind } from './semiblankLines';
 import type { DiffCell, DiffRow } from './splitDiff';
 import type { Truncation } from './truncateRows';
 
@@ -9,6 +10,7 @@ export interface DiffLine {
   row: number;
   touched: boolean;
   blank: boolean;
+  semiblank: SemiblankKind | null;
   truncated: number;
 }
 
@@ -60,7 +62,7 @@ function addStripOnce(shown: DiffLine[], stripped: Set<number>, run: number, tru
 }
 
 function truncatedLine(row: number, side: 'left' | 'right', truncated: number): DiffLine {
-  return { kind: 'truncated', label: '', side, cell: null, row, touched: false, blank: false, truncated };
+  return { kind: 'truncated', label: '', side, cell: null, row, touched: false, blank: false, semiblank: null, truncated };
 }
 
 function changeRuns(rows: DiffRow[]): PlacedRow[][] {
@@ -83,7 +85,7 @@ function sideLines(run: PlacedRow[], side: 'left' | 'right'): DiffLine[] {
 }
 
 function lineOf(row: DiffRow, index: number, side: 'left' | 'right'): DiffLine {
-  const flags = { touched: row.touched === true, blank: blankRow(row), truncated: 0 };
+  const flags = { touched: row.touched === true, blank: blankRow(row), semiblank: null, truncated: 0 };
   return { kind: row.kind, label: row.label, side, cell: row[side], row: index, ...flags };
 }
 
