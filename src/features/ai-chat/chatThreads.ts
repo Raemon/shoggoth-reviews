@@ -26,7 +26,7 @@ export interface ChatThread extends ThreadTarget {
 }
 
 const LIMIT = 200;
-const NAME_PREFIX = 'Shoggoth Reviews';
+const NAME_PREFIX = 'Human in the Loop';
 const PURPOSE_WORDS: Record<ThreadPurpose, string> = { chat: 'chat', 'merge-conflicts': 'merge conflicts' };
 
 const threadsPref = localPref<ChatThread[]>('reposcope.aiThreads', [], decodeThreads);

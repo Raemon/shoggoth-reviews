@@ -13,7 +13,7 @@ import { blankRowHeight, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, typ
 import { useDiffWrap } from './diffWrapStore';
 import { evenedRowHeights } from './rowHeights';
 import { EditTarget } from './editTarget';
-import { type EditableBlock } from './editableBlocks';
+import { blockHasRow, type EditableBlock } from './editableBlocks';
 import { expandDiff } from './expandDiff';
 import { foldsCollapsed, useFoldCommand, wholeFileFor, wholeFileWanted, type FoldMode } from './foldModeStore';
 import { InlineThreads } from './InlineThreads';
@@ -23,6 +23,7 @@ import { setDiffPaneWidth, useDiffPaneWidth } from './diffPaneWidth';
 import { DragHandle, useDragWidth } from './ResizableColumn';
 import { rowOf } from './commentAnchors';
 import { useFileThreads } from './reviewThreadStore';
+import { withSemiblanks, type WholeRows } from './semiblankLines';
 import { splitDiff, type DiffRow } from './splitDiff';
 import { truncateFarRows, NO_TRUNCATION, type Truncation } from './truncateRows';
 import { useCodeCollapse } from './useCodeCollapse';
@@ -96,8 +97,10 @@ export function FileDiff({
   const rowHeights = useRowHeights(singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right), blankLines);
   const resultView = layout === 'result' && !entireFile && anyLineSurvives(rows);
   const drawn = { hidden: collapse.hidden, commentedRows, truncation, blankLines };
-  const mainLines = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
-  const leftLines = useShownLines(rows, singleColumn ? null : 'left', drawn);
+  const shownMain = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
+  const shownLeft = useShownLines(rows, singleColumn ? null : 'left', drawn);
+  const semiblanks = useSetting('semiblankLines');
+  const [mainLines, leftLines] = useSemiblanks(semiblanks, shownMain, shownLeft, collapse.anchors, editBlock);
   const growing = useHeightTransition(rows, undrawn, rowHeights);
   const expand = expandControl(wholeFile, showingWholeFile, hunkEdit, setWantWholeFile);
   const pointer = useDefinitionPointer(file, baseRef, headRef);
@@ -111,6 +114,7 @@ export function FileDiff({
     anchors: collapse.anchors,
     pointer,
     wrap,
+    stackMargins: semiblanks,
     heights: rowHeights,
     onUntruncate: untruncate,
     draftThreadAt,
@@ -282,6 +286,11 @@ function columnLinesOf(rows: DiffRow[], column: Column, commentedRows: Set<numbe
   return columnLines(rows, column);
 }
 
+// Judged on drawn lines: a line tucks into the neighbor actually drawn beside it.
+function useSemiblanks(on: boolean, main: DiffLine[], left: DiffLine[], anchors: WholeRows['anchors'], edited: EditableBlock | null): [DiffLine[], DiffLine[]] {
+  return useMemo(() => (on ? withSemiblanks(main, left, { anchors, edited }) : [main, left]), [on, main, left, anchors, edited]);
+}
+
 const NO_RUNS: ReadonlySet<number> = new Set<number>();
 
 type Untruncate = (run: number) => void;
@@ -376,7 +385,7 @@ function hunkEditor(filename: string, hunkEdit: HunkEditControls, shown: DiffLin
 
 // Rendered lines, not rows: a unified change row draws its before and after line.
 function coveredHeight(shown: DiffLine[], block: EditableBlock, heights: RowHeights): number {
-  return linesHeight(shown.filter((line) => line.row >= block.firstRow && line.row <= block.lastRow), heights);
+  return linesHeight(shown.filter((line) => blockHasRow(block, line.row)), heights);
 }
 
 function spacerFor(edit: HunkEdit | null, shown: DiffLine[], heights: RowHeights): { afterRow: number; height: number } | null {

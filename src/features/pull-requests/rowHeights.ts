@@ -13,9 +13,13 @@ export function hangingIndent(text: string): number {
   return Math.min(MAX_HANGING_INDENT, leadingColumns(text) + HANGING_STEP);
 }
 
-function leadingColumns(text: string): number {
+export function leadingColumns(text: string): number {
+  return textColumns(text.match(/^[ \t]*/u)?.[0] ?? '');
+}
+
+export function textColumns(text: string): number {
   let columns = 0;
-  for (const char of text.match(/^[ \t]*/u)?.[0] ?? '') columns += char === '\t' ? TAB_SIZE - (columns % TAB_SIZE) : 1;
+  for (const char of text) columns += char === '\t' ? TAB_SIZE - (columns % TAB_SIZE) : 1;
   return columns;
 }
 
