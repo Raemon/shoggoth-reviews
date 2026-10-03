@@ -14,7 +14,7 @@ export class GithubRequestError extends Error {
 const ACCEPT = 'application/vnd.github+json';
 export const PAGE_SIZE = 100;
 const DEFAULT_FRESHNESS_MS = 30_000;
-const IMMUTABLE_PATTERNS = [/\/(?:commits|git\/trees|tarball)\/[0-9a-f]{40}$/];
+const IMMUTABLE_PATTERNS = [/\/(?:commits|git\/trees|tarball)\/[0-9a-f]{40}$/, /\/compare\/[0-9a-f]{40}\.\.\.[0-9a-f]{40}$/];
 const STALE_ON_STATUS = [403, 408, 429, 500, 502, 503, 504];
 
 const inFlight = new Map<string, Promise<CachedResponse>>();

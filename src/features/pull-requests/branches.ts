@@ -1,4 +1,4 @@
-import { githubGraphql, githubJson, PAGE_SIZE } from '@/features/codebases/githubRequest';
+import { githubGraphql, githubJson, githubPageUrl, PAGE_SIZE } from '@/features/codebases/githubRequest';
 import { defaultBranch } from '@/features/codebases/repoDirectory';
 import {
   changedFile,
@@ -56,6 +56,8 @@ interface GithubRefPull {
 }
 
 interface GithubCompare {
+  status: string;
+  base_commit: { sha: string };
   merge_base_commit: { sha: string };
   commits: GithubCommit[];
   files?: GithubChangedFile[];
@@ -65,6 +67,7 @@ const API = 'https://api.github.com';
 const PICKER_LIMIT = 50;
 const LISTING_LIMIT = 100;
 const COMMIT_LIMIT = 100;
+const MERGE_SEARCH_PAGES = 5;
 
 const BRANCH_QUERY = `
 query BranchOptions($owner: String!, $name: String!, $filter: String, $first: Int!) {
@@ -150,8 +153,29 @@ export async function listBranchFiles(owner: string, name: string, branch: strin
 
 async function compareWithDefault(owner: string, name: string, branch: string, fresh: boolean): Promise<GithubCompare> {
   const trunk = await defaultBranch(owner, name, fresh);
-  const range = `${encodeURIComponent(trunk)}...${encodeURIComponent(branch)}`;
-  return githubJson<GithubCompare>(`${API}/repos/${owner}/${name}/compare/${range}`, fresh);
+  const compare = await githubJson<GithubCompare>(compareUrl(owner, name, trunk, branch), fresh);
+  if (compare.status !== 'behind') return compare;
+  const forkedFrom = await trunkBeforeMerge(owner, name, compare.merge_base_commit.sha, compare.base_commit.sha);
+  return forkedFrom ? githubJson<GithubCompare>(compareUrl(owner, name, forkedFrom, branch), fresh) : compare;
+}
+
+// Merged branches are behind trunk, so diff against trunk's side of the merge commit.
+async function trunkBeforeMerge(owner: string, name: string, head: string, trunkTip: string): Promise<string | null> {
+  for (let page = 1; page <= MERGE_SEARCH_PAGES; page += 1) {
+    const { commits } = await githubJson<GithubCompare>(githubPageUrl(compareUrl(owner, name, head, trunkTip), page));
+    const merge = commits.find((commit) => mergesIn(commit, head));
+    if (merge) return merge.parents?.[0]?.sha ?? null;
+    if (commits.length < PAGE_SIZE) return null;
+  }
+  return null;
+}
+
+function mergesIn(commit: GithubCommit, head: string): boolean {
+  return (commit.parents ?? []).slice(1).some((parent) => parent.sha === head);
+}
+
+function compareUrl(owner: string, name: string, base: string, head: string): string {
+  return `${API}/repos/${owner}/${name}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`;
 }
 
 async function recentPulls(owner: string, name: string): Promise<Map<string, GithubRefPull>> {
