@@ -1,9 +1,11 @@
+import type { SummaryLine } from './diffFolds';
 import type { SemiblankKind } from './semiblankLines';
 import type { DiffCell, DiffRow } from './splitDiff';
 import type { Truncation } from './truncateRows';
+import type { FoldControl } from './useCodeCollapse';
 
 export interface DiffLine {
-  kind: DiffRow['kind'] | 'truncated';
+  kind: DiffRow['kind'] | 'truncated' | 'fold';
   label: string;
   side: 'left' | 'right';
   cell: DiffCell | null;
@@ -12,7 +14,18 @@ export interface DiffLine {
   blank: boolean;
   semiblank: SemiblankKind | null;
   truncated: number;
+  fold: FoldLine | null;
 }
+
+/** A collapsed fold's stand-in; a null summary pads a split column whose side has none. */
+export interface FoldLine {
+  control: FoldControl;
+  summary: SummaryLine | null;
+  /** Carries the chevron and badge: the line on the side that owns the fold. */
+  primary: boolean;
+}
+
+export type Column = 'left' | 'right' | 'unified' | 'result';
 
 interface PlacedRow {
   row: DiffRow;
@@ -40,19 +53,41 @@ export function asOrdinaryLines(lines: DiffLine[]): DiffLine[] {
   return lines.map((line) => (line.blank ? { ...line, blank: false } : line));
 }
 
-export function shownLines(lines: DiffLine[], hidden: Set<number>, truncation: Truncation): DiffLine[] {
-  if (hidden.size === 0 && truncation.runOf.size === 0) return lines;
+interface Placed {
+  strips: Set<number>;
+  folds: Set<FoldControl>;
+}
+
+export function shownLines(lines: DiffLine[], column: Column, folded: Map<number, FoldControl>, truncation: Truncation): DiffLine[] {
+  if (folded.size === 0 && truncation.runOf.size === 0) return lines;
   const shown: DiffLine[] = [];
-  const stripped = new Set<number>();
-  for (const line of lines) keepLine(shown, stripped, line, hidden, truncation);
+  const placed: Placed = { strips: new Set(), folds: new Set() };
+  for (const line of lines) keepLine(shown, placed, line, column, folded, truncation);
   return shown;
 }
 
-function keepLine(shown: DiffLine[], stripped: Set<number>, line: DiffLine, hidden: Set<number>, truncation: Truncation) {
+function keepLine(shown: DiffLine[], placed: Placed, line: DiffLine, column: Column, folded: Map<number, FoldControl>, truncation: Truncation) {
   if (line.kind === 'hunk') return void shown.push(line);
   const run = truncation.runOf.get(line.row);
-  if (run !== undefined) return addStripOnce(shown, stripped, run, truncation, line.side);
-  if (!hidden.has(line.row)) shown.push(line);
+  if (run !== undefined) return addStripOnce(shown, placed.strips, run, truncation, line.side);
+  const fold = folded.get(line.row);
+  if (!fold) return void shown.push(line);
+  if (placed.folds.has(fold)) return;
+  placed.folds.add(fold);
+  shown.push(...foldLines(fold, column));
+}
+
+// A unified column draws one line for matching summaries, and a removed/added pair otherwise.
+function foldLines(control: FoldControl, column: Column): DiffLine[] {
+  const { summaries, summaryChanged } = control.fold;
+  if (column === 'left' || column === 'right') return [foldLine(control, column)];
+  if (column === 'result' || !summaryChanged) return [foldLine(control, summaries.right ? 'right' : 'left')];
+  return (['left', 'right'] as const).filter((side) => summaries[side]).map((side) => foldLine(control, side));
+}
+
+function foldLine(control: FoldControl, side: 'left' | 'right'): DiffLine {
+  const fold = { control, summary: control.fold.summaries[side], primary: side === control.fold.side };
+  return { ...placeholderLine('fold', control.fold.first, side), fold };
 }
 
 function addStripOnce(shown: DiffLine[], stripped: Set<number>, run: number, truncation: Truncation, side: 'left' | 'right') {
@@ -62,7 +97,11 @@ function addStripOnce(shown: DiffLine[], stripped: Set<number>, run: number, tru
 }
 
 function truncatedLine(row: number, side: 'left' | 'right', truncated: number): DiffLine {
-  return { kind: 'truncated', label: '', side, cell: null, row, touched: false, blank: false, semiblank: null, truncated };
+  return { ...placeholderLine('truncated', row, side), truncated };
+}
+
+function placeholderLine(kind: 'truncated' | 'fold', row: number, side: 'left' | 'right'): DiffLine {
+  return { kind, label: '', side, cell: null, row, touched: false, blank: false, semiblank: null, truncated: 0, fold: null };
 }
 
 function changeRuns(rows: DiffRow[]): PlacedRow[][] {
@@ -85,7 +124,7 @@ function sideLines(run: PlacedRow[], side: 'left' | 'right'): DiffLine[] {
 }
 
 function lineOf(row: DiffRow, index: number, side: 'left' | 'right'): DiffLine {
-  const flags = { touched: row.touched === true, blank: blankRow(row), semiblank: null, truncated: 0 };
+  const flags = { touched: row.touched === true, blank: blankRow(row), semiblank: null, truncated: 0, fold: null };
   return { kind: row.kind, label: row.label, side, cell: row[side], row: index, ...flags };
 }
 

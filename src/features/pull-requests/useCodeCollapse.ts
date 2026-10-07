@@ -1,53 +1,82 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { collapseRegions, type CollapseRegion } from './collapseRegions';
 import { rowOf } from './commentAnchors';
+import { allLinesDeleted, computeDiffFolds, type DiffFold } from './diffFolds';
 import { isDraftThread } from './draftThread';
 import type { EditableBlock } from './editableBlocks';
 import { foldsCollapsed, useFoldCommand, type FoldMode } from './foldModeStore';
-import { allLinesDeleted, innerRows } from './foldSpan';
-import { commentRowIndexes } from './regionRoles';
+import type { Side } from './foldModel';
 import type { ReviewThread } from './reviewThreads';
 import type { DiffRow } from './splitDiff';
-import { treeCollapseRegions } from './treeSitterFolds';
 
-export interface CollapseAnchor {
-  region: CollapseRegion;
+export interface FoldControl {
+  fold: DiffFold;
   collapsed: boolean;
   hiddenThreads: number;
   toggle: () => void;
 }
 
 export interface CodeCollapse {
-  anchors: Map<number, CollapseAnchor>;
+  /** Keyed by `handleKey`, for the chevron on an open fold's handle line. */
+  handles: Map<string, FoldControl>;
+  /** Every row inside a collapsed fold, mapped to the outermost collapsed fold over it. */
+  folded: Map<number, FoldControl>;
   hidden: Set<number>;
+  /** Hidden rows below each collapsed fold's first, the row its summary is drawn at. */
+  tucked: Set<number>;
 }
 
 type Overrides = Record<string, boolean>;
 type SetOverride = (changes: Overrides) => void;
 
 const NO_OVERRIDES: Overrides = {};
+const NO_FOLDS: DiffFold[] = [];
 
+export function handleKey(side: Side, row: number): string {
+  return `${side}:${row}`;
+}
+
+/** Folds need both sides' whole files, so `complete` is false while only the patch is loaded. */
 export function useCodeCollapse(
   rows: DiffRow[],
-  contiguous: boolean,
+  complete: boolean,
   filename: string,
   threads: ReviewThread[],
   edit: EditableBlock | null,
 ): CodeCollapse {
-  const heuristic = useMemo(() => collapseRegions(rows, contiguous, filename), [rows, contiguous, filename]);
-  const parsed = useTreeRegions(rows, contiguous, filename);
-  const regions = parsed ?? heuristic;
+  const folds = useDiffFolds(rows, complete, filename);
   const threadRows = useMemo(() => threadRowIndexes(threads, rows), [threads, rows]);
-  const commentRows = useMemo(() => commentRowIndexes(rows, filename, regions), [rows, filename, regions]);
   const command = useFoldCommand();
   const [overrides, setOverride] = useFoldOverrides(command.epoch);
   const allDeleted = allLinesDeleted(rows);
   return useMemo(
-    () => buildCollapse({ regions, threadRows, commentRows, edit, mode: command.mode, overrides, setOverride, allDeleted }),
-    [regions, threadRows, commentRows, edit, command.mode, overrides, setOverride, allDeleted],
+    () => buildCollapse({ folds, threadRows, edit, mode: command.mode, overrides, setOverride, allDeleted }),
+    [folds, threadRows, edit, command.mode, overrides, setOverride, allDeleted],
   );
+}
+
+function useDiffFolds(rows: DiffRow[], complete: boolean, filename: string): DiffFold[] {
+  const found = useMemo(() => (complete ? computeDiffFolds(rows, filename) : NO_FOLDS), [rows, complete, filename]);
+  return useSettled(found) ?? NO_FOLDS;
+}
+
+function useSettled<T>(value: T | Promise<T>): T | null {
+  const [held, setHeld] = useState<{ from: Promise<T>; value: T } | null>(null);
+  useEffect(() => {
+    if (!(value instanceof Promise)) return;
+    let live = true;
+    value
+      .then((settled) => {
+        if (live) setHeld({ from: value, value: settled });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [value]);
+  if (!(value instanceof Promise)) return value;
+  return held?.from === value ? held.value : null;
 }
 
 interface HeldOverrides {
@@ -66,30 +95,6 @@ function useFoldOverrides(epoch: number): [Overrides, SetOverride] {
     [epoch],
   );
   return [overridesAt(held, epoch), setOverride];
-}
-
-interface TreeRegionsHeld {
-  rows: DiffRow[];
-  contiguous: boolean;
-  filename: string;
-  regions: CollapseRegion[];
-}
-
-function useTreeRegions(rows: DiffRow[], contiguous: boolean, filename: string): CollapseRegion[] | null {
-  const [held, setHeld] = useState<TreeRegionsHeld | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    treeCollapseRegions(rows, contiguous, filename)
-      .then((regions) => {
-        if (!cancelled && regions) setHeld({ rows, contiguous, filename, regions });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [rows, contiguous, filename]);
-  if (!held || held.rows !== rows || held.contiguous !== contiguous || held.filename !== filename) return null;
-  return held.regions;
 }
 
 interface ThreadRows {
@@ -111,14 +116,15 @@ function rowIndexes(threads: ReviewThread[], rows: DiffRow[]): Set<number> {
   return found;
 }
 
-function countIn(rows: number[], within: Set<number>): number {
-  return rows.filter((row) => within.has(row)).length;
+function countWithin(rows: Set<number>, fold: DiffFold): number {
+  let count = 0;
+  for (const row of rows) if (row >= fold.first && row <= fold.last) count += 1;
+  return count;
 }
 
 interface FoldInputs {
-  regions: CollapseRegion[];
+  folds: DiffFold[];
   threadRows: ThreadRows;
-  commentRows: Set<number>;
   edit: EditableBlock | null;
   mode: FoldMode;
   overrides: Overrides;
@@ -127,56 +133,58 @@ interface FoldInputs {
 }
 
 function buildCollapse(inputs: FoldInputs): CodeCollapse {
-  const { regions, threadRows, edit, mode, overrides, setOverride, allDeleted } = inputs;
-  const anchors = new Map<number, CollapseAnchor>();
-  const hidden = new Set<number>();
-  const foldable = regions.filter((region) => !regionOverlapsEdit(region, edit));
-  for (const region of foldable) {
-    const inner = innerRows(region);
-    const hiddenThreads = countIn(inner, threadRows.posted);
-    const collapsed = overrides[region.key] ?? modeCollapsed(region, foldable, countIn(inner, threadRows.any), mode, allDeleted);
-    const toggle = () => setOverride(collapsed ? expansionFrom(foldable, region) : { [region.key]: true });
-    anchors.set(region.start, { region, collapsed, hiddenThreads, toggle });
-    if (collapsed) for (const row of inner) hidden.add(row);
+  const foldable = inputs.folds.filter((fold) => !foldOverlapsEdit(fold, inputs.edit));
+  const controls = foldable.map((fold) => foldControl(fold, foldable, inputs));
+  const handles = new Map(controls.map((control) => [handleKey(control.fold.side, control.fold.handle), control]));
+  return { handles, ...foldedRows(controls) };
+}
+
+function foldControl(fold: DiffFold, foldable: DiffFold[], inputs: FoldInputs): FoldControl {
+  const { threadRows, mode, overrides, setOverride, allDeleted } = inputs;
+  const hiddenThreads = countWithin(threadRows.posted, fold);
+  const collapsed = overrides[fold.key] ?? modeCollapsed(fold, foldable, countWithin(threadRows.any, fold), mode, allDeleted);
+  const toggle = () => setOverride(collapsed ? expansionFrom(foldable, fold) : { [fold.key]: true });
+  return { fold, collapsed, hiddenThreads, toggle };
+}
+
+// Outermost first: a fold inside a collapsed one is already out of sight.
+function foldedRows(controls: FoldControl[]): Pick<CodeCollapse, 'folded' | 'hidden' | 'tucked'> {
+  const folded = new Map<number, FoldControl>();
+  const tucked = new Set<number>();
+  const collapsed = controls.filter((control) => control.collapsed).sort((a, b) => a.fold.first - b.fold.first || b.fold.last - a.fold.last);
+  for (const control of collapsed) {
+    const { first, last } = control.fold;
+    if (folded.has(first)) continue;
+    for (let row = first; row <= last; row += 1) folded.set(row, control);
+    for (let row = first + 1; row <= last; row += 1) tucked.add(row);
   }
-  if (mode === 'collapseHidingComments') hideCommentsAboveFolds(anchors, inputs, hidden);
-  return { anchors, hidden };
+  return { folded, hidden: new Set(folded.keys()), tucked };
 }
 
-function hideCommentsAboveFolds(anchors: Map<number, CollapseAnchor>, inputs: FoldInputs, hidden: Set<number>) {
-  for (const anchor of anchors.values()) {
-    if (!anchor.collapsed) continue;
-    for (let row = anchor.region.start - 1; hideableComment(row, anchors, inputs); row -= 1) hidden.add(row);
-  }
-}
-
-function hideableComment(row: number, anchors: Map<number, CollapseAnchor>, { commentRows, threadRows }: FoldInputs): boolean {
-  if (!commentRows.has(row) || threadRows.any.has(row)) return false;
-  return anchors.get(row)?.collapsed !== false;
-}
-
-function expansionFrom(foldable: CollapseRegion[], region: CollapseRegion): Overrides {
-  const nested = foldable.filter((other) => other.start >= region.start && other.start < region.end);
+function expansionFrom(foldable: DiffFold[], fold: DiffFold): Overrides {
+  const nested = foldable.filter((other) => other.first >= fold.first && other.last <= fold.last);
   return Object.fromEntries(nested.map((other) => [other.key, false]));
 }
 
-// start < lastRow: the anchor row only bounds the block, and must keep its chevron.
-function regionOverlapsEdit(region: CollapseRegion, edit: EditableBlock | null): boolean {
-  return edit !== null && region.start < edit.lastRow && region.end >= edit.firstRow;
+function foldOverlapsEdit(fold: DiffFold, edit: EditableBlock | null): boolean {
+  return edit !== null && fold.first <= edit.lastRow && fold.last >= edit.firstRow;
 }
 
-function modeCollapsed(region: CollapseRegion, foldable: CollapseRegion[], hiddenThreads: number, mode: FoldMode, allDeleted: boolean): boolean {
+function modeCollapsed(fold: DiffFold, foldable: DiffFold[], threads: number, mode: FoldMode, allDeleted: boolean): boolean {
   if (!foldsCollapsed(mode)) return false;
-  if (mode === 'collapseExceptTypes') return !region.typeLike && !withinTypeRegion(foldable, region);
-  if (mode === 'collapseExceptComments') return !region.comment;
-  if (mode === 'collapseHidingComments') return true;
-  return hiddenThreads === 0 && (allDeleted || region.imports || unchangedRegion(region));
+  if (mode === 'collapseExceptTypes') return !fold.tags.includes('type') && !withinTypeFold(foldable, fold);
+  if (mode === 'collapseAll') return true;
+  return threads === 0 && (allDeleted || (linked(fold) && (fold.tags.includes('imports') || unchanged(fold))));
 }
 
-function withinTypeRegion(foldable: CollapseRegion[], region: CollapseRegion): boolean {
-  return foldable.some((other) => other !== region && other.typeLike && other.start <= region.start && other.end >= region.end);
+function withinTypeFold(foldable: DiffFold[], fold: DiffFold): boolean {
+  return foldable.some((other) => other !== fold && other.tags.includes('type') && other.first <= fold.first && other.last >= fold.last);
 }
 
-function unchangedRegion(region: CollapseRegion): boolean {
-  return region.addedLines === 0 && region.deletedLines === 0 && !region.anchorChanged;
+function linked(fold: DiffFold): boolean {
+  return fold.left !== null && fold.right !== null;
+}
+
+function unchanged(fold: DiffFold): boolean {
+  return fold.addedLines === 0 && fold.deletedLines === 0;
 }

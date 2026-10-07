@@ -7,7 +7,7 @@ import { DiffSide, type HunkControl } from './DiffSide';
 import { useDiffLayout } from './diffLayoutStore';
 import { withDraftThread, type DraftAnchor } from './draftThread';
 import { startDraftThread, useDraftAnchor } from './draftThreadStore';
-import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, type DiffLine } from './diffLines';
+import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, type Column, type DiffLine } from './diffLines';
 import { langForPath } from './diffHighlight';
 import { blankRowHeight, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { useDiffWrap } from './diffWrapStore';
@@ -23,10 +23,10 @@ import { setDiffPaneWidth, useDiffPaneWidth } from './diffPaneWidth';
 import { DragHandle, useDragWidth } from './ResizableColumn';
 import { rowOf } from './commentAnchors';
 import { useFileThreads } from './reviewThreadStore';
-import { withSemiblanks, type WholeRows } from './semiblankLines';
+import { withSemiblanks } from './semiblankLines';
 import { splitDiff, type DiffRow } from './splitDiff';
 import { truncateFarRows, NO_TRUNCATION, type Truncation } from './truncateRows';
-import { useCodeCollapse } from './useCodeCollapse';
+import { useCodeCollapse, type FoldControl } from './useCodeCollapse';
 import { useDefinitionPointer } from './useDefinitionPointer';
 import { useDiffTokens, useIntralineEmphasis } from './useDiffSideHighlight';
 import { useHeightTransition } from './useHeightTransition';
@@ -88,19 +88,19 @@ export function FileDiff({
     () => withDraftThread(fileThreads, draftAnchor, { owner, repo, number: pull?.number ?? null, path: file.filename }),
     [fileThreads, draftAnchor, owner, repo, pull, file.filename],
   );
-  const collapse = useCodeCollapse(rows, showingWholeFile, file.filename, threads, editBlock);
+  const collapse = useCodeCollapse(rows, showingWholeFile || ONE_SIDED.has(file.status), file.filename, threads, editBlock);
   const commentedRows = useMemo(() => new Set(threads.map((thread) => rowOf(thread, rows))), [threads, rows]);
   const alwaysDrawn = useMemo(() => rowsAlwaysDrawn(commentedRows, editBlock), [commentedRows, editBlock]);
-  const [truncation, untruncate] = useRowTruncation(rows, collapse.hidden, alwaysDrawn, showingWholeFile);
+  const [truncation, untruncate] = useRowTruncation(rows, collapse.tucked, alwaysDrawn, showingWholeFile);
   const undrawn = useMemo(() => undrawnRows(collapse.hidden, truncation), [collapse.hidden, truncation]);
   const blankLines = useSetting('blankLines');
   const rowHeights = useRowHeights(singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right), blankLines);
   const resultView = layout === 'result' && !entireFile && anyLineSurvives(rows);
-  const drawn = { hidden: collapse.hidden, commentedRows, truncation, blankLines };
+  const drawn = { folded: collapse.folded, commentedRows, truncation, blankLines };
   const shownMain = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
   const shownLeft = useShownLines(rows, singleColumn ? null : 'left', drawn);
   const semiblanks = useSetting('semiblankLines');
-  const [mainLines, leftLines] = useSemiblanks(semiblanks, shownMain, shownLeft, collapse.anchors, editBlock);
+  const [mainLines, leftLines] = useSemiblanks(semiblanks, shownMain, shownLeft, editBlock);
   const growing = useHeightTransition(rows, undrawn, rowHeights);
   const expand = expandControl(wholeFile, showingWholeFile, hunkEdit, setWantWholeFile);
   const pointer = useDefinitionPointer(file, baseRef, headRef);
@@ -111,7 +111,7 @@ export function FileDiff({
     tokens,
     emphasis,
     expand,
-    anchors: collapse.anchors,
+    handles: collapse.handles,
     pointer,
     wrap,
     stackMargins: semiblanks,
@@ -154,7 +154,6 @@ export function FileDiff({
         rows={rows}
         lines={mainLines}
         heights={rowHeights}
-        foldAnchors={collapse.anchors}
         onOverflow={setThreadOverflow}
       />
       {hunkEdit.message !== null && hunkEdit.edit !== null && (
@@ -252,10 +251,11 @@ function anyLineSurvives(rows: DiffRow[]): boolean {
   return rows.some((row) => row.right !== null);
 }
 
-type Column = 'left' | 'right' | 'unified' | 'result';
+// Added and removed files arrive whole in their patch; the other side is empty.
+const ONE_SIDED = new Set(['added', 'removed']);
 
 interface DrawnRows {
-  hidden: Set<number>;
+  folded: Map<number, FoldControl>;
   commentedRows: Set<number>;
   truncation: Truncation;
   blankLines: BlankLineSetting;
@@ -268,10 +268,10 @@ function mainColumn(singleColumn: boolean, resultView: boolean): Column {
 
 // A null column is one this layout never draws, so its lines are never laid out.
 function useShownLines(rows: DiffRow[], column: Column | null, drawn: DrawnRows): DiffLine[] {
-  const { hidden, commentedRows, truncation, blankLines } = drawn;
+  const { folded, commentedRows, truncation, blankLines } = drawn;
   return useMemo(
-    () => (column ? shownLines(columnOf(rows, column, commentedRows, blankLines), hidden, truncation) : []),
-    [rows, column, commentedRows, hidden, truncation, blankLines],
+    () => (column ? shownLines(columnOf(rows, column, commentedRows, blankLines), column, folded, truncation) : []),
+    [rows, column, commentedRows, folded, truncation, blankLines],
   );
 }
 
@@ -287,8 +287,8 @@ function columnLinesOf(rows: DiffRow[], column: Column, commentedRows: Set<numbe
 }
 
 // Judged on drawn lines: a line tucks into the neighbor actually drawn beside it.
-function useSemiblanks(on: boolean, main: DiffLine[], left: DiffLine[], anchors: WholeRows['anchors'], edited: EditableBlock | null): [DiffLine[], DiffLine[]] {
-  return useMemo(() => (on ? withSemiblanks(main, left, { anchors, edited }) : [main, left]), [on, main, left, anchors, edited]);
+function useSemiblanks(on: boolean, main: DiffLine[], left: DiffLine[], edited: EditableBlock | null): [DiffLine[], DiffLine[]] {
+  return useMemo(() => (on ? withSemiblanks(main, left, edited) : [main, left]), [on, main, left, edited]);
 }
 
 const NO_RUNS: ReadonlySet<number> = new Set<number>();

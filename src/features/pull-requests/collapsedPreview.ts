@@ -1,12 +1,12 @@
-import type { CollapseRegion } from './collapseRegions';
-import { innerRows, textOf, type Side } from './foldSpan';
+import type { DiffFold } from './diffFolds';
 import type { DiffRow } from './splitDiff';
 
 const MAX_CHARS = 400;
 
-export function collapsedPreview(rows: DiffRow[], region: CollapseRegion, side: Side): string {
+/** The folded body after the handle line, flattened onto one line. */
+export function collapsedPreview(rows: DiffRow[], fold: DiffFold, side: 'left' | 'right'): string {
   let preview = '';
-  for (const index of innerRows(region)) {
+  for (let index = fold.handle + 1; index <= fold.last; index += 1) {
     const piece = previewPiece(rows[index], side);
     if (!piece) continue;
     preview = preview ? `${preview} ${piece}` : piece;
@@ -15,8 +15,8 @@ export function collapsedPreview(rows: DiffRow[], region: CollapseRegion, side: 
   return preview;
 }
 
-function previewPiece(row: DiffRow | undefined, side: Side): string {
+function previewPiece(row: DiffRow | undefined, side: 'left' | 'right'): string {
   if (!row || row.kind === 'hunk') return '';
-  const text = textOf(row, side) ?? textOf(row, side === 'right' ? 'left' : 'right');
+  const text = row[side]?.text ?? row[side === 'right' ? 'left' : 'right']?.text;
   return text?.trim() ?? '';
 }

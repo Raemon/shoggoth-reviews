@@ -27,27 +27,18 @@ export function blankRowHeight(setting: BlankLineSetting): number {
 }
 
 export function lineHeight(line: DiffLine, heights: RowHeights): number {
+  if (line.kind === 'fold') return ROW_HEIGHT;
   if (line.blank) return heights.blank;
   if (line.semiblank) return HALF_ROW_HEIGHT;
   return heights.wrapped?.get(line.row)?.[line.side] ?? ROW_HEIGHT;
 }
 
-export function collapsedRowGap(
-  line: DiffLine,
-  next: DiffLine | undefined,
-  anchors: ReadonlyMap<number, { collapsed: boolean }>,
-): number {
-  if (!next || !anchors.get(line.row)?.collapsed || !anchors.get(next.row)?.collapsed) return 0;
+// Separates two collapsed folds in a row; a fold's own removed/added summary pair stays together.
+export function collapsedRowGap(line: DiffLine, next: DiffLine | undefined): number {
+  if (!line.fold || !next?.fold || line.fold.control === next.fold.control) return 0;
   return COLLAPSED_ROW_GAP;
 }
 
-export function linesHeight(
-  lines: DiffLine[],
-  heights: RowHeights,
-  anchors?: ReadonlyMap<number, { collapsed: boolean }>,
-): number {
-  return lines.reduce(
-    (total, line, index) => total + lineHeight(line, heights) + (anchors ? collapsedRowGap(line, lines[index + 1], anchors) : 0),
-    0,
-  );
+export function linesHeight(lines: DiffLine[], heights: RowHeights): number {
+  return lines.reduce((total, line, index) => total + lineHeight(line, heights) + collapsedRowGap(line, lines[index + 1]), 0);
 }

@@ -1,8 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import { collapseRegions } from '../src/features/pull-requests/collapseRegions.ts';
-import { columnLines, visibleLines } from '../src/features/pull-requests/diffLines.ts';
-import { allLinesDeleted } from '../src/features/pull-requests/foldSpan.ts';
-import { overrideWasmSource, treeCollapseRegions } from '../src/features/pull-requests/treeSitterFolds.ts';
+import { computeDiffFolds, diffFolds, sideFile } from '../src/features/pull-requests/diffFolds.ts';
+import { columnLines, shownLines, unifiedLines } from '../src/features/pull-requests/diffLines.ts';
+import { foldMethodFor } from '../src/features/pull-requests/foldMethods.ts';
+import { heuristicFolds } from '../src/features/pull-requests/heuristicFolds.ts';
+import { overrideWasmSource } from '../src/features/pull-requests/treeSitter.ts';
+import { treeSitterFoldMethod } from '../src/features/pull-requests/treeSitterFolds.ts';
+import { NO_TRUNCATION } from '../src/features/pull-requests/truncateRows.ts';
 
 const WASM = 'node_modules/@vscode/tree-sitter-wasm/wasm';
 overrideWasmSource({
@@ -20,25 +23,16 @@ function check(name, actual, expected) {
   console.error(`FAIL ${name}\n  got  ${got}\n  want ${want}`);
 }
 
-function rowsOf(lines) {
-  return lines.map((text, i) => ({ kind: 'context', label: '', left: { line: i + 1, text }, right: { line: i + 1, text } }));
+function foldsOf(lines, filename) {
+  return heuristicFolds({ filename, lines });
 }
 
-function spansOf(lines, filename, contiguous = true) {
-  return collapseRegions(rowsOf(lines), contiguous, filename).map((r) => [r.start, r.end, r.imports ? 'imp' : 'br']);
+function spansOf(lines, filename) {
+  return foldsOf(lines, filename).map((f) => [f.first, f.last, f.tags.includes('imports') ? 'imp' : 'br']);
 }
 
 function boundsOf(lines, filename) {
-  return collapseRegions(rowsOf(lines), true, filename).map((r) => [r.start, r.end]);
-}
-function mixedRows() {
-  return [
-    { kind: 'context', label: '', left: { line: 1, text: 'function foo() {' }, right: { line: 1, text: 'function foo() {' } },
-    { kind: 'change', label: '', left: { line: 2, text: '  old(' }, right: { line: 2, text: '  newCall()' } },
-    { kind: 'change', label: '', left: { line: 3, text: '  )' }, right: null },
-    { kind: 'context', label: '', left: { line: 4, text: '  more();' }, right: { line: 3, text: '  more();' } },
-    { kind: 'context', label: '', left: { line: 5, text: '}' }, right: { line: 4, text: '}' } },
-  ];
+  return foldsOf(lines, filename).map((f) => [f.first, f.last]);
 }
 
 // --- detection across languages -------------------------------------------------
@@ -49,7 +43,7 @@ check("ts function", spansOf([
   '}',
   '',
   'const y = 2;',
-], 'x.ts', true), [[0,3,"br"]]);
+], 'x.ts'), [[0,3,"br"]]);
 check("imports block", spansOf([
   "import a from 'a';",
   "import b from 'b';",
@@ -59,19 +53,19 @@ check("imports block", spansOf([
   "} from 'cd';",
   '',
   'const x = 1;',
-], 'x.ts', true), [[0,5,"imp"],[3,5,"br"]]);
+], 'x.ts'), [[0,5,"imp"],[3,5,"br"]]);
 check("string with brace", spansOf([
   "const s = 'has { brace';",
   'function f() {',
   "  const t = \"also } brace\";",
   '  return t;',
   '}',
-], 'x.ts', true), [[1,4,"br"]]);
+], 'x.ts'), [[1,4,"br"]]);
 check("line comment", spansOf([
   'function f() { // opens {{{',
   '  return 1; # not comment? no ws before # is there',
   '}',
-], 'x.ts', true), [[0,2,"br"]]);
+], 'x.ts'), [[0,2,"br"]]);
 check("template literal beside a function", spansOf([
   'const q = `',
   '  select { thing }',
@@ -80,7 +74,7 @@ check("template literal beside a function", spansOf([
   '  return 1;',
   '  // extra',
   '}',
-], 'x.ts', true), [[0,2,"br"],[3,6,"br"]]);
+], 'x.ts'), [[0,2,"br"],[3,6,"br"]]);
 check("block comment", spansOf([
   '/*',
   ' * function fake() {',
@@ -89,7 +83,7 @@ check("block comment", spansOf([
   '  return { a: 1 };',
   '  return 2;',
   '}',
-], 'x.ts', true), [[0,2,"br"],[3,6,"br"]]);
+], 'x.ts'), [[0,2,"br"],[0,6,"br"]]);
 check("mismatch bails", spansOf([
   'function f() {',
   '  weird ) close',
@@ -99,7 +93,7 @@ check("mismatch bails", spansOf([
   '  ok();',
   '  more();',
   '}',
-], 'x.ts', true), [[4,7,"br"]]);
+], 'x.ts'), [[4,7,"br"]]);
 check("nested", spansOf([
   'class C {',
   '  method() {',
@@ -108,7 +102,7 @@ check("nested", spansOf([
   '    }',
   '  }',
   '}',
-], 'x.ts', true), [[0,6,"br"],[1,5,"br"],[2,4,"br"]]);
+], 'x.ts'), [[0,6,"br"],[1,5,"br"],[2,4,"br"]]);
 check("python-ish?", spansOf([
   'import os',
   'import sys',
@@ -119,30 +113,30 @@ check("python-ish?", spansOf([
   '        "a": 1,',
   '        "b": 2,',
   '    }',
-], 'x.ts', true), [[0,1,"imp"],[5,8,"br"]]);
+], 'x.ts'), [[0,1,"imp"],[5,8,"br"]]);
 check("jsx return paren", spansOf([
   'return (',
   '  <div>',
   '    <span>hi</span>',
   '  </div>',
   ');',
-], 'x.ts', true), [[0,4,"br"]]);
+], 'x.ts'), [[0,4,"br"]]);
 check("prose md", spansOf([
   'use the helper when you can.',
   'using a cache makes this fast.',
   'use consistent naming.',
-], 'notes.md', true), []);
+], 'notes.md'), []);
 check("py imports", spansOf([
   'import os',
   'import sys',
   'from x import y',
-], 'a.py', true), [[0,2,"imp"]]);
+], 'a.py'), [[0,2,"imp"]]);
 check("jsx element", spansOf([
   '<div className="a">',
   '  <span>hi</span>',
   '  text',
   '</div>',
-], 'x.tsx', true), [[0,3,"br"]]);
+], 'x.tsx'), [[0,3,"br"]]);
 check("jsx multiline open tag", spansOf([
   '<PlacedCard',
   '  top={top}',
@@ -150,37 +144,37 @@ check("jsx multiline open tag", spansOf([
   '>',
   '  {children}',
   '</PlacedCard>',
-], 'x.tsx', true), [[0,5,"br"]]);
+], 'x.tsx'), [[0,5,"br"]]);
 check("jsx multiline self-closing", spansOf([
   '<SectionHeader',
   '  icon="x"',
   '  onActivate={go}',
   '/>',
-], 'x.tsx', true), [[0,3,"br"]]);
+], 'x.tsx'), [[0,3,"br"]]);
 check("jsx fragment", spansOf([
   '<>',
   '  <div>a</div>',
   '  <div>b</div>',
   '</>',
-], 'x.tsx', true), [[0,3,"br"]]);
+], 'x.tsx'), [[0,3,"br"]]);
 check("generics are not tags", spansOf([
   'const x: Array<Foo> = [',
   '  make<Bar>(1),',
   '];',
   'const y: Map<string, number> = new Map();',
-], 'x.tsx', true), [[0,2,"br"]]);
+], 'x.tsx'), [[0,2,"br"]]);
 check("comparisons are not tags", spansOf([
   'if (a < b) {',
   '  go();',
   '  while (i<n) { step(); }',
   '}',
-], 'x.tsx', true), [[0,3,"br"]]);
+], 'x.tsx'), [[0,3,"br"]]);
 check("html unclosed li", spansOf([
   '<ul>',
   '  <li>one',
   '  <li>two',
   '</ul>',
-], 'x.html', true), [[0,3,"br"]]);
+], 'x.html'), [[0,3,"br"]]);
 check("nested components", spansOf([
   'return (',
   '  <Outer>',
@@ -189,7 +183,7 @@ check("nested components", spansOf([
   '    </Inner>',
   '  </Outer>',
   ');',
-], 'x.tsx', true), [[0,6,"br"],[1,5,"br"],[2,4,"br"]]);
+], 'x.tsx'), [[0,6,"br"],[1,5,"br"],[2,4,"br"]]);
 check("python def bodies", spansOf([
   'def f():',
   '    a = 1',
@@ -198,7 +192,7 @@ check("python def bodies", spansOf([
   'class C:',
   '    def m(self):',
   '        return 2',
-], 'a.py', true), [[0,2,"br"],[4,6,"br"]]);
+], 'a.py'), [[0,2,"br"],[4,6,"br"]]);
 check("yaml nesting", spansOf([
   'server:',
   '  host: localhost',
@@ -207,7 +201,7 @@ check("yaml nesting", spansOf([
   '    - 443',
   'client:',
   '  retry: true',
-], 'a.yaml', true), [[0,4,"br"],[2,4,"br"]]);
+], 'a.yaml'), [[0,4,"br"],[2,4,"br"]]);
 check("ruby blocks", spansOf([
   'def greet(name)',
   '  if name',
@@ -221,7 +215,7 @@ check("ruby blocks", spansOf([
   '  puts item',
   '  puts item',
   'end',
-], 'a.rb', true), [[0,5,"br"],[1,4,"br"],[8,11,"br"]]);
+], 'a.rb'), [[0,5,"br"],[1,4,"br"],[8,11,"br"]]);
 check("bash blocks", spansOf([
   'if [ -f x ]; then',
   '  echo yes',
@@ -232,14 +226,14 @@ check("bash blocks", spansOf([
   '  b) echo b ;;',
   'esac',
   'for i in 1 2; do echo $i; done',
-], 'a.sh', true), [[0,3,"br"],[4,7,"br"]]);
+], 'a.sh'), [[0,3,"br"],[4,7,"br"]]);
 check("elixir do end", spansOf([
   'defmodule Foo do',
   '  def bar do',
   '    :ok',
   '  end',
   'end',
-], 'a.ex', true), [[0,4,"br"],[1,3,"br"]]);
+], 'a.ex'), [[0,4,"br"],[1,3,"br"]]);
 check("lua blocks", spansOf([
   'function f(x)',
   '  if x then',
@@ -247,46 +241,46 @@ check("lua blocks", spansOf([
   '    stop()',
   '  end',
   'end',
-], 'a.lua', true), [[0,5,"br"],[1,4,"br"]]);
+], 'a.lua'), [[0,5,"br"],[1,4,"br"]]);
 check("sql begin end", spansOf([
   'CREATE PROCEDURE p AS',
   'BEGIN',
   '  SELECT 1;',
   '  SELECT 2;',
   'END;',
-], 'a.sql', true), [[1,4,"br"]]);
+], 'a.sql'), [[1,4,"br"]]);
 check("region markers", spansOf([
   '// #region helpers',
   'const a = 1;',
   'const b = 2;',
   '// #endregion',
   'const region = "not a marker";',
-], 'a.ts', true), [[0,3,"br"]]);
+], 'a.ts'), [[0,3,"br"]]);
 check("c preprocessor", spansOf([
   '#ifdef DEBUG',
   'int log_level = 3;',
   'int verbose = 1;',
   '#endif',
-], 'a.c', true), [[0,3,"br"]]);
+], 'a.c'), [[0,3,"br"]]);
 check("jsdoc comment", spansOf([
   '/**',
   ' * Does the thing.',
   ' * @param x the thing',
   ' */',
   'function f(x) {}',
-], 'a.ts', true), [[0,3,"br"]]);
+], 'a.ts'), [[0,3,"br"]]);
 check("template literal", spansOf([
   'const q = `',
   '  SELECT *',
   '  FROM t',
   '`;',
-], 'a.ts', true), [[0,3,"br"]]);
+], 'a.ts'), [[0,3,"br"]]);
 check("interpolation contents fold", spansOf([
   'const s = `head ${items.map((item) => {',
   '  return item.name;',
   '  // etc',
   '}).join(", ")} tail`;',
-], 'a.ts', true), [[0,3,"br"]]);
+], 'a.ts'), [[0,3,"br"]]);
 check("python docstring", spansOf([
   'def f():',
   '    """Long docs.',
@@ -294,14 +288,14 @@ check("python docstring", spansOf([
   '    Even more.',
   '    """',
   '    return 1',
-], 'a.py', true), [[0,5,"br"],[1,4,"br"]]);
+], 'a.py'), [[0,5,"br"],[1,4,"br"]]);
 check("bash heredoc", spansOf([
   'cat <<EOF',
   'line one',
   'line two',
   'EOF',
   'echo done',
-], 'a.sh', true), [[0,3,"br"]]);
+], 'a.sh'), [[0,3,"br"]]);
 check("markdown sections", spansOf([
   '# Title',
   'intro',
@@ -313,7 +307,7 @@ check("markdown sections", spansOf([
   '```',
   '## Section B',
   'b body',
-], 'notes.md', true), [[0,9,"br"],[2,7,"br"]]);
+], 'notes.md'), [[0,9,"br"],[2,7,"br"]]);
 check("element in attribute keeps outer fold", spansOf([
   '<Button',
   '  icon={<Star />}',
@@ -321,70 +315,7 @@ check("element in attribute keeps outer fold", spansOf([
   '>',
   '  {children}',
   '</Button>',
-], 'x.tsx', true), [[0,5,"br"]]);
-
-function changedOpenerRows() {
-  const rows = rowsOf(['<div>', '  <span className="a">', '    {hash}', '  </span>', '</div>']);
-  rows[1] = { ...rows[1], kind: 'change', left: { line: 2, text: '  <span className="a b">' } };
-  return rows;
-}
-
-check(
-  'a region whose opening line changed is marked anchorChanged',
-  collapseRegions(changedOpenerRows(), true, 'x.tsx').map((r) => [r.start, r.end, r.addedLines, r.anchorChanged]),
-  [[0, 4, 1, false], [1, 3, 0, true]],
-);
-
-check(
-  'deletion-only rows keep the enclosing fold',
-  collapseRegions(mixedRows(), true, 'a.ts').map((r) => [r.start, r.end, r.addedLines, r.deletedLines]),
-  [[0, 4, 1, 2]],
-);
-
-function deletedRows(lines, hunk = true) {
-  const header = hunk ? [{ kind: 'hunk', label: '@@ -1 +0,0 @@', left: null, right: null }] : [];
-  const body = lines.map((text, index) => ({ kind: 'change', label: '', left: { line: index + 1, text }, right: null }));
-  return [...header, ...body];
-}
-
-const deletedTwoFunctions = [
-  'function foo() {',
-  '  return 1;',
-  '}',
-  '',
-  'function bar() {',
-  '  return 2;',
-  '}',
-];
-const deletedTwoFunctionRows = deletedRows(deletedTwoFunctions);
-const deletedTwoFunctionRegions = collapseRegions(deletedTwoFunctionRows, false, 'a.ts');
-check('a fully deleted file is allLinesDeleted', allLinesDeleted(deletedTwoFunctionRows), true);
-check('a mixed file is not allLinesDeleted', allLinesDeleted(mixedRows()), false);
-check(
-  'a fully deleted file wraps all code in one fold',
-  deletedTwoFunctionRegions.map((r) => [r.start, r.end, r.kind]),
-  [[1, 7, 'file'], [5, 7, 'block']],
-);
-check(
-  'a fully deleted unstructured file still folds',
-  collapseRegions(deletedRows(['const a = 1;', 'const b = 2;', 'const c = 3;']), false, 'a.ts').map((r) => [r.start, r.end, r.kind]),
-  [[1, 3, 'file']],
-);
-check(
-  'a two-line deleted file is too short to wrap',
-  collapseRegions(deletedRows(['const a = 1;', 'const b = 2;']), false, 'a.ts').map((r) => r.kind),
-  [],
-);
-
-const deletedHidden = new Set();
-for (const region of deletedTwoFunctionRegions) {
-  for (let row = region.start + 1; row <= region.end; row += 1) deletedHidden.add(row);
-}
-check(
-  'collapsing a deleted file leaves only the first code line',
-  visibleLines(columnLines(deletedTwoFunctionRows, 'left'), deletedHidden).map((line) => line.kind),
-  ['hunk', 'change'],
-);
+], 'x.tsx'), [[0,5,"br"]]);
 
 // --- regressions for confirmed wrong-fold bugs ----------------------------------
 function check2(name, lines, filename, expected) { check(name, boundsOf(lines, filename), expected); }
@@ -423,7 +354,7 @@ check2('ruby comment do is not an opener', [
   '    step2',
   '  end',
   'end',
-], 'a.rb', [[0, 6], [2, 5]]);
+], 'a.rb', [[0, 6], [1, 5]]);
 
 check2('ruby if: kwarg is not an opener', [
   'class User',
@@ -446,7 +377,7 @@ check2('ruby end.each do chains', [
   '    puts y',
   '  end',
   'end',
-], 'a.rb', [[0, 8], [1, 4], [4, 7]]);
+], 'a.rb', [[0, 8], [1, 3], [4, 7]]);
 
 check2('lua anonymous function', [
   'if c then',
@@ -531,31 +462,60 @@ check2('division is not a regex', [
 ], 'a.ts', [[0, 4]]);
 
 
-// --- fold controls survive collapsing ------------------------------------------
+// --- header comments and touching folds ------------------------------------------
 
-const acrossHunk = [
-  { kind: 'context', label: '', left: { line: 1, text: 'export function foo() {' }, right: { line: 1, text: 'export function foo() {' } },
-  { kind: 'context', label: '', left: { line: 2, text: '  a();' }, right: { line: 2, text: '  a();' } },
-  { kind: 'hunk', label: '@@ -3,2 +3,2 @@', left: null, right: null },
-  { kind: 'change', label: '', left: { line: 3, text: '  old();' }, right: { line: 3, text: '  new();' } },
-  { kind: 'context', label: '', left: { line: 4, text: '  b();' }, right: { line: 4, text: '  b();' } },
-  { kind: 'context', label: '', left: { line: 5, text: '}' }, right: { line: 5, text: '}' } },
+const documented = [
+  'function a() {',
+  '  x();',
+  '  y();',
+  '}',
+  '// About b.',
+  '// More about b.',
+  'function b() {',
+  '  z();',
+  '  w();',
+  '}',
 ];
-const acrossHunkHidden = new Set();
-for (const region of collapseRegions(acrossHunk, true, 'a.ts')) {
-  for (let row = region.start + 1; row <= region.end; row += 1) acrossHunkHidden.add(row);
-}
 check(
-  'a collapsed region never hides its hunk header',
-  visibleLines(columnLines(acrossHunk, 'right'), acrossHunkHidden).map((line) => line.kind),
-  ['context', 'hunk'],
+  'comments directly above a fold join it, and the handle stays on the declaration',
+  foldsOf(documented, 'a.ts').map((f) => [f.first, f.handle, f.last]),
+  [[0, 0, 3], [4, 6, 9]],
+);
+check(
+  'the summary skips the header comment',
+  foldsOf(documented, 'a.ts')[1].summary,
+  [{ kind: 'source', line: 6, start: 0, end: 14 }],
+);
+check(
+  'a blank line keeps a comment out of the fold below',
+  foldsOf(['// Loose note.', '', 'function b() {', '  z();', '  w();', '}'], 'a.ts').map((f) => [f.first, f.handle]),
+  [[2, 2]],
+);
+check(
+  'a comment fold keeps its own handle, inside the declaration it documents',
+  foldsOf(['/**', ' * Docs.', ' */', 'function f() {', '  a();', '  b();', '}'], 'a.ts').map((f) => [f.first, f.handle, f.last, f.tags]),
+  [[0, 0, 2, ['comment']], [0, 3, 6, []]],
+);
+check2('} else { stays visible as the else fold\'s handle', [
+  'if (a) {',
+  '  one();',
+  '  two();',
+  '} else {',
+  '  three();',
+  '  four();',
+  '}',
+], 'a.ts', [[0, 2], [3, 6]]);
+check(
+  'type-like folds are tagged',
+  foldsOf(['export interface Props {', '  a: string;', '  b: number;', '}'], 'a.ts').map((f) => f.tags),
+  [['type']],
 );
 
 // --- tree-sitter parse trees ----------------------------------------------------
 
-async function checkTree(name, lines, filename, expected, { contiguous = true, rows = null } = {}) {
-  const regions = await treeCollapseRegions(rows ?? rowsOf(lines), contiguous, filename);
-  check(name, regions?.map((r) => [r.start, r.end, r.kind, r.depth]) ?? null, expected);
+async function checkTree(name, lines, filename, expected) {
+  const folds = await treeSitterFoldMethod.folds({ filename, lines });
+  check(name, folds.map((f) => [f.first, f.last, f.kind]), expected);
 }
 
 await checkTree('tsx function and jsx', [
@@ -568,9 +528,9 @@ await checkTree('tsx function and jsx', [
   '  );',
   '}',
 ], 'a.tsx', [
-  [0, 7, 'function_declaration', 0],
-  [1, 6, 'return_statement', 1],
-  [2, 5, 'jsx_element', 2],
+  [0, 7, 'function_declaration'],
+  [1, 6, 'return_statement'],
+  [2, 5, 'jsx_element'],
 ]);
 
 await checkTree('ts imports grouped and function', [
@@ -585,9 +545,9 @@ await checkTree('ts imports grouped and function', [
   '  more();',
   '}',
 ], 'a.ts', [
-  [0, 4, 'imports', 0],
-  [2, 4, 'import_statement', 1],
-  [6, 9, 'export_statement', 0],
+  [0, 4, 'imports'],
+  [2, 4, 'import_statement'],
+  [6, 9, 'export_statement'],
 ]);
 
 await checkTree('python defs and docstring', [
@@ -602,10 +562,10 @@ await checkTree('python defs and docstring', [
   '        a = 1',
   '        return a',
 ], 'a.py', [
-  [0, 4, 'function_definition', 0],
-  [1, 4, 'block', 1],
-  [6, 9, 'class_definition', 0],
-  [7, 9, 'function_definition', 1],
+  [0, 4, 'function_definition'],
+  [1, 4, 'block'],
+  [6, 9, 'class_definition'],
+  [7, 9, 'function_definition'],
 ]);
 
 await checkTree('ruby method and block', [
@@ -616,8 +576,8 @@ await checkTree('ruby method and block', [
   '  end',
   'end',
 ], 'a.rb', [
-  [0, 5, 'method', 0],
-  [1, 4, 'call', 1],
+  [0, 5, 'method'],
+  [1, 4, 'call'],
 ]);
 
 await checkTree('go func', [
@@ -625,7 +585,7 @@ await checkTree('go func', [
   '\tsetup()',
   '\trun()',
   '}',
-], 'a.go', [[0, 3, 'function_declaration', 0]]);
+], 'a.go', [[0, 3, 'function_declaration']]);
 
 await checkTree('region markers merge with tree spans', [
   '// #region helpers',
@@ -635,49 +595,24 @@ await checkTree('region markers merge with tree spans', [
   '}',
   '// #endregion',
 ], 'a.ts', [
-  [0, 5, 'region', 0],
-  [1, 4, 'function_declaration', 1],
+  [0, 5, 'region'],
+  [1, 4, 'function_declaration'],
 ]);
 
-await checkTree('marker-only file falls back to heuristic', [
+await checkTree('a file with only markers folds its markers', [
   '// #region helpers',
   'const a = 1;',
   'const b = 2;',
   '// #endregion',
-], 'a.ts', null);
+], 'a.ts', [[0, 3, 'region']]);
 
-await checkTree('unsupported language returns null', ['x'], 'a.zig', null);
-
-const patchRows = [
-  { kind: 'hunk', label: '@@', left: null, right: null },
-  { kind: 'context', label: '', left: { line: 1, text: 'function a() {' }, right: { line: 1, text: 'function a() {' } },
-  { kind: 'context', label: '', left: { line: 2, text: '  one();' }, right: { line: 2, text: '  one();' } },
-  { kind: 'context', label: '', left: { line: 3, text: '  two();' }, right: { line: 3, text: '  two();' } },
-  { kind: 'hunk', label: '@@', left: null, right: null },
-  { kind: 'context', label: '', left: { line: 40, text: '  tail();' }, right: { line: 40, text: '  tail();' } },
-  { kind: 'context', label: '', left: { line: 41, text: '}' }, right: { line: 41, text: '}' } },
-];
-await checkTree('patch mode stays conservative on broken fragments', [], 'a.ts', null, { contiguous: false, rows: patchRows });
-
-const brokenRows = rowsOf([
+await checkTree('error tolerance keeps valid folds', [
   '  weird ) fragment',
   'function ok() {',
   '  fine();',
   '  good();',
   '}',
-]);
-await checkTree('error tolerance keeps valid folds', [], 'a.ts', [[1, 4, 'function_declaration', 0]], { rows: brokenRows });
-
-await checkTree(
-  'fully deleted file wraps all code',
-  [],
-  'a.ts',
-  [
-    [1, 7, 'file', 0],
-    [5, 7, 'function_declaration', 1],
-  ],
-  { contiguous: false, rows: deletedRows(deletedTwoFunctions) },
-);
+], 'a.ts', [[1, 4, 'function_declaration']]);
 
 await checkTree('jsx fragment folds', [
   'const x = (',
@@ -687,10 +622,175 @@ await checkTree('jsx fragment folds', [
   '  </>',
   ');',
 ], 'a.tsx', [
-  [0, 5, 'lexical_declaration', 0],
-  [1, 4, 'jsx_element', 1],
+  [0, 5, 'lexical_declaration'],
+  [1, 4, 'jsx_element'],
 ]);
 
+await checkTree('python comments join the def below', [
+  '# Says hello.',
+  'def hello():',
+  '    print("hi")',
+  '    print("!")',
+], 'a.py', [[0, 3, 'function_definition']]);
+
+check('tree-sitter languages fold with tree-sitter', foldMethodFor('a.tsx').id, 'tree-sitter');
+check('other languages fold with the heuristic', foldMethodFor('a.zig').id, 'heuristic');
+
+// --- linking folds across the diff -------------------------------------------------
+
+// Each pair is [left text, right text]; null leaves that side's cell out of the row.
+function pairedRows(pairs) {
+  let left = 0;
+  let right = 0;
+  return pairs.map(([before, after]) => {
+    const kind = before === after ? 'context' : 'change';
+    return {
+      kind,
+      label: '',
+      left: before === null ? null : { line: ++left, text: before },
+      right: after === null ? null : { line: ++right, text: after },
+    };
+  });
+}
+
+async function linkedFolds(pairs, filename = 'a.ts') {
+  return computeDiffFolds(pairedRows(pairs), filename);
+}
+
+function same(text) {
+  return [text, text];
+}
+
+const bodyChanged = await linkedFolds([
+  same('function foo() {'),
+  same('  a();'),
+  ['  old();', '  new();'],
+  same('  b();'),
+  same('}'),
+]);
+check(
+  'a fold whose body changed links across the diff',
+  bodyChanged.map((f) => [f.first, f.last, Boolean(f.left), Boolean(f.right), f.summaryChanged, f.deletedLines, f.addedLines]),
+  [[0, 4, true, true, false, 1, 1]],
+);
+
+const docChanged = await linkedFolds([
+  ['// Old docs.', '// New docs.'],
+  same('function foo() {'),
+  same('  a();'),
+  same('  b();'),
+  same('}'),
+]);
+check(
+  'a changed header comment still links, and the summaries match',
+  docChanged.map((f) => [f.first, f.handle, f.last, Boolean(f.left), f.summaryChanged]),
+  [[0, 1, 4, true, false]],
+);
+
+const signatureChanged = await linkedFolds([
+  ['function foo(a) {', 'function foo(a, b) {'],
+  same('  a();'),
+  same('  b();'),
+  same('}'),
+]);
+check(
+  'a changed signature diffs the two summary lines',
+  signatureChanged.map((f) => [f.summaryChanged, f.summaries.left.text, f.summaries.right.text, f.summaries.right.emphasis]),
+  [[true, 'function foo(a) {', 'function foo(a, b) {', [{ start: 14, end: 17 }]]],
+);
+
+const added = await linkedFolds([
+  same('const x = 1;'),
+  [null, 'function bar() {'],
+  [null, '  one();'],
+  [null, '  two();'],
+  [null, '}'],
+]);
+check(
+  'an added function folds on the right only',
+  added.map((f) => [f.first, f.last, f.side, Boolean(f.left), f.summaries.left, f.summaryChanged]),
+  [[1, 4, 'right', false, null, true]],
+);
+
+const deletedFile = await linkedFolds([
+  ['function foo() {', null],
+  ['  return 1;', null],
+  ['}', null],
+  ['', null],
+  ['function bar() {', null],
+  ['  return 2;', null],
+  ['}', null],
+]);
+check(
+  'a deleted file wraps all of its code in one fold',
+  deletedFile.map((f) => [f.first, f.last, f.kind, f.side]),
+  [[0, 6, 'file', 'left'], [4, 6, 'function_declaration', 'left']],
+);
+
+check(
+  'a side with missing lines folds nothing',
+  sideFile([{ kind: 'context', label: '', left: { line: 3, text: 'x' }, right: { line: 3, text: 'x' } }], 'left'),
+  null,
+);
+
+function sideFoldAt(first, last) {
+  return { first, last, handle: first, kind: 'block', tags: [], summary: [{ kind: 'source', line: first, start: 0, end: 1 }] };
+}
+
+const contextRows = pairedRows(['a', 'b', 'c', 'd', 'e', 'f'].map(same));
+const contextFiles = { left: sideFile(contextRows, 'left'), right: sideFile(contextRows, 'right') };
+check(
+  'a left-only fold that cuts across a right fold gives way',
+  diffFolds(contextRows, contextFiles, [sideFoldAt(0, 3)], [sideFoldAt(2, 5)]).map((f) => [f.first, f.last, f.side]),
+  [[2, 5, 'right']],
+);
+check(
+  'a left-only fold nested in a right fold stays',
+  diffFolds(contextRows, contextFiles, [sideFoldAt(1, 3)], [sideFoldAt(0, 5)]).map((f) => [f.first, f.last, f.side]),
+  [[0, 5, 'right'], [1, 3, 'left']],
+);
+
+// --- summary lines in each column ----------------------------------------------------
+
+function collapsedAll(rows, folds) {
+  const folded = new Map();
+  for (const fold of folds) {
+    const control = { fold, collapsed: true, hiddenThreads: 0, toggle() {} };
+    for (let row = fold.first; row <= fold.last; row += 1) if (!folded.has(row)) folded.set(row, control);
+  }
+  return folded;
+}
+
+function drawn(lines) {
+  return lines.map((line) => (line.fold ? `fold:${line.side}:${line.fold.summary?.text ?? '-'}` : `${line.kind}:${line.side}`));
+}
+
+const bodyRows = pairedRows([same('function foo() {'), same('  a();'), ['  old();', '  new();'], same('}'), same('after();')]);
+const bodyFolded = collapsedAll(bodyRows, await computeDiffFolds(bodyRows, 'a.ts'));
+check(
+  'unified: matching summaries draw one line',
+  drawn(shownLines(unifiedLines(bodyRows), 'unified', bodyFolded, NO_TRUNCATION)),
+  ['fold:right:function foo() {', 'context:right'],
+);
+check(
+  'split: each column draws its own summary',
+  [drawn(shownLines(columnLines(bodyRows, 'left'), 'left', bodyFolded, NO_TRUNCATION)), drawn(shownLines(columnLines(bodyRows, 'right'), 'right', bodyFolded, NO_TRUNCATION))],
+  [['fold:left:function foo() {', 'context:left'], ['fold:right:function foo() {', 'context:right']],
+);
+
+const signatureRows = pairedRows([['function foo(a) {', 'function foo(a, b) {'], same('  a();'), same('  b();'), same('}')]);
+const signatureFolded = collapsedAll(signatureRows, await computeDiffFolds(signatureRows, 'a.ts'));
+check(
+  'unified: differing summaries draw a removed/added pair',
+  drawn(shownLines(unifiedLines(signatureRows), 'unified', signatureFolded, NO_TRUNCATION)),
+  ['fold:left:function foo(a) {', 'fold:right:function foo(a, b) {'],
+);
+
+const addedRows = pairedRows([same('const x = 1;'), [null, 'function bar() {'], [null, '  one();'], [null, '  two();'], [null, '}']]);
+const addedFolded = collapsedAll(addedRows, await computeDiffFolds(addedRows, 'a.ts'));
+const addedLeft = shownLines(columnLines(addedRows, 'left'), 'left', addedFolded, NO_TRUNCATION);
+check('split: a right-only fold pads the left column', drawn(addedLeft), ['context:left', 'fold:left:-']);
+check('split: only the owning side carries the chevron', addedLeft[1].fold.primary, false);
 
 if (failures > 0) {
   console.error(`\n${failures} fold check(s) failed`);

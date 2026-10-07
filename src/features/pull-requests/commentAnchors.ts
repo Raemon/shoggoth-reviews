@@ -20,10 +20,9 @@ export function anchorThreads(
   rows: DiffRow[],
   lines: DiffLine[],
   heights: RowHeights,
-  foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>,
 ): AnchoredThread[] {
   return threads
-    .map((thread) => anchoredThread(thread, rows, lines, heights, foldAnchors))
+    .map((thread) => anchoredThread(thread, rows, lines, heights))
     .filter((anchored): anchored is AnchoredThread => anchored !== null)
     .sort((a, b) => a.anchorTop - b.anchorTop);
 }
@@ -61,12 +60,11 @@ function anchoredThread(
   rows: DiffRow[],
   lines: DiffLine[],
   heights: RowHeights,
-  foldAnchors?: ReadonlyMap<number, { collapsed: boolean }>,
 ): AnchoredThread | null {
   const row = rowOf(thread, rows);
   if (row < 0) return null;
   const index = displayIndexOf(row, thread.side, lines);
-  return index < 0 ? null : { thread, row, anchorTop: linesHeight(lines.slice(0, index), heights, foldAnchors) };
+  return index < 0 ? null : { thread, row, anchorTop: linesHeight(lines.slice(0, index), heights) };
 }
 
 export function rowOf(thread: ReviewThread, rows: DiffRow[]): number {
@@ -74,7 +72,8 @@ export function rowOf(thread: ReviewThread, rows: DiffRow[]): number {
   return rows.findIndex((row) => row[thread.side]?.line === thread.line);
 }
 
+// A fold's summary sits at its first row, but threads inside it stay hidden and count on its badge.
 function displayIndexOf(row: number, side: 'left' | 'right', lines: DiffLine[]): number {
-  const onSide = lines.findIndex((line) => line.row === row && line.side === side);
-  return onSide >= 0 ? onSide : lines.findIndex((line) => line.row === row);
+  const onSide = lines.findIndex((line) => line.row === row && line.side === side && !line.fold);
+  return onSide >= 0 ? onSide : lines.findIndex((line) => line.row === row && !line.fold);
 }

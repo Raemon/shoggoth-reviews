@@ -6,7 +6,7 @@ import { memoPromise } from './promiseMemo';
 import { fileTextPath, repoFilesAtRefPath } from './pullPaths';
 import type { FileText } from './pullRequests';
 import type { RepoFileSet } from './repoFiles';
-import { parseSource } from './treeSitterFolds';
+import { parseSource } from './treeSitter';
 import { apiJson } from '@/features/sources/apiClient';
 import { useGithubToken } from '@/features/sources/sourceStore';
 

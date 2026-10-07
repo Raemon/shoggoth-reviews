@@ -9,14 +9,6 @@ export interface CodeSegment {
   margin?: boolean;
 }
 
-export type SegmentRole = 'prefix' | 'name' | 'tail';
-
-export interface DimmedSegment extends CodeSegment {
-  opacity?: number;
-  role?: SegmentRole;
-  elided?: boolean;
-}
-
 export function codeSegments(
   text: string,
   lineTokens: ThemedToken[] | null,
@@ -49,7 +41,7 @@ interface ShikiVarStyle extends CSSProperties {
   '--shiki-dark'?: string;
 }
 
-export const DIM_INK_STYLE: ShikiVarStyle = { '--shiki-light': 'var(--ink-dim)', '--shiki-dark': 'var(--ink-dim)' };
+const DIM_INK_STYLE: ShikiVarStyle = { '--shiki-light': 'var(--ink-dim)', '--shiki-dark': 'var(--ink-dim)' };
 
 function coloredPieces(text: string, lineTokens: ThemedToken[] | null): { content: string; style?: CSSProperties }[] {
   return lineTokens?.length

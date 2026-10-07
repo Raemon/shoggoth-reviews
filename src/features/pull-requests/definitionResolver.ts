@@ -1,5 +1,5 @@
 import type { Node, Tree } from '@vscode/tree-sitter-wasm';
-import { lastLineOf } from './treeSitterFolds';
+import { lastLineOf } from './treeSitter';
 
 export interface DefinitionQuery {
   path: string;

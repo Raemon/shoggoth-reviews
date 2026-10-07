@@ -17,11 +17,6 @@ export const SEMIBLANK_CODE: Record<SemiblankKind, string> = {
   comment: 'origin-top scale-y-50',
 };
 
-export interface WholeRows {
-  anchors: ReadonlyMap<number, { collapsed: boolean }>;
-  edited: EditableBlock | null;
-}
-
 // undefined: no cell, so the row's other cell decides.
 type CellKind = SemiblankKind | null | undefined;
 
@@ -43,33 +38,33 @@ function fitsIndentOf(text: string, host: string | null): boolean {
 }
 
 /** Split columns list rows in the same order; both cells of a row must agree. */
-export function withSemiblanks(main: DiffLine[], left: DiffLine[], whole: WholeRows): [DiffLine[], DiffLine[]] {
-  const mainKinds = columnKinds(main, whole);
+export function withSemiblanks(main: DiffLine[], left: DiffLine[], edited: EditableBlock | null): [DiffLine[], DiffLine[]] {
+  const mainKinds = columnKinds(main, edited);
   if (left.length === 0) return [marked(main, mainKinds), left];
-  const leftKinds = columnKinds(left, whole);
+  const leftKinds = columnKinds(left, edited);
   const agreed = mainKinds.map((kind, index) => agreedKind(kind, leftKinds[index]));
   return [marked(main, agreed), marked(left, agreed)];
 }
 
-function columnKinds(lines: DiffLine[], whole: WholeRows): CellKind[] {
-  return lines.map((line, index) => cellKind(line, lines[index - 1], lines[index + 1], whole));
+function columnKinds(lines: DiffLine[], edited: EditableBlock | null): CellKind[] {
+  return lines.map((line, index) => cellKind(line, lines[index - 1], lines[index + 1], edited));
 }
 
-// A folded row needs its whole height for the fold's preview and badge.
-function cellKind(line: DiffLine, above: DiffLine | undefined, below: DiffLine | undefined, whole: WholeRows): CellKind {
+function cellKind(line: DiffLine, above: DiffLine | undefined, below: DiffLine | undefined, edited: EditableBlock | null): CellKind {
   if (!line.cell) return undefined;
-  if (line.blank || whole.anchors.get(line.row)?.collapsed) return null;
-  return semiblankKind(line.cell.text, hostText(line, above, whole), hostText(line, below, whole));
+  if (line.blank) return null;
+  return semiblankKind(line.cell.text, hostText(line, above, edited), hostText(line, below, edited));
 }
 
-function hostText(line: DiffLine, neighbor: DiffLine | undefined, whole: WholeRows): string | null {
-  if (!neighbor?.cell || !sameTint(line, neighbor, whole.anchors)) return null;
-  return acrossEditorEdge(line, neighbor, whole.edited) ? null : neighbor.cell.text;
+// A fold's summary line has no cell, so nothing tucks into it.
+function hostText(line: DiffLine, neighbor: DiffLine | undefined, edited: EditableBlock | null): string | null {
+  if (!neighbor?.cell || !sameTint(line, neighbor)) return null;
+  return acrossEditorEdge(line, neighbor, edited) ? null : neighbor.cell.text;
 }
 
-// Overhang into another tint would blur where a change or a fold ends.
-function sameTint(line: DiffLine, neighbor: DiffLine, anchors: WholeRows['anchors']): boolean {
-  return neighbor.kind === line.kind && neighbor.side === line.side && !anchors.get(neighbor.row)?.collapsed;
+// Overhang into another tint would blur where a change ends.
+function sameTint(line: DiffLine, neighbor: DiffLine): boolean {
+  return neighbor.kind === line.kind && neighbor.side === line.side;
 }
 
 // The editor hides the block on one side and puts a spacer after it on the other.

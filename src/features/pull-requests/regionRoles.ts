@@ -1,7 +1,4 @@
-import type { CollapseRegion } from './collapseRegions';
-import { extensionOf, foldDialect, type FoldDialect } from './foldDialects';
-import { addRowRange } from './foldSpan';
-import type { DiffRow } from './splitDiff';
+import type { FoldDialect } from './foldDialects';
 
 const TYPE_KINDS = new Set([
   'interface_declaration', 'type_alias_declaration', 'enum_declaration', 'object_type', 'enum_body', 'annotation_type_declaration',
@@ -24,17 +21,7 @@ export function commentSpan(kind: string): boolean {
   return /comment/.test(kind);
 }
 
-export function commentRowIndexes(rows: DiffRow[], filename: string, regions: CollapseRegion[]): Set<number> {
-  const dialect = foldDialect(extensionOf(filename));
-  const found = new Set<number>();
-  rows.forEach((row, index) => {
-    if (commentLine(row.right?.text ?? row.left?.text ?? '', dialect)) found.add(index);
-  });
-  for (const region of regions) if (region.comment) addRowRange(found, region.start, region.end);
-  return found;
-}
-
-function commentLine(text: string, dialect: FoldDialect): boolean {
+export function commentLine(text: string, dialect: FoldDialect): boolean {
   const line = text.trim();
   if (!dialect.tokens || dialect.markdown) return line.startsWith('<!--');
   if (dialect.slashComments && /^(\/\/|\/\*|\*\/)/.test(line)) return true;

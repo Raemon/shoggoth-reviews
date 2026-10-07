@@ -2,7 +2,7 @@
 
 import { memoryPref, usePref } from './localPref';
 
-export type FoldMode = 'default' | 'expandAll' | 'collapseExceptTypes' | 'collapseHidingComments' | 'collapseExceptComments' | 'gitDefault';
+export type FoldMode = 'default' | 'expandAll' | 'collapseExceptTypes' | 'collapseAll' | 'gitDefault';
 
 export interface FoldCommand {
   mode: FoldMode;
@@ -25,10 +25,10 @@ export function foldsCollapsed(mode: FoldMode): boolean {
   return mode !== 'expandAll' && mode !== 'gitDefault';
 }
 
+// Folds need the whole file, so every mode that collapses them loads it.
 export function wholeFileFor(mode: FoldMode): boolean | null {
-  if (mode === 'default') return true;
   if (mode === 'gitDefault') return false;
-  return null;
+  return mode === 'expandAll' ? null : true;
 }
 
 export function wholeFileWanted(): boolean {

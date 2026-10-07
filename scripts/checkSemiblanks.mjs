@@ -1,26 +1,34 @@
 import assert from 'node:assert/strict';
 import { commentMargins } from '../src/features/pull-requests/commentMargins.ts';
 import { tokenizeCode } from '../src/features/pull-requests/diffHighlight.tsx';
-import { columnLines, unifiedLines } from '../src/features/pull-requests/diffLines.ts';
+import { columnLines, shownLines, unifiedLines } from '../src/features/pull-requests/diffLines.ts';
 import { semiblankKind, withSemiblanks } from '../src/features/pull-requests/semiblankLines.ts';
 import { splitDiff } from '../src/features/pull-requests/splitDiff.ts';
-
-const NOTHING_KEPT = { anchors: new Map(), edited: null };
+import { NO_TRUNCATION } from '../src/features/pull-requests/truncateRows.ts';
 
 function check(label, actual, expected) {
   assert.deepEqual(actual, expected, label);
   console.log(`✓ ${label}`);
 }
 
-function split(patch, whole = NOTHING_KEPT) {
+function split(patch, edited = null, folded = new Map()) {
   const rows = splitDiff(patch);
-  const [right, left] = withSemiblanks(columnLines(rows, 'right'), columnLines(rows, 'left'), whole);
+  const column = (side) => shownLines(columnLines(rows, side), side, folded, NO_TRUNCATION);
+  const [right, left] = withSemiblanks(column('right'), column('left'), edited);
   return { left: left.map((line) => line.semiblank), right: right.map((line) => line.semiblank) };
 }
 
 function unified(patch) {
-  const [lines] = withSemiblanks(unifiedLines(splitDiff(patch)), [], NOTHING_KEPT);
+  const [lines] = withSemiblanks(unifiedLines(splitDiff(patch)), [], null);
   return lines.map((line) => line.semiblank);
+}
+
+// Rows `first` through `last` drawn as one collapsed fold's summary line.
+function foldedRows(first, last) {
+  const summary = { text: 'x', pieces: [], line: null, emphasis: null };
+  const fold = { first, last, side: 'right', summaries: { left: summary, right: summary }, summaryChanged: false };
+  const control = { fold, collapsed: true, hiddenThreads: 0, toggle() {} };
+  return new Map(Array.from({ length: last - first + 1 }, (_, offset) => [first + offset, control]));
 }
 
 check('a closer tucks up into an indented line', semiblankKind('}', '  return 1;', null), 'up');
@@ -43,10 +51,9 @@ check('comment marks flatten on their own', ['/**', ' */', '#', '////////////'].
 
 const CONTEXT = '@@ -1,3 +1,3 @@\n function a() {\n   return 1;\n }';
 check('split: a context closer tucks on both sides', split(CONTEXT), { left: [null, null, null, 'up'], right: [null, null, null, 'up'] });
-check('split: a folded row keeps its whole height', split(CONTEXT, { anchors: new Map([[3, { collapsed: true }]]), edited: null }).right[3], null);
-check('split: an unfolded anchor still tucks', split(CONTEXT, { anchors: new Map([[3, { collapsed: false }]]), edited: null }).right[3], 'up');
-check('split: nothing tucks into a folded row', split(CONTEXT, { anchors: new Map([[2, { collapsed: true }]]), edited: null }).right[3], null);
-const editing = (firstRow, lastRow) => ({ anchors: new Map(), edited: { firstRow, lastRow, startLine: 0, endLine: 0, caretLine: 0, text: '' } });
+check('split: a fold summary line keeps its whole height', split(CONTEXT, null, foldedRows(1, 3)), { left: [null, null], right: [null, null] });
+check('split: nothing tucks into a fold summary line', split(CONTEXT, null, foldedRows(1, 2)).right[2], null);
+const editing = (firstRow, lastRow) => ({ firstRow, lastRow, startLine: 0, endLine: 0, caretLine: 0, text: '' });
 check('split: nothing tucks into a row under the editor', split(CONTEXT, editing(2, 2)).right[3], null);
 check('split: rows inside the editor still tuck into each other', split(CONTEXT, editing(1, 3)).right[3], 'up');
 const OPENER = '@@ -1,3 +1,3 @@\n x = [\n   {\n     a: 1,';

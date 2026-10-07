@@ -1,31 +1,18 @@
 import type { LineRule } from './foldDialects';
-import { pushSpan, scanRowsFlushing, type Side, type Span } from './foldSpan';
-import type { DiffRow } from './splitDiff';
+import { pushSpan, type Span } from './foldSpan';
 
 interface TrackedRule {
   rule: LineRule;
   stack: number[];
 }
 
-export function lineRuleSpans(
-  rows: DiffRow[],
-  side: Side,
-  contiguous: boolean,
-  rules: LineRule[],
-  covered: Set<number>,
-): Span[] {
+export function lineRuleSpans(lines: string[], rules: LineRule[], covered: Set<number>): Span[] {
   if (rules.length === 0) return [];
   const spans: Span[] = [];
-  const tracked = rules.map((rule) => ({ rule, stack: [] as number[] }));
-  scanRowsFlushing(
-    rows,
-    side,
-    contiguous,
-    () => tracked.forEach((held) => (held.stack.length = 0)),
-    (text, index) => {
-      if (!covered.has(index)) tracked.forEach((held) => applyLineRule(held, text, index, spans));
-    },
-  );
+  const tracked: TrackedRule[] = rules.map((rule) => ({ rule, stack: [] }));
+  lines.forEach((text, index) => {
+    if (!covered.has(index)) tracked.forEach((held) => applyLineRule(held, text, index, spans));
+  });
   return spans;
 }
 
@@ -68,20 +55,15 @@ function closeAllLevels(scan: LevelScan, kind: string, spans: Span[]) {
 
 const INDENT_COMMENT = /^\s*(#|\/\/|--)/;
 
-export function indentSpans(rows: DiffRow[], side: Side, contiguous: boolean, covered: Set<number>): Span[] {
+export function indentSpans(lines: string[], covered: Set<number>): Span[] {
   const spans: Span[] = [];
   const scan = newLevelScan();
-  scanRowsFlushing(
-    rows,
-    side,
-    contiguous,
-    () => closeAllLevels(scan, 'block', spans),
-    (text, index) => {
-      if (!covered.has(index) && text.trim() !== '' && !INDENT_COMMENT.test(text)) {
-        openLevel(scan, indentOf(text), index, 'block', spans);
-      }
-    },
-  );
+  lines.forEach((text, index) => {
+    if (!covered.has(index) && text.trim() !== '' && !INDENT_COMMENT.test(text)) {
+      openLevel(scan, indentOf(text), index, 'block', spans);
+    }
+  });
+  closeAllLevels(scan, 'block', spans);
   return spans;
 }
 
@@ -94,22 +76,12 @@ interface MarkdownScan extends LevelScan {
   fenced: boolean;
 }
 
-export function markdownSpans(rows: DiffRow[], side: Side, contiguous: boolean): Span[] {
+export function markdownSpans(lines: string[]): Span[] {
   const spans: Span[] = [];
   const scan: MarkdownScan = { ...newLevelScan(), fenced: false };
-  scanRowsFlushing(
-    rows,
-    side,
-    contiguous,
-    () => resetMarkdown(scan, spans),
-    (text, index) => markdownLine(text, index, scan, spans),
-  );
-  return spans;
-}
-
-function resetMarkdown(scan: MarkdownScan, spans: Span[]) {
+  lines.forEach((text, index) => markdownLine(text, index, scan, spans));
   closeAllLevels(scan, 'section', spans);
-  scan.fenced = false;
+  return spans;
 }
 
 function markdownLine(text: string, row: number, scan: MarkdownScan, spans: Span[]) {
