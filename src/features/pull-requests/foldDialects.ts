@@ -6,6 +6,8 @@ export interface LineRule {
   skip?: RegExp;
 }
 
+export const JAVASCRIPT_EXTENSIONS = new Set(['js', 'cjs', 'mjs', 'jsx', 'ts', 'mts', 'cts', 'tsx']);
+
 export function extensionOf(filename: string): string {
   return filename.slice(filename.lastIndexOf('.') + 1).toLowerCase();
 }

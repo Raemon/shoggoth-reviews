@@ -1,4 +1,4 @@
-import type { FoldDialect } from './foldDialects';
+import type { FoldTag } from './foldModel';
 
 const TYPE_KINDS = new Set([
   'interface_declaration', 'type_alias_declaration', 'enum_declaration', 'object_type', 'enum_body', 'annotation_type_declaration',
@@ -21,11 +21,10 @@ export function commentSpan(kind: string): boolean {
   return /comment/.test(kind);
 }
 
-export function commentLine(text: string, dialect: FoldDialect): boolean {
-  const line = text.trim();
-  if (!dialect.tokens || dialect.markdown) return line.startsWith('<!--');
-  if (dialect.slashComments && /^(\/\/|\/\*|\*\/)/.test(line)) return true;
-  if (dialect.hashComments && !dialect.preprocessor && line.startsWith('#')) return true;
-  if (dialect.dashComments && line.startsWith('--')) return true;
-  return dialect.markup && /^(<!--|-->|\{\/\*)/.test(line);
+export function foldTags(kind: string, handleText: string): FoldTag[] {
+  const tags: FoldTag[] = [];
+  if (kind === 'imports') tags.push('imports');
+  if (commentSpan(kind)) tags.push('comment');
+  if (typeLikeSpan(kind, handleText)) tags.push('type');
+  return tags;
 }

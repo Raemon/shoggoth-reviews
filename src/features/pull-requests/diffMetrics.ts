@@ -4,6 +4,7 @@ import type { BlankLineSetting } from '@/features/settings/settings';
 export const ROW_HEIGHT = 15;
 export const HALF_ROW_HEIGHT = ROW_HEIGHT / 2;
 export const COLLAPSED_ROW_GAP = 2;
+export const FOLD_SEPARATOR_HEIGHT = 1;
 export const SAVE_BAR = 28;
 export const EXPAND_MS = 200;
 
@@ -28,6 +29,7 @@ export function blankRowHeight(setting: BlankLineSetting): number {
 
 export function lineHeight(line: DiffLine, heights: RowHeights): number {
   if (line.kind === 'fold') return ROW_HEIGHT;
+  if (line.betweenFolds) return FOLD_SEPARATOR_HEIGHT;
   if (line.blank) return heights.blank;
   if (line.semiblank) return HALF_ROW_HEIGHT;
   return heights.wrapped?.get(line.row)?.[line.side] ?? ROW_HEIGHT;

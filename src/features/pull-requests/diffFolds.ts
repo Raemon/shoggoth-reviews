@@ -2,6 +2,7 @@ import { foldMethodFor } from './foldMethods';
 import type { FoldTag, NodeSegment, Side, SideFold, SourceSegment, SummarySegment } from './foldModel';
 import { defaultSummary, summaryText } from './foldSummary';
 import { intralineRanges, type CharRange } from './intralineDiff';
+import { nestedFolds } from './sideFolds';
 import type { DiffRow } from './splitDiff';
 
 /** One side's complete file, with the diff row each line is drawn on. */
@@ -53,8 +54,8 @@ export function computeDiffFolds(rows: DiffRow[], filename: string): DiffFold[] 
   const files = { left, right };
   const method = foldMethodFor(filename);
   const found = [method.folds({ filename, lines: left.lines }), method.folds({ filename, lines: right.lines })] as const;
-  if (Array.isArray(found[0]) && Array.isArray(found[1])) return diffFolds(rows, files, found[0], found[1]);
-  return Promise.all(found).then(([leftFolds, rightFolds]) => diffFolds(rows, files, leftFolds, rightFolds));
+  if (Array.isArray(found[0]) && Array.isArray(found[1])) return diffFolds(rows, files, nestedFolds(found[0]), nestedFolds(found[1]));
+  return Promise.all(found).then(([leftFolds, rightFolds]) => diffFolds(rows, files, nestedFolds(leftFolds), nestedFolds(rightFolds)));
 }
 
 /** Null when the side's lines aren't all there, numbered from 1, in order. */

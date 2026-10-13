@@ -1,20 +1,22 @@
-import { extensionOf, foldDialect, type FoldDialect } from './foldDialects';
-import type { FoldSource, FoldTag, SideFold } from './foldModel';
+import { extensionOf, foldDialect } from './foldDialects';
+import type { FoldSource, SideFold, SummarySegment } from './foldModel';
+import { foldContext, type FoldContext } from './foldRange';
 import { addRange, type Span } from './foldSpan';
-import { defaultSummary } from './foldSummary';
-import { commentLine, commentSpan, typeLikeSpan } from './regionRoles';
+import { prototypeSummary, specialCommentSegments, summarizeBlockComment } from './foldSummary';
+import { commentSpan, foldTags } from './regionRoles';
 
 const GENERIC_KINDS = new Set(['block', 'statement_block', 'compound_statement', 'body_statement', 'declaration_list', 'class_body', 'do_block', 'field_declaration_list']);
 
 /** Turns a method's raw spans into nested folds that take in the comments directly above them. */
 export function assembleSideFolds(source: FoldSource, spans: Span[], importSource: Span[]): SideFold[] {
   const { lines } = source;
-  const dialect = foldDialect(extensionOf(source.filename));
-  const candidates = [...importSpans(lines, importSource, dialect.importLine), ...spans].filter(foldable);
-  const nested = laminar(bestSpanByStart(candidates.map(untouching(candidates)).filter(foldable)));
+  const importLine = foldDialect(extensionOf(source.filename)).importLine;
+  const candidates = [...importSpans(lines, importSource, importLine), ...spans].filter(foldable);
+  const nested = laminar(bestSpanByStart(candidates.map(untouching(candidates)).filter(foldable)), spanRange);
   const edges = foldEdges(nested);
-  const comments = commentLines(lines, spans, dialect);
-  return nested.map((span) => sideFold(lines, span, headerStart(span, edges, comments)));
+  const ctx = foldContext(lines, source.filename);
+  const comments = commentLines(ctx, spans);
+  return nested.map((span) => sideFold(ctx, span, headerStart(span, edges, comments)));
 }
 
 function foldable(span: Span): boolean {
@@ -41,15 +43,39 @@ function preferredSpan(held: Span | undefined, candidate: Span): Span {
   return held;
 }
 
-// Crossing folds can't both collapse cleanly, so the later-starting one goes.
-function laminar(spans: Span[]): Span[] {
-  const kept: Span[] = [];
-  const open: Span[] = [];
-  for (const span of spans) {
-    while ((open[open.length - 1]?.end ?? Infinity) < span.start) open.pop();
-    if ((open[open.length - 1]?.end ?? Infinity) < span.end) continue;
-    open.push(span);
-    kept.push(span);
+function spanRange(span: Span): [number, number] {
+  return [span.start, span.end];
+}
+
+/**
+ * What diff folds rely on from any fold method: folds of two or more lines that nest, with one
+ * chevron per handle line.
+ */
+export function nestedFolds(folds: SideFold[]): SideFold[] {
+  const ordered = folds.filter((fold) => fold.last > fold.first).sort((a, b) => a.first - b.first || b.last - a.last);
+  return onePerHandle(laminar(ordered, (fold) => [fold.first, fold.last]));
+}
+
+// Sorted outermost first, so the fold kept for a handle is the widest.
+function onePerHandle(folds: SideFold[]): SideFold[] {
+  const seen = new Set<number>();
+  return folds.filter((fold) => {
+    if (seen.has(fold.handle)) return false;
+    seen.add(fold.handle);
+    return true;
+  });
+}
+
+// Crossing folds can't both collapse cleanly, so the later-starting one goes. Takes items sorted by start.
+function laminar<T>(items: T[], range: (item: T) => [number, number]): T[] {
+  const kept: T[] = [];
+  const open: number[] = [];
+  for (const item of items) {
+    const [start, end] = range(item);
+    while ((open[open.length - 1] ?? Infinity) < start) open.pop();
+    if ((open[open.length - 1] ?? Infinity) < end) continue;
+    open.push(end);
+    kept.push(item);
   }
   return kept;
 }
@@ -82,32 +108,24 @@ function headerStart(span: Span, edges: FoldEdges, comments: Set<number>): numbe
   return start;
 }
 
-function commentLines(lines: string[], spans: Span[], dialect: FoldDialect): Set<number> {
+function commentLines(ctx: FoldContext, spans: Span[]): Set<number> {
   const found = new Set<number>();
-  lines.forEach((text, index) => {
-    if (commentLine(text, dialect)) found.add(index);
+  ctx.comments.forEach((comment, index) => {
+    if (comment === 'comment') found.add(index);
   });
   for (const span of spans) if (commentSpan(span.kind)) addRange(found, span.start, span.end);
   return found;
 }
 
-function sideFold(lines: string[], span: Span, first: number): SideFold {
-  return {
-    first,
-    last: span.end,
-    handle: span.start,
-    kind: span.kind,
-    tags: spanTags(span, lines[span.start] ?? ''),
-    summary: defaultSummary(lines, span.start),
-  };
+function sideFold(ctx: FoldContext, span: Span, first: number): SideFold {
+  const handleText = ctx.lines[span.start] ?? '';
+  return { first, last: span.end, handle: span.start, kind: span.kind, tags: foldTags(span.kind, handleText), summary: spanSummary(ctx, span) };
 }
 
-function spanTags(span: Span, handleText: string): FoldTag[] {
-  const tags: FoldTag[] = [];
-  if (span.imports) tags.push('imports');
-  if (commentSpan(span.kind)) tags.push('comment');
-  if (typeLikeSpan(span.kind, handleText)) tags.push('type');
-  return tags;
+function spanSummary(ctx: FoldContext, span: Span): SummarySegment[] {
+  if (commentSpan(span.kind)) return summarizeBlockComment(ctx.lines, span.start, span.end);
+  const { segments } = prototypeSummary(ctx.lines, ctx.comments, span.start, span.end);
+  return [...segments, ...specialCommentSegments(ctx.lines.slice(span.start, span.end + 1).join('\n'), ctx.style)];
 }
 
 function importSpans(lines: string[], tokens: Span[], importLine: RegExp | null): Span[] {

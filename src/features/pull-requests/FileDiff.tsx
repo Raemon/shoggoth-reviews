@@ -7,7 +7,7 @@ import { DiffSide, type HunkControl } from './DiffSide';
 import { useDiffLayout } from './diffLayoutStore';
 import { withDraftThread, type DraftAnchor } from './draftThread';
 import { startDraftThread, useDraftAnchor } from './draftThreadStore';
-import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, type Column, type DiffLine } from './diffLines';
+import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, withFoldSeparators, type Column, type DiffLine } from './diffLines';
 import { langForPath } from './diffHighlight';
 import { blankRowHeight, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { useDiffWrap } from './diffWrapStore';
@@ -270,13 +270,14 @@ function mainColumn(singleColumn: boolean, resultView: boolean): Column {
 function useShownLines(rows: DiffRow[], column: Column | null, drawn: DrawnRows): DiffLine[] {
   const { folded, commentedRows, truncation, blankLines } = drawn;
   return useMemo(
-    () => (column ? shownLines(columnOf(rows, column, commentedRows, blankLines), column, folded, truncation) : []),
-    [rows, column, commentedRows, folded, truncation, blankLines],
+    () => (column ? drawnColumn(rows, column, { folded, commentedRows, truncation, blankLines }) : []),
+    [rows, column, folded, commentedRows, truncation, blankLines],
   );
 }
 
-function columnOf(rows: DiffRow[], column: Column, commentedRows: Set<number>, blankLines: BlankLineSetting): DiffLine[] {
-  const lines = columnLinesOf(rows, column, commentedRows);
+// Separators go in before full-height blank lines turn ordinary: a rule between folds stays thin.
+function drawnColumn(rows: DiffRow[], column: Column, { folded, commentedRows, truncation, blankLines }: DrawnRows): DiffLine[] {
+  const lines = withFoldSeparators(shownLines(columnLinesOf(rows, column, commentedRows), column, folded, truncation));
   return blankLines === 'full' ? asOrdinaryLines(lines) : lines;
 }
 

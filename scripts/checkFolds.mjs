@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { computeDiffFolds, diffFolds, sideFile } from '../src/features/pull-requests/diffFolds.ts';
-import { columnLines, shownLines, unifiedLines } from '../src/features/pull-requests/diffLines.ts';
+import { asOrdinaryLines, columnLines, shownLines, unifiedLines, withFoldSeparators } from '../src/features/pull-requests/diffLines.ts';
 import { foldMethodFor } from '../src/features/pull-requests/foldMethods.ts';
+import { summaryText } from '../src/features/pull-requests/foldSummary.ts';
 import { heuristicFolds } from '../src/features/pull-requests/heuristicFolds.ts';
 import { overrideWasmSource } from '../src/features/pull-requests/treeSitter.ts';
 import { treeSitterFoldMethod } from '../src/features/pull-requests/treeSitterFolds.ts';
+import { classifyImportLine, findImportEndLine, javascriptFolds, moduleOfImport } from '../src/features/pull-requests/javascriptFolds.ts';
+import { nestedFolds } from '../src/features/pull-requests/sideFolds.ts';
 import { NO_TRUNCATION } from '../src/features/pull-requests/truncateRows.ts';
 
 const WASM = 'node_modules/@vscode/tree-sitter-wasm/wasm';
@@ -633,7 +636,8 @@ await checkTree('python comments join the def below', [
   '    print("!")',
 ], 'a.py', [[0, 3, 'function_definition']]);
 
-check('tree-sitter languages fold with tree-sitter', foldMethodFor('a.tsx').id, 'tree-sitter');
+check('tree-sitter languages fold with tree-sitter', foldMethodFor('a.go').id, 'tree-sitter');
+check('JavaScript and TypeScript fold with the Vanadium method', ['a.js', 'a.mjs', 'a.ts', 'a.tsx'].map((name) => foldMethodFor(name).id), ['javascript', 'javascript', 'javascript', 'javascript']);
 check('other languages fold with the heuristic', foldMethodFor('a.zig').id, 'heuristic');
 
 // --- linking folds across the diff -------------------------------------------------
@@ -653,7 +657,7 @@ function pairedRows(pairs) {
   });
 }
 
-async function linkedFolds(pairs, filename = 'a.ts') {
+async function linkedFolds(pairs, filename = 'a.kt') {
   return computeDiffFolds(pairedRows(pairs), filename);
 }
 
@@ -724,7 +728,7 @@ const deletedFile = await linkedFolds([
 check(
   'a deleted file wraps all of its code in one fold',
   deletedFile.map((f) => [f.first, f.last, f.kind, f.side]),
-  [[0, 6, 'file', 'left'], [4, 6, 'function_declaration', 'left']],
+  [[0, 6, 'file', 'left'], [4, 6, 'block', 'left']],
 );
 
 check(
@@ -766,7 +770,7 @@ function drawn(lines) {
 }
 
 const bodyRows = pairedRows([same('function foo() {'), same('  a();'), ['  old();', '  new();'], same('}'), same('after();')]);
-const bodyFolded = collapsedAll(bodyRows, await computeDiffFolds(bodyRows, 'a.ts'));
+const bodyFolded = collapsedAll(bodyRows, await computeDiffFolds(bodyRows, 'a.kt'));
 check(
   'unified: matching summaries draw one line',
   drawn(shownLines(unifiedLines(bodyRows), 'unified', bodyFolded, NO_TRUNCATION)),
@@ -779,7 +783,7 @@ check(
 );
 
 const signatureRows = pairedRows([['function foo(a) {', 'function foo(a, b) {'], same('  a();'), same('  b();'), same('}')]);
-const signatureFolded = collapsedAll(signatureRows, await computeDiffFolds(signatureRows, 'a.ts'));
+const signatureFolded = collapsedAll(signatureRows, await computeDiffFolds(signatureRows, 'a.kt'));
 check(
   'unified: differing summaries draw a removed/added pair',
   drawn(shownLines(unifiedLines(signatureRows), 'unified', signatureFolded, NO_TRUNCATION)),
@@ -787,10 +791,168 @@ check(
 );
 
 const addedRows = pairedRows([same('const x = 1;'), [null, 'function bar() {'], [null, '  one();'], [null, '  two();'], [null, '}']]);
-const addedFolded = collapsedAll(addedRows, await computeDiffFolds(addedRows, 'a.ts'));
+const addedFolded = collapsedAll(addedRows, await computeDiffFolds(addedRows, 'a.kt'));
 const addedLeft = shownLines(columnLines(addedRows, 'left'), 'left', addedFolded, NO_TRUNCATION);
 check('split: a right-only fold pads the left column', drawn(addedLeft), ['context:left', 'fold:left:-']);
 check('split: only the owning side carries the chevron', addedLeft[1].fold.primary, false);
+
+const twoFunctionRows = pairedRows(['fun a() {', '  x()', '}', '', 'fun b() {', '  y()', '}', '', 'tail()'].map(same));
+const twoFolded = collapsedAll(twoFunctionRows, await computeDiffFolds(twoFunctionRows, 'a.kt'));
+const separated = withFoldSeparators(shownLines(columnLines(twoFunctionRows, 'right'), 'right', twoFolded, NO_TRUNCATION));
+check('a blank line between two folds thins to a separator; one after the last fold doesn\'t', separated.map((line) => line.betweenFolds), [false, true, false, false, false]);
+check('full-height blank lines leave the separator thin', asOrdinaryLines(separated).map((line) => line.blank), [false, true, false, false, false]);
+
+// --- the Vanadium JavaScript/TypeScript method ------------------------------------
+
+// Folds must cover less than half the file, so short examples get filler below them.
+const FILLER = Array.from({ length: 20 }, (_, index) => `const filler${index} = ${index};`);
+
+function jsFolds(lines, filler = true) {
+  const all = filler ? [...lines, ...FILLER] : lines;
+  return javascriptFolds({ filename: 'a.ts', lines: all }).map((fold) => ({ ...fold, text: summaryText(fold.summary, all) }));
+}
+
+function jsFoldsOfKind(kind, lines) {
+  return jsFolds(lines, false).filter((fold) => fold.kind === kind);
+}
+
+const importBounds = (lines) => jsFoldsOfKind('imports', lines).map((fold) => [fold.first, fold.last]);
+
+// Ported from Vanadium's JavascriptImportFoldingTest.
+check('js imports: a simple block', importBounds(["import foo from 'foo';", "import bar from 'bar';", '', 'const x = 1;']), [[0, 1]]);
+check(
+  'js imports: a directive and blank lines above fold in and lead the summary',
+  jsFoldsOfKind('imports', ['"use client";', '', "import foo from 'foo';", "import bar from 'bar';", '', 'const x = 1;']).map((f) => [f.first, f.last, f.text]),
+  [[0, 3, '"use client"; import 2 (foo, bar)']],
+);
+check(
+  'js imports: the directive folds in, the shebang doesn\'t',
+  jsFoldsOfKind('imports', ['#!/usr/bin/env node', "'use strict'", "import foo from 'foo';", "import bar from 'bar';", 'foo();']).map((f) => [f.first, f.last, f.text]),
+  [[1, 3, "'use strict' import 2 (foo, bar)"]],
+);
+check(
+  'js imports: a comment between directive and imports keeps the directive out',
+  jsFoldsOfKind('imports', ["'use client';", '// setup', "import foo from 'foo';", "import bar from 'bar';", 'foo();']).map((f) => [f.first, f.last, f.text]),
+  [[2, 3, 'import 2 (foo, bar)']],
+);
+check('js imports: a directive and one import don\'t fold', importBounds(["'use strict';", "import foo from 'foo';", 'foo();']), []);
+check('js imports: one multi-line import folds', importBounds(['import {', '  foo,', '  bar', "} from 'examplelib';", '', 'const x = 1;']), [[0, 3]]);
+check(
+  'js imports: a multi-line import among single-line ones',
+  importBounds(["import a from 'a';", 'import {', '  foo,', "} from 'b';", "import c from 'c';", '', 'const x = 1;']),
+  [[0, 4]],
+);
+check('js imports: a trailing comma continues an import', importBounds(['import foo,', "  { bar } from 'lib';", "import z from 'z';", 'z();']), [[0, 2]]);
+check('js imports: a single import doesn\'t fold', importBounds(["import foo from 'foo';", '', 'const x = 1;']), []);
+check('js imports: no imports, no fold', importBounds(['const x = 1;', 'const y = 2;']), []);
+check('js imports: the block stops at code', importBounds(["import a from 'a';", "import b from 'b';", 'const x = 1;', "import late from 'late';"]), [[0, 1]]);
+check('js imports: a bracket in a trailing comment doesn\'t end the import', findImportEndLine(['import {', '  foo, // trailing comment with }', '  bar', "} from 'examplelib';", 'next();'], 0), 3);
+check('js imports: an unterminated import is one line', findImportEndLine(['import {', '  foo,'], 0), 0);
+check(
+  'js imports: identifiers starting with "import" aren\'t imports',
+  ['importantThing();', 'imports.foo();', "import 'side-effect';", "import type { T } from 'mod';"].map((text) => classifyImportLine(0, text)),
+  ['other', 'other', 'import', 'import'],
+);
+check(
+  'js imports: the module is the last string literal',
+  ["import foo from 'foo';", 'import {\n  a,\n  b\n} from "./relative/path";', "import 'side-effect';"].map(moduleOfImport),
+  ['foo', './relative/path', 'side-effect'],
+);
+const headerBounds = (lines) => jsFoldsOfKind('comment', lines).map((fold) => [fold.first, fold.last]);
+check(
+  'js header: a comment after a directive is a header comment',
+  headerBounds(["'use client';", '', '// This file contains widgets.', '// They are excellent widgets.', 'const x = 1;']),
+  [[2, 3]],
+);
+check(
+  'js header: so is one after a shebang and a directive',
+  headerBounds(['#!/usr/bin/env node', "'use strict';", '// This file contains widgets.', '// They are excellent widgets.', 'main();']),
+  [[2, 3]],
+);
+check('js header: a comment after code isn\'t a header comment', headerBounds(['const x = 1;', '// not a header comment', '// really not', 'const y = 2;']), []);
+
+const documentedFunction = jsFolds([
+  'const before = 0;',
+  '',
+  '/**',
+  ' * Adds things.',
+  ' */',
+  'export function add(a,  b) {',
+  '  // TODO: overflow',
+  '  return a + b; // TODO: types, FIXME',
+  '}',
+]).find((fold) => fold.kind === 'function');
+check(
+  'js: a function folds with its doc comment, and its chevron stays on the declaration',
+  [documentedFunction.first, documentedFunction.handle, documentedFunction.last],
+  [2, 5, 8],
+);
+check('js: the summary collapses whitespace and counts special comments', documentedFunction.text, 'export function add(a, b) { //2xTODO FIXME');
+
+const bounds = (lines) => jsFolds(lines).filter((fold) => fold.kind !== 'comment').map((fold) => [fold.first, fold.last, fold.kind]);
+check(
+  'js: an arrow widens over the brackets its line opens',
+  bounds(['const names = items.map((item) => {', '  return item.name;', '  // more', '});']),
+  [[0, 3, 'lambda']],
+);
+check('js: a class can open its brace on the next line', bounds(['class Foo', '{', '  bar() {}', '  baz() {}', '}']), [[0, 4, 'class']]);
+check('js: className is not a class', bounds(['<div className="a">', '  <span>hi</span>', '  <b>x</b>', '</div>']), []);
+check(
+  'js: a fold covering half the file or more is dropped',
+  jsFolds(['function big() {', '  a();', '  b();', '  c();', '}', 'x();'], false).map((fold) => fold.kind),
+  [],
+);
+check(
+  'js: {{{ and }}} markers fold what they enclose, summarized by the first code line',
+  jsFolds(['// helpers {{{', 'const a = 1;', 'const b = 2;', '// }}}']).filter((f) => f.kind === 'marker').map((f) => [f.first, f.last, f.kind, f.text]),
+  [[0, 3, 'marker', 'const a = 1;']],
+);
+check(
+  'js: a {{_}} line folds the brackets it opens',
+  bounds(['const config = { //{{_}}', '  a: 1,', '  b: 2,', '};']),
+  [[0, 3, 'marker']],
+);
+const bigTable = ['const table = {', ...Array.from({ length: 12 }, (_, index) => [`  k${index}: [`, '    1,', '    2,', '  ],']).flat(), '};'];
+check(
+  'js: each child of a top-level block of 50+ lines folds',
+  jsFolds(bigTable).filter((fold) => fold.kind === 'block').slice(0, 2).map((fold) => [fold.first, fold.last]),
+  [[1, 4], [5, 8]],
+);
+const longComment = ['const a = 1;', ...Array.from({ length: 10 }, (_, index) => `// Note ${index}.`), 'const b = 2;'];
+check(
+  'js: ten loose comment lines fold on their own',
+  jsFolds(longComment).filter((fold) => fold.kind === 'comment').map((fold) => [fold.first, fold.last, fold.text]),
+  [[1, 10, '// Note 0.']],
+);
+check(
+  'js: a block comment summary turns its leading * into /*',
+  jsFolds(['const a = 1;', '/**', ...Array.from({ length: 9 }, (_, index) => ` * Explains ${index}.`), ' */', 'const b = 2;'])
+    .filter((fold) => fold.kind === 'comment')
+    .map((fold) => fold.text),
+  ['/* Explains 0.'],
+);
+check(
+  'js: a //# comment is excluded from the fold below it',
+  jsFolds(['const x = 1;', '//# Section', 'function f() {', '  a();', '  b();', '}']).filter((f) => f.kind === 'function').map((f) => f.first),
+  [2],
+);
+check(
+  'js: brackets in strings, regexes, templates and comments don\'t count',
+  bounds(['const s = "}";', 'function f() {', '  const r = /}/;', '  const t = `${"}"} }`;', '  // }', '  return s;', '}']),
+  [[1, 6, 'function']],
+);
+check(
+  'js: a glob in a string doesn\'t open a comment',
+  jsFolds(['const glob = "src/**/*.ts";', 'function f() {', '  a();', '  b();', '}']).filter((f) => f.kind === 'function').map((f) => f.first),
+  [1],
+);
+
+const fold = (first, last, handle = first) => ({ first, last, handle, kind: 'block', tags: [], summary: [] });
+check(
+  'every method\'s folds nest, span two lines, and get one chevron per handle',
+  nestedFolds([fold(0, 5), fold(3, 8), fold(0, 3), fold(6, 6), fold(1, 2)]).map((f) => [f.first, f.last, f.handle]),
+  [[0, 5, 0], [1, 2, 1]],
+);
 
 if (failures > 0) {
   console.error(`\n${failures} fold check(s) failed`);

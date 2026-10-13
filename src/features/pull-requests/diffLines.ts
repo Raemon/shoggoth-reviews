@@ -12,6 +12,8 @@ export interface DiffLine {
   row: number;
   touched: boolean;
   blank: boolean;
+  /** A blank line between two collapsed folds, drawn as a thin rule. */
+  betweenFolds: boolean;
   semiblank: SemiblankKind | null;
   truncated: number;
   fold: FoldLine | null;
@@ -50,7 +52,22 @@ function keptInResult(line: DiffLine, commented: Set<number>): boolean {
 }
 
 export function asOrdinaryLines(lines: DiffLine[]): DiffLine[] {
-  return lines.map((line) => (line.blank ? { ...line, blank: false } : line));
+  return lines.map((line) => (line.blank && !line.betweenFolds ? { ...line, blank: false } : line));
+}
+
+export function withFoldSeparators(lines: DiffLine[]): DiffLine[] {
+  if (!lines.some((line) => line.fold)) return lines;
+  return lines.map((line, index) => (line.blank && foldsAround(lines, index) ? { ...line, betweenFolds: true } : line));
+}
+
+function foldsAround(lines: DiffLine[], index: number): boolean {
+  return Boolean(nearestUnblank(lines, index, -1)?.fold && nearestUnblank(lines, index, 1)?.fold);
+}
+
+function nearestUnblank(lines: DiffLine[], index: number, step: 1 | -1): DiffLine | undefined {
+  let at = index + step;
+  while (lines[at]?.blank) at += step;
+  return lines[at];
 }
 
 interface Placed {
@@ -101,7 +118,7 @@ function truncatedLine(row: number, side: 'left' | 'right', truncated: number): 
 }
 
 function placeholderLine(kind: 'truncated' | 'fold', row: number, side: 'left' | 'right'): DiffLine {
-  return { kind, label: '', side, cell: null, row, touched: false, blank: false, semiblank: null, truncated: 0, fold: null };
+  return { kind, label: '', side, cell: null, row, touched: false, blank: false, betweenFolds: false, semiblank: null, truncated: 0, fold: null };
 }
 
 function changeRuns(rows: DiffRow[]): PlacedRow[][] {
@@ -124,7 +141,7 @@ function sideLines(run: PlacedRow[], side: 'left' | 'right'): DiffLine[] {
 }
 
 function lineOf(row: DiffRow, index: number, side: 'left' | 'right'): DiffLine {
-  const flags = { touched: row.touched === true, blank: blankRow(row), semiblank: null, truncated: 0, fold: null };
+  const flags = { touched: row.touched === true, blank: blankRow(row), betweenFolds: false, semiblank: null, truncated: 0, fold: null };
   return { kind: row.kind, label: row.label, side, cell: row[side], row: index, ...flags };
 }
 

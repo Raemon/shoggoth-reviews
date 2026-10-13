@@ -27,7 +27,8 @@ const ROW = 'flex h-[15px] items-center gap-1 leading-[15px]';
 const WRAPPED_ROW = 'flex min-h-[15px] items-start gap-1 leading-[15px]';
 const BLANK_ROW = 'flex items-center gap-1';
 const SEMIBLANK_ROW = 'flex items-start gap-1 leading-[15px]';
-const GUTTER = 'relative flex w-[52px] shrink-0 select-none items-center pr-1 text-[9px] text-ink-dim';
+// items-start with a one-line-tall box inside: on a wrapped row, the gutter lines up with the first line.
+const GUTTER = 'relative flex w-[52px] shrink-0 select-none items-start pr-1 text-[9px] text-ink-dim';
 const FOLDING_GUTTER = 'cursor-pointer hover:text-ink';
 const TONED_GUTTER = 'self-stretch group-hover:row-shade group-[.diff-line-lit]:row-lit';
 const DRAFT_BTN =
@@ -36,13 +37,13 @@ const TOUCHED_MARK = 'bg-add-bg/60 shadow-[inset_2px_0_0_var(--add-emph)]';
 const STICKY_CHIP = 'sticky right-0 shrink-0 rounded bg-procgen px-1 hover:bg-btn-hover hover:text-ink';
 const EDIT_BTN = `${STICKY_CHIP} uppercase tracking-[0.14em]`;
 const FOLD_BADGE = `${STICKY_CHIP} ml-auto text-[9px] italic text-ink-dim`;
-const FOLD_PREVIEW = 'diff-code hidden max-w-[90ch] shrink-[999] overflow-hidden text-ellipsis whitespace-pre pl-2 text-[11px] text-ink-dim/70 group-hover:block';
+const FOLD_PREVIEW = 'hidden pl-2 text-ink-dim/70 group-hover:inline';
 const CODE = 'diff-code whitespace-pre pr-2 text-[11px]';
-const CLIPPED_CODE = `${CODE} min-w-0 overflow-hidden text-ellipsis`;
 // break-word, so only a word too long for a whole line is ever split.
 const WRAPPED_CODE = `diff-code min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:break-word] [tab-size:8] pr-2 text-[11px]`;
 // 100px keeps the fold badge clear of the ellipsis; 100cqw is the visible column width.
-const FOLDED_TEXT = 'flex min-w-0 max-w-[calc(100cqw-100px)] overflow-hidden';
+// One run of inline text, so the hover preview after the summary is what the ellipsis cuts first.
+const FOLDED_TEXT = `${CODE} min-w-0 max-w-[calc(100cqw-100px)] overflow-hidden text-ellipsis`;
 const STRIP = `${ROW} bg-procgen px-1 text-left text-[9px] text-ink-dim`;
 const TRUNCATED_STRIP = `${STRIP} w-full italic hover:bg-btn-hover hover:text-ink`;
 
@@ -310,9 +311,7 @@ function FoldSummaryRow({ fold, side, rows, tokens }: { fold: FoldLine; side: 'l
     >
       <GutterCell line={summary.line} handle={primary ? control : null} tone={tones.gutter} short={false} />
       <span className={FOLDED_TEXT}>
-        <span className={CLIPPED_CODE}>
-          <SummaryText parts={summaryParts(summary, side, rows, tokens)} side={side} />
-        </span>
+        <SummaryText parts={summaryParts(summary, side, rows, tokens)} side={side} />
         {preview && <span className={FOLD_PREVIEW}>{preview}</span>}
       </span>
       {primary && <FoldBadge control={control} />}
@@ -418,10 +417,12 @@ function GutterCell({
       className={`${GUTTER} ${tone ? `${TONED_GUTTER} ${tone}` : ''} ${collapses ? FOLDING_GUTTER : ''}`}
       onClick={collapses ? toggles(collapses) : undefined}
     >
-      {onDraft && <DraftThreadButton onDraft={onDraft} short={short} />}
-      <span className="min-w-0 flex-1 text-right">{line}</span>
-      {/* flex, not inline: an inline-block button leaves a baseline gap that unsettles a wrapped row. */}
-      <span className="flex w-4 shrink-0 justify-center">{handle && <CollapseChevron control={handle} short={short} />}</span>
+      <span className={`flex flex-1 items-center ${short ? 'h-[7.5px]' : 'h-[15px]'}`}>
+        {onDraft && <DraftThreadButton onDraft={onDraft} short={short} />}
+        <span className="min-w-0 flex-1 text-right">{line}</span>
+        {/* flex, not inline: an inline-block button leaves a baseline gap that unsettles a wrapped row. */}
+        <span className="flex w-4 shrink-0 justify-center">{handle && <CollapseChevron control={handle} short={short} />}</span>
+      </span>
     </span>
   );
 }
@@ -448,12 +449,21 @@ function CollapseChevron({ control, short }: { control: FoldControl; short: bool
       type="button"
       onClick={toggles(control)}
       aria-label={control.collapsed ? 'Expand code block' : 'Collapse code block'}
-      className={`${short ? 'h-[7.5px] leading-[7.5px]' : 'h-[15px] leading-[15px]'} w-4 shrink-0 text-[13px] text-ink-dim hover:text-ink ${
+      className={`flex ${short ? 'h-[7.5px]' : 'h-[15px]'} w-4 shrink-0 items-center justify-center text-ink-dim hover:text-ink ${
         control.collapsed ? '' : 'opacity-40 group-hover:opacity-100'
       }`}
     >
-      {control.collapsed ? '▸' : '▾'}
+      <ChevronIcon collapsed={control.collapsed} />
     </button>
+  );
+}
+
+// Drawn, not a ▸/▾ glyph: font glyphs sit about a pixel below the line's centre.
+function ChevronIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg aria-hidden width="6" height="6" viewBox="0 0 6 6" fill="currentColor">
+      <path d={collapsed ? 'M1 0.25 5.5 3 1 5.75Z' : 'M0.25 1 5.75 1 3 5.5Z'} />
+    </svg>
   );
 }
 
