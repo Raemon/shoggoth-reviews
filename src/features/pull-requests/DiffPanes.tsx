@@ -96,7 +96,8 @@ export function DiffPanes({
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
           <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
-          <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto bg-code">
+          {/* Widths below feed layout; a toggling scrollbar would make them oscillate. */}
+          <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto bg-code [scrollbar-gutter:stable]">
             <ImageStrip
               key={`${fileSet.baseRef}:${fileSet.headRef}`}
               owner={owner}
