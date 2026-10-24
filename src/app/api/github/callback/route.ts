@@ -21,8 +21,10 @@ export async function GET(request: Request) {
   if (!code || !state || !expected || state !== expected) return fail('GitHub sign-in state mismatch; try again');
   try {
     const grant = await exchangeCode(code, callbackUrl(origin), config);
-    const { access, returnTo } = parseOauthState(state);
-    return NextResponse.redirect(`${returnTo ?? origin}/connect#${grantToParams(grant, access)}`);
+    const { access, next, returnTo } = parseOauthState(state);
+    const granted = grantToParams(grant, access);
+    if (next) granted.set('next', next);
+    return NextResponse.redirect(`${returnTo ?? origin}/connect#${granted}`);
   } catch (error) {
     return fail(errorMessage(error, 'GitHub sign-in failed'));
   }
