@@ -16,7 +16,7 @@ export interface CachedResponse {
 const DIRECTORY = process.env.REPOSCOPE_CACHE_DIR ?? join(tmpdir(), 'reposcope-github-cache');
 const MAX_MEMORY_ENTRIES = 512;
 const MAX_MEMORY_BYTES = 64 * 1024 * 1024;
-const MAX_STORED_BYTES = 8_000_000;
+const MAX_STORED_BYTES = 8 * 1024 * 1024;
 const MAX_DIRECTORY_BYTES = 256_000_000;
 const WRITES_BETWEEN_PRUNES = 50;
 

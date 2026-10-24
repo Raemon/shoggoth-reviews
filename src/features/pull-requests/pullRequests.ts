@@ -9,6 +9,7 @@ import {
   githubSend,
   PAGE_SIZE,
 } from '@/features/codebases/githubRequest';
+import { withGithubMemoryBudget } from '@/features/codebases/githubMemoryBudget';
 import { requireGithubUser } from '@/features/github-auth/requireGithubUser';
 import { imageTypeOf } from './imageFiles';
 import type { PullState } from './pullPaths';
@@ -191,6 +192,8 @@ const API = 'https://api.github.com';
 const MAX_FILE_PAGES = 10;
 export const MAX_BLOB_BYTES = 6 * 1024 * 1024;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+const BLOB_MEMORY_BYTES = 48 * 1024 * 1024;
+const TEXT_MEMORY_BYTES = 16 * 1024 * 1024;
 export const MAX_SCANNED_REPOS = 60;
 const SCAN_WORKERS = 6;
 const COMMIT_STAT_WORKERS = 12;
@@ -463,13 +466,17 @@ export async function describeCommit(owner: string, name: string, sha: string): 
 }
 
 export async function readFileBlob(owner: string, name: string, ref: string, path: string): Promise<FileBlob> {
-  const file = await readRawFile(owner, name, ref, path, MAX_BLOB_BYTES);
-  return file.bytes ? fileBlobOf(path, file.bytes) : { dataUrl: null, byteSize: file.byteSize };
+  return withGithubMemoryBudget(BLOB_MEMORY_BYTES, async () => {
+    const file = await readRawFile(owner, name, ref, path, MAX_BLOB_BYTES);
+    return file.bytes ? fileBlobOf(path, file.bytes) : { dataUrl: null, byteSize: file.byteSize };
+  });
 }
 
 export async function readFileText(owner: string, name: string, ref: string, path: string): Promise<FileText> {
-  const file = await readRawFile(owner, name, ref, path, MAX_TEXT_BYTES);
-  return file.bytes ? fileTextOf(file.bytes) : { text: null, byteSize: file.byteSize };
+  return withGithubMemoryBudget(TEXT_MEMORY_BYTES, async () => {
+    const file = await readRawFile(owner, name, ref, path, MAX_TEXT_BYTES);
+    return file.bytes ? fileTextOf(file.bytes) : { text: null, byteSize: file.byteSize };
+  });
 }
 
 export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
@@ -492,6 +499,7 @@ function readRawFile(owner: string, name: string, ref: string, path: string, max
     `${API}/repos/${owner}/${name}/contents/${encoded}?ref=${encodeURIComponent(ref)}`,
     'application/vnd.github.raw',
     maxBytes,
+    { captureReserved: true },
   );
 }
 

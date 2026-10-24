@@ -11,13 +11,17 @@ export function normalizeOrigin(value: string): string {
   const url = new URL(candidate);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw invalidOrigin(value);
   if ((url.pathname && url.pathname !== '/') || url.search || url.hash) throw invalidOrigin(value);
+  if (url.protocol === 'http:' && !isLoopback(url.hostname)) throw invalidOrigin(value);
   return url.origin;
 }
 
 function deploymentOrigin(): string | null {
   const configured = process.env.REPOSCOPE_ORIGIN;
   if (configured) return normalizeOrigin(configured);
-  const platform = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.RENDER_EXTERNAL_URL ?? process.env.VERCEL_URL;
+  const vercel = process.env.VERCEL_ENV === 'production'
+    ? process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL
+    : process.env.VERCEL_URL ?? process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const platform = vercel ?? process.env.RENDER_EXTERNAL_URL;
   return platform ? normalizeOrigin(platform) : null;
 }
 

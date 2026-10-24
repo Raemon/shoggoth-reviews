@@ -1,4 +1,5 @@
 import { cacheKey, dropCachedScope, readCachedResponse, writeCachedResponse, type CachedResponse } from './githubCache';
+import { MAX_GITHUB_MEMORY_BYTES, withGithubMemoryBudget } from './githubMemoryBudget';
 import { githubToken, githubTokenIdentity, rejectGithubToken } from './githubToken';
 import { COMMIT_SHA_PATTERN } from '@/features/sources/sourceTypes';
 
@@ -15,6 +16,7 @@ const ACCEPT = 'application/vnd.github+json';
 export const PAGE_SIZE = 100;
 const DEFAULT_FRESHNESS_MS = 30_000;
 const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
+const MIN_MEMORY_RESERVATION = 1024 * 1024;
 const IMMUTABLE_PATTERNS = [/\/(?:commits|git\/trees|tarball)\/[0-9a-f]{40}$/, /\/compare\/[0-9a-f]{40}\.\.\.[0-9a-f]{40}$/];
 const STALE_ON_STATUS = [403, 408, 429, 500, 502, 503, 504];
 
@@ -23,6 +25,12 @@ const inFlight = new Map<string, Promise<CachedResponse>>();
 type BodyStream = ReadableStream<Uint8Array> | null;
 type Derive<T> = (body: BodyStream) => Promise<T>;
 type Derivation = { what: string; derive: Derive<string> };
+interface CachePolicy {
+  fresh: boolean;
+  derivation: Derivation | null;
+  maxBodyBytes: number;
+  captureReserved: boolean;
+}
 
 export interface GithubBytes {
   bytes: Uint8Array | null;
@@ -30,7 +38,10 @@ export interface GithubBytes {
 }
 
 export async function githubJson<T>(url: string, fresh = false): Promise<T> {
-  return JSON.parse(decodeBody(await cachedResponse(url, ACCEPT, fresh)).toString('utf8')) as T;
+  const response = await cachedResponse(url, ACCEPT, { fresh });
+  return withGithubMemoryBudget(jsonMemoryBytes(response), async () => {
+    return JSON.parse(decodeBody(response).toString('utf8')) as T;
+  });
 }
 
 export async function githubJsonPages<T>(url: string, maxPages: number, fresh = false): Promise<T[]> {
@@ -47,9 +58,14 @@ export function githubPageUrl(url: string, page: number): string {
   return `${url}${url.includes('?') ? '&' : '?'}per_page=${PAGE_SIZE}&page=${page}`;
 }
 
-export async function githubBytes(url: string, accept: string, maxBytes: number): Promise<GithubBytes> {
+export async function githubBytes(
+  url: string,
+  accept: string,
+  maxBytes: number,
+  options: { captureReserved?: boolean } = {},
+): Promise<GithubBytes> {
   try {
-    const body = decodeBody(await cachedResponse(url, accept, false, null, maxBytes));
+    const body = decodeBody(await cachedResponse(url, accept, { maxBodyBytes: maxBytes, ...options }));
     return body.byteLength > maxBytes ? oversized(body.byteLength) : sizedBytes(body);
   } catch (error) {
     if (error instanceof GithubBodyTooLarge) return oversized(error.byteSize);
@@ -58,9 +74,12 @@ export async function githubBytes(url: string, accept: string, maxBytes: number)
 }
 
 // Stores only derive()'s output, so a tarball never sits in memory or the cache.
-export async function githubDerived<T>(url: string, what: string, derive: Derive<T>): Promise<T> {
+export async function githubDerived<T>(url: string, what: string, memoryBytes: number, derive: Derive<T>): Promise<T> {
   const stored = { what, derive: async (body: BodyStream) => JSON.stringify(await derive(body)) };
-  return JSON.parse(decodeBody(await cachedResponse(url, ACCEPT, false, stored)).toString('utf8')) as T;
+  return withGithubMemoryBudget(memoryBytes, async () => {
+    const response = await cachedResponse(url, ACCEPT, { derivation: stored });
+    return JSON.parse(decodeBody(response).toString('utf8')) as T;
+  });
 }
 
 export async function githubSend<T>(url: string, method: string, body: unknown): Promise<T> {
@@ -106,17 +125,21 @@ export async function githubGraphql<T>(query: string, variables: Record<string, 
 async function cachedResponse(
   url: string,
   accept: string,
-  fresh = false,
-  derivation: Derivation | null = null,
-  maxBodyBytes = MAX_CAPTURE_BYTES,
+  asked: Partial<CachePolicy> = {},
 ): Promise<CachedResponse> {
+  const policy = cachePolicy(asked);
   const scope = scopeOf(url);
-  const key = responseKey(url, accept, derivation);
+  const key = responseKey(url, accept, policy.derivation);
   const held = await readCachedResponse(scope, key);
-  if (held && !fresh && Date.now() - held.storedAt < freshnessOf(url)) return held;
-  return shareInFlight(`${scope}${key}:${maxBodyBytes}${fresh ? ':fresh' : ''}`, () =>
-    revalidate(url, accept, scope, key, held, fresh, derivation, maxBodyBytes),
+  if (held && !policy.fresh && Date.now() - held.storedAt < freshnessOf(url)) return held;
+  const flight = `${scope}${key}:${policy.maxBodyBytes}:${policy.captureReserved}${policy.fresh ? ':fresh' : ''}`;
+  return shareInFlight(flight, () =>
+    revalidate(url, accept, scope, key, held, policy),
   );
+}
+
+function cachePolicy(asked: Partial<CachePolicy>): CachePolicy {
+  return { fresh: false, derivation: null, maxBodyBytes: MAX_CAPTURE_BYTES, captureReserved: false, ...asked };
 }
 
 function responseKey(url: string, accept: string, derivation: Derivation | null): string {
@@ -138,20 +161,18 @@ async function revalidate(
   scope: string,
   key: string,
   held: CachedResponse | null,
-  fresh: boolean,
-  derivation: Derivation | null,
-  maxBodyBytes: number,
+  policy: CachePolicy,
 ): Promise<CachedResponse> {
   const tokenUsed = githubToken();
-  const fallback = fresh ? null : held;
+  const fallback = policy.fresh ? null : held;
   const response = await fetch(url, { cache: 'no-store', headers: conditionalHeaders(accept, held, tokenUsed) }).catch(() => null);
   if (!response) return unreachable(url, fallback);
   if (response.status === 304 && held) return store(scope, key, { ...held, storedAt: Date.now() });
   if (response.status === 401 && tokenUsed) {
-    return readAfterRejectedToken(url, accept, tokenUsed, response, derivation, maxBodyBytes);
+    return readAfterRejectedToken(url, accept, tokenUsed, response, policy);
   }
   if (!response.ok) return staleOrThrow(response, url, fallback);
-  return store(scope, key, await capture(response, derivation, maxBodyBytes));
+  return store(scope, key, await capture(response, policy));
 }
 
 function unreachable(url: string, held: CachedResponse | null): CachedResponse {
@@ -169,13 +190,12 @@ async function readAfterRejectedToken(
   accept: string,
   tokenUsed: string,
   unauthorized: Response,
-  derivation: Derivation | null,
-  maxBodyBytes: number,
+  policy: CachePolicy,
 ): Promise<CachedResponse> {
   rejectGithubToken(tokenUsed);
   if (githubToken() === tokenUsed) throw unauthorizedError(unauthorized, url);
   try {
-    return await cachedResponse(url, accept, false, derivation, maxBodyBytes);
+    return await cachedResponse(url, accept, policy);
   } catch (error) {
     throw remapUnauthorizedFallback(error, unauthorized, url);
   }
@@ -192,8 +212,21 @@ function remapUnauthorizedFallback(error: unknown, unauthorized: Response, url: 
   return error;
 }
 
-async function capture(response: Response, derivation: Derivation | null, maxBodyBytes: number): Promise<CachedResponse> {
-  const storedAsText = derivation !== null || /json|text|javascript/.test(response.headers.get('content-type') ?? '');
+async function capture(response: Response, policy: CachePolicy): Promise<CachedResponse> {
+  const storedAsText = policy.derivation !== null || /json|text|javascript/.test(response.headers.get('content-type') ?? '');
+  if (!policy.derivation && !policy.captureReserved) {
+    const memoryBytes = captureMemoryBytes(response, policy.maxBodyBytes);
+    return withGithubMemoryBudget(memoryBytes, () => capturedResponse(response, null, storedAsText, policy.maxBodyBytes));
+  }
+  return capturedResponse(response, policy.derivation, storedAsText, policy.maxBodyBytes);
+}
+
+async function capturedResponse(
+  response: Response,
+  derivation: Derivation | null,
+  storedAsText: boolean,
+  maxBodyBytes: number,
+): Promise<CachedResponse> {
   return {
     status: response.status,
     etag: response.headers.get('etag'),
@@ -221,6 +254,20 @@ async function store(scope: string, key: string, entry: CachedResponse): Promise
 
 function decodeBody(entry: CachedResponse): Buffer {
   return Buffer.from(entry.body, entry.encoding);
+}
+
+function captureMemoryBytes(response: Response, maxBodyBytes: number): number {
+  const expected = responseEncoding(response) === 'identity' ? contentLength(response) : null;
+  return Math.max(MIN_MEMORY_RESERVATION, Math.min(expected ?? maxBodyBytes, maxBodyBytes) * 4);
+}
+
+function jsonMemoryBytes(response: CachedResponse): number {
+  const estimated = Buffer.byteLength(response.body, response.encoding) * 8;
+  return Math.max(MIN_MEMORY_RESERVATION, Math.min(estimated, MAX_GITHUB_MEMORY_BYTES));
+}
+
+function responseEncoding(response: Response): string {
+  return response.headers.get('content-encoding')?.toLowerCase() ?? 'identity';
 }
 
 function sizedBytes(body: Buffer): GithubBytes {
@@ -334,6 +381,7 @@ function rejectIfUnauthorized(status: number, token: string | null): void {
 function githubHeaders(accept = ACCEPT, token = githubToken()): Record<string, string> {
   return {
     Accept: accept,
+    'Accept-Encoding': 'identity',
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'reposcope',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
