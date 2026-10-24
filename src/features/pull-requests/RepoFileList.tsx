@@ -3,6 +3,7 @@
 import { RepoFileTreeRows } from './RepoFileTreeRows';
 import type { RepoFiles } from './repoFileStore';
 import type { RepoFileTree } from './useRepoFileTree';
+import { GithubAccessHint } from '@/features/sources/GithubAccessHint';
 import { FilterRow } from '@/features/surface-ui/FilterRow';
 
 const NOTE = 'px-1.5 py-[1px] text-[11px] leading-4';
@@ -54,8 +55,15 @@ function FileRows({
   selected: string | null;
   onSelect: (item: string) => void;
 }) {
-  const { fileSet, error } = repoFiles;
-  if (!fileSet) return <p className={`${NOTE} ${error ? 'text-error-ink' : 'text-ink-dim'}`}>{error ?? 'Loading…'}</p>;
+  const { fileSet, error, errorStatus } = repoFiles;
+  if (!fileSet) {
+    return (
+      <>
+        <p className={`${NOTE} ${error ? 'text-error-ink' : 'text-ink-dim'}`}>{error ?? 'Loading…'}</p>
+        <GithubAccessHint errorStatus={errorStatus} className="px-1.5 py-1" />
+      </>
+    );
+  }
   return (
     <>
       <RepoFileTreeRows tree={tree} selected={selected} onSelect={onSelect} />

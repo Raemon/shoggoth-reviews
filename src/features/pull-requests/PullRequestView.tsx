@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PullDiscussion } from './PullDiscussion';
 import { AllPullsColumn, RepoPullsColumn } from './PullListColumn';
-import { ReviewLoadNotice } from './ReviewLoadNotice';
+import { GithubLoadNotice } from './ReviewLoadNotice';
 import { ReviewWorkspace } from './ReviewWorkspace';
 import { setCurrentPull } from './currentPullStore';
 import { prefetchPull } from './prefetchPull';
@@ -57,7 +57,7 @@ export function PullRequestView({
     setCurrentPull(pull && { owner, repo, pull, reload: () => latestReload.current() });
   }, [pull, owner, repo]);
 
-  if (!pull) return <ReviewLoadNotice label={`#${number}`} error={pullState.error} reload={pullState.reload} />;
+  if (!pull) return <GithubLoadNotice label={`#${number}`} state={pullState} />;
 
   return (
     <ReviewWorkspace

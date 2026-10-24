@@ -1,24 +1,29 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { apiJson } from './apiClient';
+import { apiErrorStatus, apiJson } from './apiClient';
 import { readBrowserCache, writeBrowserCache } from './browserCache';
 import { errorMessage } from '@/features/sources/errorMessage';
 
-export interface CachedJson<T> {
+interface LoadError {
+  error: string | null;
+  errorStatus: number | null;
+}
+
+export interface CachedJson<T> extends LoadError {
   data: T | null;
   fresh: boolean;
-  error: string | null;
   reload: () => Promise<T>;
 }
 
-type HeldJson<T> = { key: string; data: T | null; fresh: boolean; error: string | null };
+type HeldJson<T> = LoadError & { key: string; data: T | null; fresh: boolean };
 type Asked = { path: string | null; key: string | null; token: string | null };
 
+const NO_ERROR: LoadError = { error: null, errorStatus: null };
 const NOTHING: CachedJson<never> = {
   data: null,
   fresh: false,
-  error: null,
+  ...NO_ERROR,
   reload: () => Promise.reject(new Error('Nothing to reload')),
 };
 const inFlight = new Map<string, Promise<unknown>>();
@@ -37,13 +42,13 @@ export function useCachedJson<T>(
     if (!ready || path === null || key === null) return;
     let live = true;
     const stale = readBrowserCache<T>(cacheName(key, token));
-    setHeld({ key, data: stale, fresh: false, error: null });
+    setHeld({ key, data: stale, fresh: false, ...NO_ERROR });
     requestJson<T>(path, token, key)
       .then((data) => {
-        if (live) setHeld({ key, data, fresh: true, error: null });
+        if (live) setHeld({ key, data, fresh: true, ...NO_ERROR });
       })
       .catch((issue: unknown) => {
-        if (live) setHeld({ key, data: stale, fresh: true, error: errorMessage(issue) });
+        if (live) setHeld({ key, data: stale, fresh: true, ...loadError(issue) });
       });
     return () => {
       live = false;
@@ -51,7 +56,10 @@ export function useCachedJson<T>(
   }, [path, key, token, ready]);
 
   const reload = () => reloadHeld<T>({ path, key, token }, asked, setHeld);
-  if (held !== null && held.key === key) return { data: held.data, fresh: held.fresh, error: held.error, reload };
+  if (held !== null && held.key === key) {
+    const { data, fresh, error, errorStatus } = held;
+    return { data, fresh, error, errorStatus, reload };
+  }
   return { ...NOTHING, reload };
 }
 
@@ -71,9 +79,13 @@ function reloadHeld<T>(
   const { path, key, token } = snapshot;
   if (path === null || key === null) return Promise.reject(new Error('Nothing to reload'));
   return requestJson<T>(withFresh(path), token, key).then((data) => {
-    if (asked.current.key === key) setHeld({ key, data, fresh: true, error: null });
+    if (asked.current.key === key) setHeld({ key, data, fresh: true, ...NO_ERROR });
     return data;
   });
+}
+
+function loadError(issue: unknown): LoadError {
+  return { error: errorMessage(issue), errorStatus: apiErrorStatus(issue) };
 }
 
 function withFresh(path: string): string {

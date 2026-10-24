@@ -6,9 +6,13 @@ const STATE_COOKIE = 'reposcope-oauth-state';
 const STATE_PATH = '/api/github';
 const MAX_AGE = 10 * 60;
 
-export async function issueOauthState(access: GithubAccess, returnOrigin: string | null): Promise<string> {
-  const encoded = returnOrigin ? `.${Buffer.from(returnOrigin).toString('base64url')}` : '';
-  const state = `${access}.${randomBytes(16).toString('hex')}${encoded}`;
+export interface OauthSignIn {
+  access: GithubAccess;
+  next: string | null;
+}
+
+export async function issueOauthState({ access, next }: OauthSignIn, returnOrigin: string | null): Promise<string> {
+  const state = [access, randomBytes(16).toString('hex'), encodeSegment(returnOrigin), encodeSegment(next)].join('.');
   (await cookies()).set(STATE_COOKIE, state, {
     httpOnly: true,
     sameSite: 'lax',
@@ -26,10 +30,15 @@ export async function consumeOauthState(): Promise<string | null> {
   return state;
 }
 
-export function parseOauthState(state: string): { access: GithubAccess; returnTo: string | null } {
-  const [access, , encodedReturn] = state.split('.');
-  return {
-    access: parseGithubAccess(access),
-    returnTo: encodedReturn ? Buffer.from(encodedReturn, 'base64url').toString() : null,
-  };
+export function parseOauthState(state: string): OauthSignIn & { returnTo: string | null } {
+  const [access, , encodedReturn, encodedNext] = state.split('.');
+  return { access: parseGithubAccess(access), next: decodeSegment(encodedNext), returnTo: decodeSegment(encodedReturn) };
+}
+
+function encodeSegment(value: string | null): string {
+  return value ? Buffer.from(value).toString('base64url') : '';
+}
+
+function decodeSegment(segment: string | undefined): string | null {
+  return segment ? Buffer.from(segment, 'base64url').toString() : null;
 }
