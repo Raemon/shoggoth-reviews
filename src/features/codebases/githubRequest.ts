@@ -14,6 +14,7 @@ export class GithubRequestError extends Error {
 const ACCEPT = 'application/vnd.github+json';
 export const PAGE_SIZE = 100;
 const DEFAULT_FRESHNESS_MS = 30_000;
+const MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
 const IMMUTABLE_PATTERNS = [/\/(?:commits|git\/trees|tarball)\/[0-9a-f]{40}$/, /\/compare\/[0-9a-f]{40}\.\.\.[0-9a-f]{40}$/];
 const STALE_ON_STATUS = [403, 408, 429, 500, 502, 503, 504];
 
@@ -22,6 +23,11 @@ const inFlight = new Map<string, Promise<CachedResponse>>();
 type BodyStream = ReadableStream<Uint8Array> | null;
 type Derive<T> = (body: BodyStream) => Promise<T>;
 type Derivation = { what: string; derive: Derive<string> };
+
+export interface GithubBytes {
+  bytes: Uint8Array | null;
+  byteSize: number;
+}
 
 export async function githubJson<T>(url: string, fresh = false): Promise<T> {
   return JSON.parse(decodeBody(await cachedResponse(url, ACCEPT, fresh)).toString('utf8')) as T;
@@ -41,8 +47,14 @@ export function githubPageUrl(url: string, page: number): string {
   return `${url}${url.includes('?') ? '&' : '?'}per_page=${PAGE_SIZE}&page=${page}`;
 }
 
-export async function githubBytes(url: string, accept: string): Promise<Uint8Array> {
-  return new Uint8Array(decodeBody(await cachedResponse(url, accept)));
+export async function githubBytes(url: string, accept: string, maxBytes: number): Promise<GithubBytes> {
+  try {
+    const body = decodeBody(await cachedResponse(url, accept, false, null, maxBytes));
+    return body.byteLength > maxBytes ? oversized(body.byteLength) : sizedBytes(body);
+  } catch (error) {
+    if (error instanceof GithubBodyTooLarge) return oversized(error.byteSize);
+    throw error;
+  }
 }
 
 // Stores only derive()'s output, so a tarball never sits in memory or the cache.
@@ -96,13 +108,14 @@ async function cachedResponse(
   accept: string,
   fresh = false,
   derivation: Derivation | null = null,
+  maxBodyBytes = MAX_CAPTURE_BYTES,
 ): Promise<CachedResponse> {
   const scope = scopeOf(url);
   const key = responseKey(url, accept, derivation);
   const held = await readCachedResponse(scope, key);
   if (held && !fresh && Date.now() - held.storedAt < freshnessOf(url)) return held;
-  return shareInFlight(scope + key + (fresh ? ':fresh' : ''), () =>
-    revalidate(url, accept, scope, key, held, fresh, derivation),
+  return shareInFlight(`${scope}${key}:${maxBodyBytes}${fresh ? ':fresh' : ''}`, () =>
+    revalidate(url, accept, scope, key, held, fresh, derivation, maxBodyBytes),
   );
 }
 
@@ -127,15 +140,18 @@ async function revalidate(
   held: CachedResponse | null,
   fresh: boolean,
   derivation: Derivation | null,
+  maxBodyBytes: number,
 ): Promise<CachedResponse> {
   const tokenUsed = githubToken();
   const fallback = fresh ? null : held;
   const response = await fetch(url, { cache: 'no-store', headers: conditionalHeaders(accept, held, tokenUsed) }).catch(() => null);
   if (!response) return unreachable(url, fallback);
   if (response.status === 304 && held) return store(scope, key, { ...held, storedAt: Date.now() });
-  if (response.status === 401 && tokenUsed) return readAfterRejectedToken(url, accept, tokenUsed, response, derivation);
+  if (response.status === 401 && tokenUsed) {
+    return readAfterRejectedToken(url, accept, tokenUsed, response, derivation, maxBodyBytes);
+  }
   if (!response.ok) return staleOrThrow(response, url, fallback);
-  return store(scope, key, await capture(response, derivation));
+  return store(scope, key, await capture(response, derivation, maxBodyBytes));
 }
 
 function unreachable(url: string, held: CachedResponse | null): CachedResponse {
@@ -154,11 +170,12 @@ async function readAfterRejectedToken(
   tokenUsed: string,
   unauthorized: Response,
   derivation: Derivation | null,
+  maxBodyBytes: number,
 ): Promise<CachedResponse> {
   rejectGithubToken(tokenUsed);
   if (githubToken() === tokenUsed) throw unauthorizedError(unauthorized, url);
   try {
-    return await cachedResponse(url, accept, false, derivation);
+    return await cachedResponse(url, accept, false, derivation, maxBodyBytes);
   } catch (error) {
     throw remapUnauthorizedFallback(error, unauthorized, url);
   }
@@ -175,7 +192,7 @@ function remapUnauthorizedFallback(error: unknown, unauthorized: Response, url: 
   return error;
 }
 
-async function capture(response: Response, derivation: Derivation | null): Promise<CachedResponse> {
+async function capture(response: Response, derivation: Derivation | null, maxBodyBytes: number): Promise<CachedResponse> {
   const storedAsText = derivation !== null || /json|text|javascript/.test(response.headers.get('content-type') ?? '');
   return {
     status: response.status,
@@ -183,13 +200,18 @@ async function capture(response: Response, derivation: Derivation | null): Promi
     lastModified: response.headers.get('last-modified'),
     storedAt: Date.now(),
     encoding: storedAsText ? 'utf8' : 'base64',
-    body: await storedBody(response, derivation, storedAsText),
+    body: await storedBody(response, derivation, storedAsText, maxBodyBytes),
   };
 }
 
-async function storedBody(response: Response, derivation: Derivation | null, storedAsText: boolean): Promise<string> {
-  if (derivation) return derivation.derive(response.body);
-  return Buffer.from(await response.arrayBuffer()).toString(storedAsText ? 'utf8' : 'base64');
+async function storedBody(
+  response: Response,
+  derivation: Derivation | null,
+  storedAsText: boolean,
+  maxBodyBytes: number,
+): Promise<string> {
+  if (derivation) return boundedString(await derivation.derive(response.body), maxBodyBytes);
+  return (await boundedResponseBody(response, maxBodyBytes)).toString(storedAsText ? 'utf8' : 'base64');
 }
 
 async function store(scope: string, key: string, entry: CachedResponse): Promise<CachedResponse> {
@@ -199,6 +221,59 @@ async function store(scope: string, key: string, entry: CachedResponse): Promise
 
 function decodeBody(entry: CachedResponse): Buffer {
   return Buffer.from(entry.body, entry.encoding);
+}
+
+function sizedBytes(body: Buffer): GithubBytes {
+  return { bytes: new Uint8Array(body), byteSize: body.byteLength };
+}
+
+function oversized(byteSize: number): GithubBytes {
+  return { bytes: null, byteSize };
+}
+
+function boundedString(body: string, maxBytes: number): string {
+  const byteSize = Buffer.byteLength(body);
+  if (byteSize > maxBytes) throw new GithubBodyTooLarge(byteSize);
+  return body;
+}
+
+async function boundedResponseBody(response: Response, maxBytes: number): Promise<Buffer> {
+  const declared = contentLength(response);
+  if (declared !== null && declared > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new GithubBodyTooLarge(declared);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  return readBounded(reader, maxBytes);
+}
+
+async function readBounded(reader: ReadableStreamDefaultReader<Uint8Array>, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let byteSize = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return Buffer.concat(chunks, byteSize);
+    byteSize += value.byteLength;
+    if (byteSize > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new GithubBodyTooLarge(byteSize);
+    }
+    chunks.push(Buffer.from(value));
+  }
+}
+
+function contentLength(response: Response): number | null {
+  const header = response.headers.get('content-length');
+  if (header === null) return null;
+  const value = Number(header);
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+class GithubBodyTooLarge extends GithubRequestError {
+  constructor(readonly byteSize: number) {
+    super(413, `GitHub response exceeds the permitted size (${byteSize} bytes)`);
+  }
 }
 
 function freshnessOf(url: string): number {
@@ -247,7 +322,7 @@ async function describeSendFailure(response: Response, url: string): Promise<str
 
 function describeFailure(response: Response, url: string): string {
   const exhausted = response.headers.get('x-ratelimit-remaining') === '0';
-  if (exhausted) return `GitHub rate limit exhausted (${response.status} for ${url}); connect GitHub or set GITHUB_TOKEN`;
+  if (exhausted) return `GitHub rate limit exhausted (${response.status} for ${url}); connect GitHub to continue`;
   if (response.status === 401) return `GitHub rejected the credentials for ${url}; reconnect GitHub`;
   return `GitHub ${response.status} for ${url}`;
 }

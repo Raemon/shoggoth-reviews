@@ -463,11 +463,13 @@ export async function describeCommit(owner: string, name: string, sha: string): 
 }
 
 export async function readFileBlob(owner: string, name: string, ref: string, path: string): Promise<FileBlob> {
-  return fileBlobOf(path, await readRawFile(owner, name, ref, path));
+  const file = await readRawFile(owner, name, ref, path, MAX_BLOB_BYTES);
+  return file.bytes ? fileBlobOf(path, file.bytes) : { dataUrl: null, byteSize: file.byteSize };
 }
 
 export async function readFileText(owner: string, name: string, ref: string, path: string): Promise<FileText> {
-  return fileTextOf(await readRawFile(owner, name, ref, path));
+  const file = await readRawFile(owner, name, ref, path, MAX_TEXT_BYTES);
+  return file.bytes ? fileTextOf(file.bytes) : { text: null, byteSize: file.byteSize };
 }
 
 export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
@@ -484,11 +486,12 @@ export function fileTextOf(bytes: Uint8Array): FileText {
   return { text: new TextDecoder().decode(bytes), byteSize: bytes.byteLength };
 }
 
-function readRawFile(owner: string, name: string, ref: string, path: string): Promise<Uint8Array> {
+function readRawFile(owner: string, name: string, ref: string, path: string, maxBytes: number) {
   const encoded = path.split('/').map(encodeURIComponent).join('/');
   return githubBytes(
     `${API}/repos/${owner}/${name}/contents/${encoded}?ref=${encodeURIComponent(ref)}`,
     'application/vnd.github.raw',
+    maxBytes,
   );
 }
 
