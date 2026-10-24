@@ -17,9 +17,7 @@ export function userGithubToken(): string | null {
 }
 
 export function githubToken(): string | null {
-  const user = userGithubToken();
-  if (user) return usable(user);
-  return usable(process.env.GITHUB_TOKEN) ?? usable(process.env.GH_TOKEN);
+  return usable(userGithubToken());
 }
 
 export function rejectGithubToken(token: string): void {

@@ -32,6 +32,10 @@ Every read from GitHub goes through `githubJson`/`githubBytes` in
 `src/features/codebases/githubRequest.ts`, which caches responses to disk and
 revalidates them with ETags. Do not call `fetch` anywhere else — `npm run
 check:caching` runs as part of `npm run build` and fails on new call sites.
+Server `GITHUB_TOKEN`/`GH_TOKEN` values are ignored so anonymous requests cannot
+inherit deployment credentials. Set `REPOSCOPE_ORIGIN` to the canonical public
+HTTPS origin for OAuth deployments; forwarded host headers are never trusted.
+Large GitHub responses and derivations share a process-wide memory budget.
 
 ## Showing pull requests
 
