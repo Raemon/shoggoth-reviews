@@ -15,7 +15,7 @@ import type { ChangeSummary } from './pullRequests';
 import { useRepoFiles } from './repoFileStore';
 import { ResizableColumn, useCollapsibleColumn } from './ResizableColumn';
 import { useStickyColumn } from './stickyColumns';
-import { useDefaultBranchChange } from './useDefaultBranch';
+import { useDefaultBranchChange, useRepoSummary } from './useDefaultBranch';
 import { useRepoFileTree, type RepoFileTree } from './useRepoFileTree';
 
 const BROWSE_ROW = { title: 'browse files', counts: false };
@@ -39,6 +39,7 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
     onActivate: tree.activateItem,
   });
   const fileSet = repoFiles.fileSet;
+  const canPush = useRepoSummary(owner, repo)?.canPush ?? false;
   const reloadFiles = () => {
     void branchChange.reload().catch(() => {});
     return repoFiles.reload();
@@ -88,7 +89,7 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
           fileSet={fileSet}
           tree={tree}
           item={browsed}
-          reloadFiles={reloadFiles}
+          reloadFiles={canPush ? reloadFiles : undefined}
         />
       </div>
     </div>
@@ -124,7 +125,7 @@ function BrowsePane({
   fileSet: RepoFileSet | null;
   tree: RepoFileTree;
   item: string | null;
-  reloadFiles: () => Promise<RepoFileSet>;
+  reloadFiles?: () => Promise<RepoFileSet>;
 }) {
   if (commit !== WHOLE_CHANGE) return <CommitDiffReader owner={owner} repo={repo} sha={commit} />;
   if (item === null || fileSet === null) return <p className="px-2 py-1 text-[11px] text-ink-dim">Pick a file or folder to read it here.</p>;

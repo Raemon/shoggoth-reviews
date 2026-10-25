@@ -352,7 +352,7 @@ export async function commitFileEdit(
 export async function commitDefaultBranchEdit(owner: string, name: string, edit: FileEdit): Promise<EditResult> {
   requireGithubUser('committing');
   const branch = await defaultBranch(owner, name, true);
-  return commitSplicedFile(owner, name, branch, `${API}/repos/${owner}/${name}/contents/${encodePath(edit.path)}`, edit);
+  return commitSplicedFile(owner, name, branch, contentsUrl(`${owner}/${name}`, edit.path), edit);
 }
 
 async function commitSplicedFile(
@@ -401,7 +401,7 @@ async function editableFile(
   if (!changed.some((file) => file.filename === path)) {
     throw new GithubRequestError(422, `${path} is not among the files this pull request changes`);
   }
-  return { contents: `${API}/repos/${target}/contents/${encodePath(path)}`, branch: pull.head.ref };
+  return { contents: contentsUrl(target, path), branch: pull.head.ref };
 }
 
 export async function openPullAtHead(
@@ -453,6 +453,10 @@ function stripReturn(line: string): string {
 
 function staleMessage(path: string): string {
   return `${path} has changed on the branch since this diff loaded; reload before continuing`;
+}
+
+function contentsUrl(fullName: string, path: string): string {
+  return `${API}/repos/${fullName}/contents/${encodePath(path)}`;
 }
 
 function encodePath(path: string): string {

@@ -82,7 +82,7 @@ function sameRepo(repo: RepoRef, other: RepoRef | null): boolean {
 }
 
 function unlistedRepo({ owner, name }: RepoRef): SidebarRepo {
-  return { owner, name, description: '', language: '', updatedAt: '', private: false, defaultBranch: '', source: null };
+  return { owner, name, description: '', language: '', updatedAt: '', private: false, defaultBranch: '', canPush: false, source: null };
 }
 
 function SourceNotice({ group }: { group: SidebarGroup }) {

@@ -10,6 +10,7 @@ export interface RepoSummary {
   updatedAt: string;
   private: boolean;
   defaultBranch: string;
+  canPush: boolean;
 }
 
 export interface ViewerRepos {
@@ -25,6 +26,7 @@ interface GithubRepo {
   pushed_at: string;
   private: boolean;
   default_branch: string;
+  permissions?: { push?: boolean };
 }
 
 const API = 'https://api.github.com';
@@ -79,5 +81,6 @@ function summarize(repo: GithubRepo): RepoSummary {
     updatedAt: repo.pushed_at,
     private: repo.private,
     defaultBranch: repo.default_branch,
+    canPush: repo.permissions?.push ?? false,
   };
 }

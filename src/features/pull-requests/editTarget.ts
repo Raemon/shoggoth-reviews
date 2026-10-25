@@ -10,4 +10,6 @@ export interface EditTargetValue {
   onCommitted?: () => void | Promise<void>;
 }
 
+export type EditSource = Omit<EditTargetValue, 'headRef'>;
+
 export const EditTarget = createContext<EditTargetValue | null>(null);

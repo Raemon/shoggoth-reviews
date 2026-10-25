@@ -10,7 +10,7 @@ import { DiffFileSection } from './DiffFileSection';
 import { DiffLayoutToggle } from './DiffLayoutToggle';
 import type { FolderHeading } from './fileTreeNodes';
 import { FolderHeadingBar } from './FolderHeading';
-import { EditTarget, type EditTargetValue } from './editTarget';
+import { EditTarget, type EditSource } from './editTarget';
 import { ImageThumbnailStrip } from './ImageThumbnailStrip';
 import { imageFilesOf, isImagePath } from './imageFiles';
 import type { ChangedFile, ChangedFileSet } from './pullRequests';
@@ -37,7 +37,7 @@ export function DiffPanes({
   fileSet,
   files,
   selected,
-  edits = null,
+  editSource = null,
   sortable = true,
   headings,
   ref,
@@ -47,7 +47,7 @@ export function DiffPanes({
   fileSet: ChangedFileSet | null;
   files: ChangedFile[];
   selected: string | null;
-  edits?: Omit<EditTargetValue, 'headRef'> | null;
+  editSource?: EditSource | null;
   sortable?: boolean;
   headings?: ReadonlyMap<string, FolderHeading[]>;
   ref?: Ref<DiffPanesHandle>;
@@ -90,7 +90,7 @@ export function DiffPanes({
   if (!fileSet) return <PaneStatusLine tone="dim" className="flex-1">Loading…</PaneStatusLine>;
   if (files.length === 0) return <PaneStatusLine tone="dim" className="flex-1">No files changed.</PaneStatusLine>;
   return (
-    <EditTarget value={edits && { ...edits, headRef: fileSet.headRef }}>
+    <EditTarget value={editSource && { ...editSource, headRef: fileSet.headRef }}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
           <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />

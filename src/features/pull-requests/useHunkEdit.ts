@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { commitMessageFor, editableBlockAt, editSubject, type BlockBounds, type EditableBlock } from './editableBlocks';
+import { commitMessageFor, editableBlockAt, editLabel, type BlockBounds, type EditableBlock } from './editableBlocks';
 import type { EditTargetValue } from './editTarget';
 import { defaultBranchEditPath, pullEditPath } from './pullPaths';
 import type { DiffRow } from './splitDiff';
@@ -68,7 +68,7 @@ export function useHunkEdit({
   function askToCommit() {
     if (!edit || !target || committing) return;
     if (edit.draft === edit.block.text) close();
-    else setMessage(commitMessageFor(editSubject(target.pull, filename), edit.block.text, edit.draft));
+    else setMessage(commitMessageFor(editLabel(target.pull, filename), edit.block.text, edit.draft));
   }
 
   // Optimistic: dismiss the modal right away and leave the editor showing the
@@ -87,9 +87,12 @@ export function useHunkEdit({
       setCommitting(false);
       return;
     }
-    if (refresh) await refresh();
-    close();
-    setCommitting(false);
+    try {
+      if (refresh) await refresh();
+    } finally {
+      close();
+      setCommitting(false);
+    }
   }
 
   return {

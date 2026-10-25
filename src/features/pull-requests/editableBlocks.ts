@@ -87,7 +87,7 @@ export function commitMessageFor(subject: string, before: string, after: string)
   return `Minor change to ${subject}: ${snippet(removed)} -> ${snippet(added)}`;
 }
 
-export function editSubject(pull: { title: string; number: number } | null, filename: string): string {
+export function editLabel(pull: { title: string; number: number } | null, filename: string): string {
   return pull ? `${pull.title.replace(/\s+/g, ' ').trim()} (#${pull.number})` : filename;
 }
 

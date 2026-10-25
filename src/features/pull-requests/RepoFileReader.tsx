@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import { DiffPanes } from './DiffPanes';
-import type { EditTargetValue } from './editTarget';
 import { isImagePath } from './imageFiles';
 import { fileTextPath } from './pullPaths';
 import type { FileText } from './pullRequests';
@@ -32,16 +31,24 @@ export function RepoFileReader({
   const wantsText = !isImagePath(path);
   const route = wantsText ? fileTextPath(owner, repo, refName, path) : null;
   const { data, error, reload } = useCachedJson<FileText>(route, token, ready);
-  // A commit moves refName; without this the open editor unmounts while the new text loads.
+  // Keeps the editor mounted while text for the post-commit refName loads.
   const text = useLastKnown(data, path);
   const fileSet = useMemo(() => readableFileSet(refName, path, wantsText, text), [refName, path, wantsText, text]);
-  const edits = reloadFiles ? defaultBranchEdits(() => showCommitted(reloadFiles, owner, repo, path, token)) : null;
+  const onCommitted = reloadFiles && (() => refreshAfterCommit(reloadFiles, owner, repo, path, token));
 
   if (error) return <PaneStatusLine tone="error" className="flex-1" onRetry={reload}>{error}</PaneStatusLine>;
   if (wantsText && text?.text === null) return <PaneStatusLine tone="dim" className="flex-1">File too large to show.</PaneStatusLine>;
   return (
     <ReviewThreadProvider owner={owner} repo={repo} number={null}>
-      <DiffPanes owner={owner} repo={repo} fileSet={fileSet} files={fileSet?.files ?? []} selected={path} sortable={false} edits={edits} />
+      <DiffPanes
+        owner={owner}
+        repo={repo}
+        fileSet={fileSet}
+        files={fileSet?.files ?? []}
+        selected={path}
+        sortable={false}
+        editSource={onCommitted && { pull: null, onCommitted }}
+      />
     </ReviewThreadProvider>
   );
 }
@@ -51,11 +58,7 @@ function readableFileSet(refName: string, path: string, wantsText: boolean, data
   return data?.text == null ? null : wholeFileSet(refName, path, data.text);
 }
 
-function defaultBranchEdits(onCommitted: () => Promise<void>): Omit<EditTargetValue, 'headRef'> {
-  return { pull: null, onCommitted };
-}
-
-async function showCommitted(
+async function refreshAfterCommit(
   reloadFiles: () => Promise<RepoFileSet>,
   owner: string,
   repo: string,
