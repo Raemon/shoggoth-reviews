@@ -24,6 +24,7 @@ export type TreeNode = TreeFolder | TreeFile;
 export interface TreeRow {
   node: TreeNode;
   depth: number;
+  folderPrefix?: string;
 }
 
 export function browseKey(path: string): string {
@@ -156,12 +157,30 @@ function foldersFirst(a: TreeNode, b: TreeNode): number {
   return Number(a.kind === 'file') - Number(b.kind === 'file');
 }
 
-export function visibleRows(nodes: TreeNode[], isOpen: (path: string) => boolean, depth = 0): TreeRow[] {
-  return nodes.flatMap((node) => {
-    const row = { node, depth };
-    if (node.kind === 'file' || !isOpen(node.path)) return [row];
-    return [row, ...visibleRows(node.children, isOpen, depth + 1)];
-  });
+type IsOpen = (path: string) => boolean;
+
+export function visibleRows(nodes: TreeNode[], isOpen: IsOpen, depth = 0): TreeRow[] {
+  return nodes.flatMap((node) => rowsFor(node, isOpen, depth));
+}
+
+function rowsFor(node: TreeNode, isOpen: IsOpen, depth: number): TreeRow[] {
+  if (node.kind === 'file') return [{ node, depth }];
+  const lone = loneFile(node);
+  if (lone) return [{ node: lone.file, depth, folderPrefix: lone.folderPrefix }];
+  return folderRows(node, isOpen, depth);
+}
+
+function folderRows(folder: TreeFolder, isOpen: IsOpen, depth: number): TreeRow[] {
+  const row = { node: folder, depth };
+  return isOpen(folder.path) ? [row, ...visibleRows(folder.children, isOpen, depth + 1)] : [row];
+}
+
+function loneFile(folder: TreeFolder): { file: TreeFile; folderPrefix: string } | null {
+  const [child, ...rest] = folder.children;
+  if (!child || rest.length > 0) return null;
+  const below = child.kind === 'file' ? { file: child, folderPrefix: '' } : loneFile(child);
+  if (!below) return null;
+  return { file: below.file, folderPrefix: `${folder.name}/${below.folderPrefix}` };
 }
 
 export function ancestorFolders(path: string): string[] {

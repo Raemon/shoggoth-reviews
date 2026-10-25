@@ -17,6 +17,7 @@ export function FileTreeRow({
   onSelect,
   indented = false,
   indent,
+  folderPrefix,
   action = null,
   children,
 }: {
@@ -26,6 +27,7 @@ export function FileTreeRow({
   onSelect: () => void;
   indented?: boolean;
   indent?: number;
+  folderPrefix?: string;
   action?: ReactNode;
   children?: ReactNode;
 }) {
@@ -41,6 +43,7 @@ export function FileTreeRow({
       <HoverCardTrigger label={path} className="min-w-0 flex-1" focusable={false} tooltipStyle>
         <span className="min-w-0 flex-1 truncate filename-text">
           {inset.showsParent && <ParentFolder path={path} />}
+          {folderPrefix && <span className="text-ink-dim">{folderPrefix}</span>}
           <FileName path={path} tinted={!rowShowsAccent(row.state)} />
         </span>
       </HoverCardTrigger>
