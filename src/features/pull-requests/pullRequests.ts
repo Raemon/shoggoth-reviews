@@ -10,6 +10,7 @@ import {
   PAGE_SIZE,
 } from '@/features/codebases/githubRequest';
 import { withGithubMemoryBudget } from '@/features/codebases/githubMemoryBudget';
+import { defaultBranch } from '@/features/codebases/repoDirectory';
 import { requireGithubUser } from '@/features/github-auth/requireGithubUser';
 import { imageTypeOf } from './imageFiles';
 import type { PullState } from './pullPaths';
@@ -345,6 +346,22 @@ export async function commitFileEdit(
   edit: FileEdit,
 ): Promise<EditResult> {
   const { contents, branch } = await editableFile(owner, name, number, edit.path, edit.headRef);
+  return commitSplicedFile(owner, name, branch, contents, edit);
+}
+
+export async function commitDefaultBranchEdit(owner: string, name: string, edit: FileEdit): Promise<EditResult> {
+  requireGithubUser('committing');
+  const branch = await defaultBranch(owner, name, true);
+  return commitSplicedFile(owner, name, branch, `${API}/repos/${owner}/${name}/contents/${encodePath(edit.path)}`, edit);
+}
+
+async function commitSplicedFile(
+  owner: string,
+  name: string,
+  branch: string,
+  contents: string,
+  edit: FileEdit,
+): Promise<EditResult> {
   const held = await githubJson<GithubFileContents>(`${contents}?ref=${encodeURIComponent(branch)}`, true);
   return commitContents(owner, name, branch, contents, 'PUT', {
     message: edit.message,

@@ -70,16 +70,7 @@ export function FileDiff({
   const emphasis = useIntralineEmphasis(rows);
   const tokens = useDiffTokens(rows, file.filename);
   const pull = target?.pull ?? null;
-  const hunkEdit = useHunkEdit({
-    owner,
-    repo,
-    pull,
-    headRef: target?.headRef ?? '',
-    rows,
-    filename: file.filename,
-    token,
-    onCommitted: target?.onCommitted,
-  });
+  const hunkEdit = useHunkEdit({ owner, repo, target, rows, filename: file.filename, token });
   useFoldCommandWholeFile(hunkEdit, setWantWholeFile);
   const editBlock = hunkEdit.edit?.block ?? null;
   const fileThreads = useFileThreads(file.filename);
@@ -121,7 +112,7 @@ export function FileDiff({
   };
   const bounds = { hidden: undrawn, stopAtBlankLines: showingWholeFile };
   const editing = {
-    editable: pull !== null,
+    editable: target !== null,
     onEditBlock: (rowIndex: number) => hunkEdit.begin(rowIndex, bounds),
     editedRows: editBlock,
     editor: hunkEditor(file.filename, hunkEdit, mainLines, rowHeights),

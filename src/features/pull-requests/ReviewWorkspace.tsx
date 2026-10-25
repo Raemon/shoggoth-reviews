@@ -290,8 +290,7 @@ function Workspace({
                       fileSet={fileSet}
                       files={files}
                       selected={path}
-                      editablePull={editableFiles}
-                      onCommitted={reloadInPlace}
+                      edits={editableFiles && { pull: editableFiles, onCommitted: reloadInPlace }}
                     />
                   </div>
                 )}

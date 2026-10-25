@@ -16,12 +16,14 @@ export function RepoBrowseReader({
   fileSet,
   tree,
   item,
+  reloadFiles,
 }: {
   owner: string;
   repo: string;
   fileSet: RepoFileSet;
   tree: RepoFileTree;
   item: string;
+  reloadFiles?: () => Promise<RepoFileSet>;
 }) {
   const settled = useDebounced<string | null>(item, SETTLE_MS, null);
   const folder = settled === null ? null : folderedPath(settled);
@@ -30,5 +32,6 @@ export function RepoBrowseReader({
   if (folder !== null)
     return <RepoFolderReader key={`${fileSet.sha}:${folder}`} owner={owner} repo={repo} refName={fileSet.sha} items={items} />;
   const path = treePath(settled);
-  return path === null ? null : <RepoFileReader owner={owner} repo={repo} refName={fileSet.sha} path={path} />;
+  if (path === null) return null;
+  return <RepoFileReader owner={owner} repo={repo} refName={fileSet.sha} path={path} reloadFiles={reloadFiles} />;
 }

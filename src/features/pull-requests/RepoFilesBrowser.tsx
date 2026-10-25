@@ -28,7 +28,8 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
   const [query, setQuery] = useState('');
   const { browsed, commit, browseFile, showCommit } = useBrowseSelection();
   const repoFiles = useRepoFiles(owner, repo, true);
-  const change = useDefaultBranchChange(owner, repo) ?? NO_COMMITS;
+  const branchChange = useDefaultBranchChange(owner, repo);
+  const change = branchChange.data ?? NO_COMMITS;
   const tree = useRepoFileTree({ repoFiles, query, selected: browsed, onSelect: browseFile });
   useRegisterColumn('files', {
     ...useCollapsibleColumn('files', fileSize, setFileSize),
@@ -38,6 +39,10 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
     onActivate: tree.activateItem,
   });
   const fileSet = repoFiles.fileSet;
+  const reloadFiles = () => {
+    void branchChange.reload().catch(() => {});
+    return repoFiles.reload();
+  };
   return (
     <div className="flex min-h-0 flex-1 max-md:flex-col max-md:overflow-y-auto">
       <RepoPullsColumn
@@ -76,7 +81,15 @@ export function RepoFilesBrowser({ owner, repo }: { owner: string; repo: string 
         />
       </ResizableColumn>
       <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
-        <BrowsePane owner={owner} repo={repo} commit={commit} fileSet={fileSet} tree={tree} item={browsed} />
+        <BrowsePane
+          owner={owner}
+          repo={repo}
+          commit={commit}
+          fileSet={fileSet}
+          tree={tree}
+          item={browsed}
+          reloadFiles={reloadFiles}
+        />
       </div>
     </div>
   );
@@ -103,6 +116,7 @@ function BrowsePane({
   fileSet,
   tree,
   item,
+  reloadFiles,
 }: {
   owner: string;
   repo: string;
@@ -110,10 +124,11 @@ function BrowsePane({
   fileSet: RepoFileSet | null;
   tree: RepoFileTree;
   item: string | null;
+  reloadFiles: () => Promise<RepoFileSet>;
 }) {
   if (commit !== WHOLE_CHANGE) return <CommitDiffReader owner={owner} repo={repo} sha={commit} />;
   if (item === null || fileSet === null) return <p className="px-2 py-1 text-[11px] text-ink-dim">Pick a file or folder to read it here.</p>;
-  return <RepoBrowseReader owner={owner} repo={repo} fileSet={fileSet} tree={tree} item={item} />;
+  return <RepoBrowseReader owner={owner} repo={repo} fileSet={fileSet} tree={tree} item={item} reloadFiles={reloadFiles} />;
 }
 
 const PREVIEW_CHIPS = 60;
