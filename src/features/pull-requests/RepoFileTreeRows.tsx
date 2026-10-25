@@ -37,7 +37,7 @@ export function RepoFileTreeRows({
 }
 
 function NodeRow({
-  row: { node, depth },
+  row: { node, depth, folderPrefix },
   tree,
   selected,
   onSelect,
@@ -67,6 +67,7 @@ function NodeRow({
       selected={browseKey(node.path) === selected}
       onSelect={() => onSelect(browseKey(node.path))}
       indent={indentOf(depth) + STEP}
+      folderPrefix={folderPrefix}
     >
       <LineCount lines={tree.lines.get(node.path)} />
     </FileTreeRow>
