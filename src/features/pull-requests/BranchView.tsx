@@ -17,7 +17,7 @@ export function BranchView({ owner, repo, branch }: { owner: string; repo: strin
 
   useEffect(() => () => setCurrentBranch(null), []);
   useEffect(() => {
-    setCurrentBranch(change && { owner, repo, branch, head: headCommit(change) });
+    setCurrentBranch(change && { owner, repo, branch, head: headCommit(change), pull: change.pull });
   }, [change, owner, repo, branch]);
 
   if (!change) return <GithubLoadNotice label={branch} state={branchState} />;

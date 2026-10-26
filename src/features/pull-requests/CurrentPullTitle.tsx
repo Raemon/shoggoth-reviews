@@ -1,8 +1,10 @@
 'use client';
 
-import { StateTags } from './PullListRow';
-import { useCurrentBranchHead, useCurrentPull } from './currentPullStore';
-import { pullUrl } from './pullPaths';
+import Link from 'next/link';
+import type { BranchPull } from './branches';
+import { RowTag, StateTags } from './PullListRow';
+import { useCurrentBranch, useCurrentPull } from './currentPullStore';
+import { pullRoute, pullUrl } from './pullPaths';
 import { useIsOwnAuthor } from '@/features/github-auth/useViewerLogin';
 import type { RepoRef } from '@/features/sources/parseRepoLink';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -31,17 +33,36 @@ export function CurrentPullTitle({ repo, number }: { repo: RepoRef; number: numb
 }
 
 export function CurrentBranchTitle({ repo, branch }: { repo: RepoRef; branch: string }) {
-  const head = useCurrentBranchHead(repo.owner, repo.name, branch);
+  const held = useCurrentBranch(repo.owner, repo.name, branch);
   return (
     <div className={TITLE_ROW}>
       <span aria-hidden className="shrink-0 text-accent">
         ⑂
       </span>
       <TruncatedName text={branch} className="font-mono text-[13px] leading-6 text-ink" />
-      {head && <AuthorAndTime author={head.author} iso={head.date} />}
+      {held?.pull !== undefined && <BranchPullStatus repo={repo} pull={held.pull} />}
+      {held?.head && <AuthorAndTime author={held.head.author} iso={held.head.date} />}
       <OpenOnGithubLink href={`https://github.com/${repo.owner}/${repo.name}/tree/${encodeURI(branch)}`} label="branch" className={GITHUB_LINK} />
     </div>
   );
+}
+
+function BranchPullStatus({ repo, pull }: { repo: RepoRef; pull: BranchPull | null }) {
+  if (pull === null) return <RowTag>no pull request</RowTag>;
+  return (
+    <HoverCardTrigger label={pull.title} serifLabel className="shrink-0" focusable={false} tooltipStyle>
+      <Link href={pullRoute(repo.owner, repo.name, pull.number)} className="flex items-baseline gap-1.5 text-accent hover:underline">
+        #{pull.number}
+        <RowTag>{pullStateLabel(pull)}</RowTag>
+      </Link>
+    </HoverCardTrigger>
+  );
+}
+
+function pullStateLabel(pull: BranchPull): string {
+  if (pull.merged) return 'merged';
+  if (pull.state !== 'open') return 'closed';
+  return pull.draft ? 'draft' : 'open';
 }
 
 function TruncatedName({ text, className, serif = false }: { text: string; className: string; serif?: boolean }) {
