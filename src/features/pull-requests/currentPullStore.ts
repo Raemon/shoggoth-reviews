@@ -1,6 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import type { BranchChange } from './branches';
 import type { CommitSummary, PullRequestCommits } from './pullRequests';
 
 export interface CurrentPull {
@@ -15,6 +16,7 @@ export interface CurrentBranch {
   repo: string;
   branch: string;
   head: CommitSummary | null;
+  pull: BranchChange['pull'];
 }
 
 export function subjectStore<T>() {
@@ -56,7 +58,7 @@ export function useCurrentPull(owner: string, repo: string, number: number): Pul
   return held && held.owner === owner && held.repo === repo && held.pull.pull.number === number ? held.pull : null;
 }
 
-export function useCurrentBranchHead(owner: string, repo: string, branch: string): CommitSummary | null {
+export function useCurrentBranch(owner: string, repo: string, branch: string): CurrentBranch | null {
   const held = useSyncExternalStore(branches.subscribe, branches.read, nothingHeld);
-  return held && held.owner === owner && held.repo === repo && held.branch === branch ? held.head : null;
+  return held && held.owner === owner && held.repo === repo && held.branch === branch ? held : null;
 }

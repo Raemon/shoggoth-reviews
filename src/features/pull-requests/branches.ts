@@ -11,8 +11,15 @@ import {
 
 export interface BranchPull {
   number: number;
+  title: string;
   state: string;
+  draft: boolean;
   merged: boolean;
+}
+
+export interface BranchChange extends ChangeSummary {
+  // Missing from responses that browsers cached before this field existed.
+  pull?: BranchPull | null;
 }
 
 export interface BranchOption {
@@ -49,7 +56,9 @@ interface BranchQuery {
 
 interface GithubRefPull {
   number: number;
+  title: string;
   state: string;
+  draft?: boolean;
   updated_at: string;
   merged_at: string | null;
   head: { ref: string; sha: string; repo?: { full_name: string } | null };
@@ -120,15 +129,29 @@ function datedBranch(ref: GraphqlRef): DatedBranch {
   return { name: ref.name, headSha: ref.target?.oid ?? '', updatedAt: ref.target?.committedDate ?? '' };
 }
 
-export async function describeBranch(owner: string, name: string, branch: string, fresh = false): Promise<ChangeSummary> {
-  const compare = await compareWithDefault(owner, name, branch, fresh);
+export async function describeBranch(owner: string, name: string, branch: string, fresh = false): Promise<BranchChange> {
+  const [compare, pull] = await Promise.all([
+    compareWithDefault(owner, name, branch, fresh),
+    pullForBranch(owner, name, branch, fresh),
+  ]);
   const files = compare.files ?? [];
   const commits = await branchCommits(owner, name, branch, compare);
   return {
     additions: totalOf(files, (file) => file.additions),
     deletions: totalOf(files, (file) => file.deletions),
     commits: await summarizeCommits(owner, name, commits),
+    pull,
   };
+}
+
+async function pullForBranch(owner: string, name: string, branch: string, fresh: boolean): Promise<BranchPull | null> {
+  const head = encodeURIComponent(`${owner}:${branch}`);
+  const pulls = await githubJson<GithubRefPull[]>(
+    `${API}/repos/${owner}/${name}/pulls?head=${head}&state=all&sort=updated&direction=desc`,
+    fresh,
+  );
+  const pull = pulls.find((candidate) => candidate.state === 'open') ?? pulls[0];
+  return pull ? branchPull(pull) : null;
 }
 
 // The trunk is never ahead of itself, so show its own history rather than nothing.
@@ -196,10 +219,14 @@ function summarizeBranch(branch: DatedBranch, pull: GithubRefPull | null, trunk:
     name: branch.name,
     headSha: branch.headSha,
     updatedAt: branch.updatedAt,
-    pull: pull && { number: pull.number, state: pull.state, merged },
+    pull: pull && branchPull(pull),
     mergedAndUnchanged: merged && pull?.head.sha === branch.headSha,
     isDefault: branch.name === trunk,
   };
+}
+
+function branchPull(pull: GithubRefPull): BranchPull {
+  return { number: pull.number, title: pull.title, state: pull.state, draft: pull.draft ?? false, merged: pull.merged_at != null };
 }
 
 function byTrunkThenUnsettledThenRecent(a: BranchSummary, b: BranchSummary): number {
