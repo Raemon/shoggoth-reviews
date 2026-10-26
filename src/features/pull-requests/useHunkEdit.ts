@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { commitMessageFor, editableBlockAt, type BlockBounds, type EditableBlock } from './editableBlocks';
-import type { PullRequestSummary } from './pullRequests';
+import { commitMessageFor, editableBlockAt, editLabel, type BlockBounds, type EditableBlock } from './editableBlocks';
+import type { EditTargetValue } from './editTarget';
+import { defaultBranchEditPath, pullEditPath } from './pullPaths';
 import type { DiffRow } from './splitDiff';
 import { apiPostJson } from '@/features/sources/apiClient';
 import { errorMessage } from '@/features/sources/errorMessage';
@@ -29,21 +30,17 @@ export interface HunkEditControls {
 export function useHunkEdit({
   owner,
   repo,
-  pull,
-  headRef,
+  target,
   rows,
   filename,
   token,
-  onCommitted,
 }: {
   owner: string;
   repo: string;
-  pull: PullRequestSummary | null;
-  headRef: string;
+  target: EditTargetValue | null;
   rows: DiffRow[];
   filename: string;
   token: string | null;
-  onCommitted?: () => void | Promise<void>;
 }): HunkEditControls {
   const [edit, setEdit] = useState<HunkEdit | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -63,36 +60,39 @@ export function useHunkEdit({
   useEffect(close, [rows, filename]);
 
   function begin(rowIndex: number, bounds: BlockBounds) {
-    if (!pull || committing || (edit && edit.draft !== edit.block.text)) return;
+    if (!target || committing || (edit && edit.draft !== edit.block.text)) return;
     const block = editableBlockAt(rows, rowIndex, bounds);
     if (block) setEdit({ block, draft: block.text });
   }
 
   function askToCommit() {
-    if (!edit || !pull || committing) return;
+    if (!edit || !target || committing) return;
     if (edit.draft === edit.block.text) close();
-    else setMessage(commitMessageFor(pull, edit.block.text, edit.draft));
+    else setMessage(commitMessageFor(editLabel(target.pull, filename), edit.block.text, edit.draft));
   }
 
   // Optimistic: dismiss the modal right away and leave the editor showing the
   // committed content until the refreshed diff replaces it.
   async function commit() {
-    if (!edit || !pull || message === null || committing) return;
-    const refresh = onCommitted;
+    if (!edit || !target || message === null || committing) return;
+    const refresh = target.onCommitted;
     setCommitting(true);
     setFailure(null);
     setMessage(null);
     try {
-      await postHunkCommit({ owner, repo, pull, headRef, filename, token, edit, message });
+      await postHunkCommit({ owner, repo, target, filename, token, edit, message });
     } catch (issue: unknown) {
       setMessage(message);
       setFailure(errorMessage(issue));
       setCommitting(false);
       return;
     }
-    if (refresh) await refresh();
-    close();
-    setCommitting(false);
+    try {
+      if (refresh) await refresh();
+    } finally {
+      close();
+      setCommitting(false);
+    }
   }
 
   return {
@@ -113,8 +113,7 @@ export function useHunkEdit({
 function postHunkCommit({
   owner,
   repo,
-  pull,
-  headRef,
+  target,
   filename,
   token,
   edit,
@@ -122,24 +121,20 @@ function postHunkCommit({
 }: {
   owner: string;
   repo: string;
-  pull: PullRequestSummary;
-  headRef: string;
+  target: EditTargetValue;
   filename: string;
   token: string | null;
   edit: HunkEdit;
   message: string;
 }) {
-  return apiPostJson(
-    `/api/github/commit-file?owner=${encodeURIComponent(owner)}&name=${encodeURIComponent(repo)}&number=${pull.number}`,
-    token,
-    {
-      path: filename,
-      headRef,
-      startLine: edit.block.startLine,
-      endLine: edit.block.endLine,
-      original: edit.block.text,
-      updated: edit.draft,
-      message,
-    },
-  );
+  const route = target.pull ? pullEditPath(owner, repo, target.pull.number) : defaultBranchEditPath(owner, repo);
+  return apiPostJson(route, token, {
+    path: filename,
+    headRef: target.headRef,
+    startLine: edit.block.startLine,
+    endLine: edit.block.endLine,
+    original: edit.block.text,
+    updated: edit.draft,
+    message,
+  });
 }

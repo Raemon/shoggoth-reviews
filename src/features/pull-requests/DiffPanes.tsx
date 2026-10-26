@@ -10,10 +10,10 @@ import { DiffFileSection } from './DiffFileSection';
 import { DiffLayoutToggle } from './DiffLayoutToggle';
 import type { FolderHeading } from './fileTreeNodes';
 import { FolderHeadingBar } from './FolderHeading';
-import { EditTarget } from './editTarget';
+import { EditTarget, type EditSource } from './editTarget';
 import { ImageThumbnailStrip } from './ImageThumbnailStrip';
 import { imageFilesOf, isImagePath } from './imageFiles';
-import type { ChangedFile, ChangedFileSet, PullRequestSummary } from './pullRequests';
+import type { ChangedFile, ChangedFileSet } from './pullRequests';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 const SCROLL_MS = 100;
@@ -37,10 +37,9 @@ export function DiffPanes({
   fileSet,
   files,
   selected,
-  editablePull = null,
+  editSource = null,
   sortable = true,
   headings,
-  onCommitted,
   ref,
 }: {
   owner: string;
@@ -48,10 +47,9 @@ export function DiffPanes({
   fileSet: ChangedFileSet | null;
   files: ChangedFile[];
   selected: string | null;
-  editablePull?: PullRequestSummary | null;
+  editSource?: EditSource | null;
   sortable?: boolean;
   headings?: ReadonlyMap<string, FolderHeading[]>;
-  onCommitted?: () => void | Promise<void>;
   ref?: Ref<DiffPanesHandle>;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
@@ -92,7 +90,7 @@ export function DiffPanes({
   if (!fileSet) return <PaneStatusLine tone="dim" className="flex-1">Loading…</PaneStatusLine>;
   if (files.length === 0) return <PaneStatusLine tone="dim" className="flex-1">No files changed.</PaneStatusLine>;
   return (
-    <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
+    <EditTarget value={editSource && { ...editSource, headRef: fileSet.headRef }}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
           <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />

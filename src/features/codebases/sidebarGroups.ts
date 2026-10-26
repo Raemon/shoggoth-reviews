@@ -79,7 +79,7 @@ function mergeGroup(groups: Map<string, SidebarGroup>, group: SidebarGroup): voi
 }
 
 function placeholder(owner: string, name: string): RepoSummary {
-  return { owner, name, description: '', language: '', updatedAt: '', private: false, defaultBranch: '' };
+  return { owner, name, description: '', language: '', updatedAt: '', private: false, defaultBranch: '', canPush: false };
 }
 
 export function sidebarRepos(groups: SidebarGroup[]): SidebarRepo[] {

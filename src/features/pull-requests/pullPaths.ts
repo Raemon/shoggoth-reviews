@@ -15,6 +15,14 @@ export function commitFilesPath(owner: string, repo: string, sha: string): strin
   return `${readerPath(owner, repo, 'commit')}&sha=${encodeURIComponent(sha)}`;
 }
 
+export function pullEditPath(owner: string, repo: string, number: number): string {
+  return `/api/github/commit-file?${repoParams(owner, repo)}&number=${number}`;
+}
+
+export function defaultBranchEditPath(owner: string, repo: string): string {
+  return `/api/github/commit-repo-file?${repoParams(owner, repo)}`;
+}
+
 export function deleteFilePath(owner: string, repo: string, number: number): string {
   return `/api/github/delete-file?${repoParams(owner, repo)}&number=${number}`;
 }

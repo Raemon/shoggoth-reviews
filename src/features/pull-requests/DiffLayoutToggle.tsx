@@ -74,7 +74,7 @@ function WrapToggle() {
 function EditModeToggle() {
   const editMode = useDiffEditMode();
   const target = useContext(EditTarget);
-  if (!target?.pull) return null;
+  if (!target) return null;
   return (
     <ChoiceButton
       label="Edit mode — click any line to edit it; triple-click works either way"

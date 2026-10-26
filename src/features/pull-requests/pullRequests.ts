@@ -10,6 +10,7 @@ import {
   PAGE_SIZE,
 } from '@/features/codebases/githubRequest';
 import { withGithubMemoryBudget } from '@/features/codebases/githubMemoryBudget';
+import { defaultBranch } from '@/features/codebases/repoDirectory';
 import { requireGithubUser } from '@/features/github-auth/requireGithubUser';
 import { imageTypeOf } from './imageFiles';
 import type { PullState } from './pullPaths';
@@ -345,6 +346,22 @@ export async function commitFileEdit(
   edit: FileEdit,
 ): Promise<EditResult> {
   const { contents, branch } = await editableFile(owner, name, number, edit.path, edit.headRef);
+  return commitSplicedFile(owner, name, branch, contents, edit);
+}
+
+export async function commitDefaultBranchEdit(owner: string, name: string, edit: FileEdit): Promise<EditResult> {
+  requireGithubUser('committing');
+  const branch = await defaultBranch(owner, name, true);
+  return commitSplicedFile(owner, name, branch, contentsUrl(`${owner}/${name}`, edit.path), edit);
+}
+
+async function commitSplicedFile(
+  owner: string,
+  name: string,
+  branch: string,
+  contents: string,
+  edit: FileEdit,
+): Promise<EditResult> {
   const held = await githubJson<GithubFileContents>(`${contents}?ref=${encodeURIComponent(branch)}`, true);
   return commitContents(owner, name, branch, contents, 'PUT', {
     message: edit.message,
@@ -384,7 +401,7 @@ async function editableFile(
   if (!changed.some((file) => file.filename === path)) {
     throw new GithubRequestError(422, `${path} is not among the files this pull request changes`);
   }
-  return { contents: `${API}/repos/${target}/contents/${encodePath(path)}`, branch: pull.head.ref };
+  return { contents: contentsUrl(target, path), branch: pull.head.ref };
 }
 
 export async function openPullAtHead(
@@ -436,6 +453,10 @@ function stripReturn(line: string): string {
 
 function staleMessage(path: string): string {
   return `${path} has changed on the branch since this diff loaded; reload before continuing`;
+}
+
+function contentsUrl(fullName: string, path: string): string {
+  return `${API}/repos/${fullName}/contents/${encodePath(path)}`;
 }
 
 function encodePath(path: string): string {

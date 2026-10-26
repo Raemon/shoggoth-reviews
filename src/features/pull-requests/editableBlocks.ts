@@ -82,10 +82,13 @@ function changedCharacters(before: string, after: string): { removed: string; ad
 
 const MESSAGE_SNIPPET = 60;
 
-export function commitMessageFor(pull: { title: string; number: number }, before: string, after: string): string {
+export function commitMessageFor(subject: string, before: string, after: string): string {
   const { removed, added } = changedCharacters(before, after);
-  const title = pull.title.replace(/\s+/g, ' ').trim();
-  return `Minor change to ${title} (#${pull.number}): ${snippet(removed)} -> ${snippet(added)}`;
+  return `Minor change to ${subject}: ${snippet(removed)} -> ${snippet(added)}`;
+}
+
+export function editLabel(pull: { title: string; number: number } | null, filename: string): string {
+  return pull ? `${pull.title.replace(/\s+/g, ' ').trim()} (#${pull.number})` : filename;
 }
 
 function snippet(text: string): string {

@@ -92,7 +92,7 @@ function withFresh(path: string): string {
   return `${path}${path.includes('?') ? '&' : '?'}fresh=1`;
 }
 
-function requestJson<T>(path: string, token: string | null, key: string): Promise<T> {
+export function requestJson<T>(path: string, token: string | null, key: string = path): Promise<T> {
   const flight = `${cacheName(key, token)} ${path}`;
   const running = inFlight.get(flight);
   if (running) return running as Promise<T>;
