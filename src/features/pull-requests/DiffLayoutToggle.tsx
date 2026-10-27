@@ -4,7 +4,6 @@ import { useContext, type ReactNode } from 'react';
 import { setDiffLayout, useDiffLayout, type DiffLayout } from './diffLayoutStore';
 import { EditTarget } from './editTarget';
 import { setDiffEditMode, useDiffEditMode } from './editModeStore';
-import { DiffSortMenu } from './DiffSortMenu';
 import { FoldModeButtons } from './FoldModeButtons';
 import { ChoiceButton } from '@/features/surface-ui/ChoiceButton';
 import type { IconButtonTone } from '@/features/surface-ui/buttonStyles';
@@ -24,17 +23,15 @@ const CHOICES: { layout: DiffLayout; icon: ReactNode; label: string; tone?: Icon
 ];
 
 export function DiffLayoutToggle({
-  sortable,
   filesOpen,
   onToggleAllFiles,
 }: {
-  sortable: boolean;
   filesOpen: boolean;
   onToggleAllFiles: () => void;
 }) {
   const current = useDiffLayout();
   return (
-    <div className="relative z-30 flex shrink-0 items-center gap-2 border-b border-panel-edge bg-panel px-2 py-[2px]">
+    <div className="relative z-30 flex shrink-0 items-center gap-2 border-b border-panel-edge bg-panel px-2 py-[6px]">
       <FoldModeButtons filesOpen={filesOpen} onToggleAllFiles={onToggleAllFiles} />
       <span className="ml-auto flex items-center gap-2">
         {CHOICES.map(({ layout, icon, label, tone }) => (
@@ -51,7 +48,6 @@ export function DiffLayoutToggle({
         ))}
         <WrapToggle />
         <EditModeToggle />
-        {sortable && <DiffSortMenu />}
       </span>
     </div>
   );

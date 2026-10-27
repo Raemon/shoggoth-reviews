@@ -6,6 +6,7 @@ import { ColumnPreview } from './ColumnPreview';
 import { DiffPanes, type DiffPanesHandle } from './DiffPanes';
 import { filterChangedFiles } from './changedFileFilter';
 import { NO_COMMENTS, sortChangedFiles } from './diffSort';
+import { DiffSortMenu } from './DiffSortMenu';
 import { useDiffSort } from './diffSortStore';
 import { PullFilesColumn, fileTokens } from './PullFilesColumn';
 import { shortSha } from './pullPaths';
@@ -54,6 +55,7 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
         preview={<ColumnPreview column="files" tokens={fileTokens(shownFiles, path)} />}
         size={fileSize}
         onSize={setFileSize}
+        action={<DiffSortMenu />}
       >
         <PullFilesColumn
           files={shownFiles}

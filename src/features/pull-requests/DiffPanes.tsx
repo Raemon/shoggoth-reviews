@@ -38,7 +38,6 @@ export function DiffPanes({
   files,
   selected,
   editablePull = null,
-  sortable = true,
   headings,
   onCommitted,
   ref,
@@ -49,7 +48,6 @@ export function DiffPanes({
   files: ChangedFile[];
   selected: string | null;
   editablePull?: PullRequestSummary | null;
-  sortable?: boolean;
   headings?: ReadonlyMap<string, FolderHeading[]>;
   onCommitted?: () => void | Promise<void>;
   ref?: Ref<DiffPanesHandle>;
@@ -95,7 +93,7 @@ export function DiffPanes({
     <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <DiffLayoutToggle sortable={sortable} filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
+          <DiffLayoutToggle filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
           {/* Widths below feed layout; a toggling scrollbar would make them oscillate. */}
           <div ref={setScroller} className="min-h-0 flex-1 overflow-y-auto bg-code [scrollbar-gutter:stable]">
             <ImageStrip
