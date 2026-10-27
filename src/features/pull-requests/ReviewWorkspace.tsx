@@ -18,6 +18,7 @@ import { useRegisterColumn } from './registerColumn';
 import { RevealCommentContext } from './revealComment';
 import { filterChangedFiles } from './changedFileFilter';
 import { commentCountsOf, sortChangedFiles } from './diffSort';
+import { DiffSortMenu } from './DiffSortMenu';
 import { useDiffSort } from './diffSortStore';
 import { DeleteFileModal } from './DeleteFileModal';
 import { commitFilesPath } from './pullPaths';
@@ -249,6 +250,7 @@ function Workspace({
                 preview={<ColumnPreview column="files" tokens={fileTokens(shownFiles, path)} />}
                 size={fileSize}
                 onSize={setFileSize}
+                action={<DiffSortMenu />}
                 footer={
                   <AllFilesSection
                     repoFiles={repoFiles}

@@ -59,7 +59,7 @@ function FolderPanes({
   const fileSet = useMemo(() => wholeFileSetOf(refName, files), [refName, files]);
   if (files.length === 0) return <PaneStatusLine tone="dim" className="flex-1">None of these files can be shown here.</PaneStatusLine>;
   return (
-    <DiffPanes owner={owner} repo={repo} fileSet={fileSet} files={files} selected={null} sortable={false} headings={headings} />
+    <DiffPanes owner={owner} repo={repo} fileSet={fileSet} files={files} selected={null} headings={headings} />
   );
 }
 

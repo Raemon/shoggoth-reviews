@@ -2,11 +2,11 @@
 
 import { enumPref, usePref } from './localPref';
 
-const SORTS = ['comments', 'diff', 'diffAll', 'folder'] as const;
+const SORTS = ['folder', 'comments', 'diff', 'diffAll'] as const;
 
 export type DiffSort = (typeof SORTS)[number];
 
-const sortPref = enumPref<DiffSort>('reposcope.diffSort', SORTS, 'comments');
+const sortPref = enumPref<DiffSort>('reposcope.diffSort', SORTS, 'folder');
 
 export function setDiffSort(sort: DiffSort): void {
   sortPref.set(sort);
