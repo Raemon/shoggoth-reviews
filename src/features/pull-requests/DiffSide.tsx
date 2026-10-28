@@ -21,6 +21,7 @@ import { ROW_ATTR } from './litRow';
 import { SegmentSpan } from './SegmentSpan';
 import { SEMIBLANK_CODE } from './semiblankLines';
 import { hangingIndent, measureRowHeights, sameRowHeights, WRAPPED_CELL } from './rowHeights';
+import { useSetting } from '@/features/settings/settingsStore';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
 import { plural } from '@/features/surface-ui/plural';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
@@ -90,7 +91,8 @@ export function DiffSide(props: SideProps) {
 function PaneLines(props: SideProps) {
   const { lines, tokens, anchors, editedRows, editor } = props;
   const dim = foldsCollapsed(useFoldCommand().mode);
-  const longestPrefix = useMemo(() => (dim ? longestFoldedPrefix(lines, tokens, anchors) : 0), [dim, lines, tokens, anchors]);
+  const aligned = useSetting('alignFoldIdentifiers') && dim;
+  const longestPrefix = useMemo(() => (aligned ? longestFoldedPrefix(lines, tokens, anchors) : null), [aligned, lines, tokens, anchors]);
   const folding = { dim, longestPrefix };
   if (!editedRows) return <DiffLines {...props} {...folding} from={0} to={lines.length} />;
   const edited = editedLineRange(lines, editedRows);
@@ -160,7 +162,7 @@ function DiffLines({
   draftThreadAt,
   dim,
   longestPrefix,
-}: SideProps & { from: number; to: number; dim: boolean; longestPrefix: number }) {
+}: SideProps & { from: number; to: number; dim: boolean; longestPrefix: number | null }) {
   if (from >= to) return null;
   const spacerLine = spacer ? lastLineOfRow(lines, spacer.afterRow) : -1;
   const rowsWithRightLine = rowsShownOnRight(lines);
@@ -276,7 +278,7 @@ function DiffLineView({
   anchor: CollapseAnchor | null;
   collapsed: boolean;
   dim: boolean;
-  longestPrefix: number;
+  longestPrefix: number | null;
   wrap: boolean;
   stackMargins: boolean;
   height: number;
@@ -304,7 +306,7 @@ function DiffLineView({
   const raw = withMargins(codeSegments(cell.text, lineTokens, changed ? ranges : null), margins);
   const layout = dim && collapsed ? foldLayout(lineTokens) : null;
   const segments = collapsedSegments(raw, layout, longestPrefix);
-  const fold = layout ? prefixStyle(longestPrefix) : null;
+  const fold = layout && longestPrefix !== null ? prefixStyle(longestPrefix) : null;
   const tones = rowTones(line, collapsed);
   return (
     <div
