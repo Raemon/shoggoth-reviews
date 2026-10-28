@@ -13,6 +13,7 @@ export interface PeekAnchor {
   left: number;
   top: number;
   bottom: number;
+  range: Range;
 }
 
 export interface PeekSession {
@@ -37,9 +38,6 @@ export interface PeekShown {
   session: PeekSession | null;
   fileSet: ChangedFileSet | null;
 }
-
-const HOVER_SWITCH_MS = 100;
-const HOVER_GRACE_MS = 300;
 
 const PeekActionsContext = createContext<PeekActions | null>(null);
 const PeekShownContext = createContext<PeekShown | null>(null);
@@ -121,7 +119,6 @@ interface HoverState {
   hovering: string | null;
   shownKey: string | null;
   pinned: boolean;
-  switchTimer?: ReturnType<typeof setTimeout>;
   hideTimer?: ReturnType<typeof setTimeout>;
 }
 
@@ -153,7 +150,7 @@ function sessionControls(state: HoverState, setSession: SetSession): SessionCont
   };
   const hide = () => {
     next();
-    clearHoverTimers(state);
+    clearTimeout(state.hideTimer);
     Object.assign(state, { shownKey: null, pinned: false });
     setSession(() => null);
   };
@@ -169,7 +166,7 @@ function pinActions(frames: FrameCache, state: HoverState, session: SessionContr
     if (!known) session.settle(frames.frameFor(origin), wanted);
   };
   const open = (origin: PeekOrigin, anchor: PeekAnchor) => {
-    clearHoverTimers(state);
+    clearTimeout(state.hideTimer);
     state.shownKey = originKey(origin);
     pinOrigin(origin, (frame) => () => ({ anchor, frames: [frame], pinned: true }));
   };
@@ -188,12 +185,13 @@ function pinActions(frames: FrameCache, state: HoverState, session: SessionContr
 }
 
 function hoverActions(frames: FrameCache, state: HoverState, session: SessionControls) {
+  // Deferred a tick so entering the panel, or returning from it to the word, can cancel it.
   const scheduleHide = () => {
     clearTimeout(state.hideTimer);
-    state.hideTimer = setTimeout(session.hide, HOVER_GRACE_MS);
+    state.hideTimer = setTimeout(session.hide);
   };
   const reveal = (origin: PeekOrigin, anchor: PeekAnchor, key: string) => {
-    const present = (frame: PeekFrame) => (frame.view ? session.show(key, anchor, frame) : scheduleHide());
+    const present = (frame: PeekFrame) => frame.view && session.show(key, anchor, frame);
     const known = frames.settled(origin);
     if (known) return present(known);
     void frames.frameFor(origin).then((frame) => state.hovering === key && !state.pinned && present(frame));
@@ -202,26 +200,20 @@ function hoverActions(frames: FrameCache, state: HoverState, session: SessionCon
     const key = originKey(origin);
     if (key === state.hovering) return;
     state.hovering = key;
-    clearHoverTimers(state);
+    clearTimeout(state.hideTimer);
     if (state.pinned || key === state.shownKey) return;
-    if (state.shownKey === null) reveal(origin, anchor, key);
-    else state.switchTimer = setTimeout(() => reveal(origin, anchor, key), HOVER_SWITCH_MS);
+    if (state.shownKey !== null) session.hide();
+    reveal(origin, anchor, key);
   };
   const unhover = () => {
     state.hovering = null;
-    clearTimeout(state.switchTimer);
     if (!state.pinned && state.shownKey !== null) scheduleHide();
   };
   const hold = () => {
     state.hovering = null;
-    clearHoverTimers(state);
+    clearTimeout(state.hideTimer);
   };
   return { hover, unhover, hold };
-}
-
-function clearHoverTimers(state: HoverState) {
-  clearTimeout(state.switchTimer);
-  clearTimeout(state.hideTimer);
 }
 
 function withTopReplaced(frame: PeekFrame, pinned?: boolean): SessionUpdate {

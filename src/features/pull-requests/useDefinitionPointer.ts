@@ -26,7 +26,12 @@ export function originAtPoint(sides: PeekSides, line: DiffLine, event: MouseEven
   const at = found && sideOf(sides, line.side);
   if (!found || !at) return null;
   const origin = { ...at, line: line.cell.line, column: found.column, word: found.word };
-  return { origin, anchor: { left: found.rect.left, top: found.rect.top, bottom: found.rect.bottom } };
+  return { origin, anchor: wordAnchor(found.range) };
+}
+
+function wordAnchor(range: Range): PeekAnchor {
+  const { left, top, bottom } = range.getBoundingClientRect();
+  return { left, top, bottom, range };
 }
 
 function sideOf(sides: PeekSides, side: 'left' | 'right'): { ref: string; path: string } | null {

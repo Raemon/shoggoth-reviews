@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { codeSegments } from './codeSegments';
 import type { PeekView } from './definitionContext';
@@ -29,12 +29,14 @@ function PeekPanel({ session }: { session: PeekSession }) {
   const actions = useDefinitionPeekActions();
   const panel = useRef<HTMLDivElement | null>(null);
   const frame = session.frames[session.frames.length - 1];
+  const reachable = useReachable(session);
   useDismiss(panel, actions?.close, session.pinned);
+  useWordHighlight(session.anchor.range);
   if (!actions || !frame) return null;
   return (
     <div
       ref={panel}
-      className="fixed z-50 flex w-[680px] max-w-[92vw] flex-col overflow-hidden rounded border border-panel-edge bg-panel shadow-card"
+      className={`fixed z-50 flex w-[680px] max-w-[92vw] flex-col overflow-hidden rounded border border-panel-edge bg-panel shadow-card ${reachable ? '' : 'pointer-events-none'}`}
       style={panelPlacement(session.anchor)}
       onMouseEnter={actions.hold}
       onMouseLeave={actions.release}
@@ -44,6 +46,27 @@ function PeekPanel({ session }: { session: PeekSession }) {
       <PeekBody frame={frame} onPush={actions.push} />
     </div>
   );
+}
+
+const REACHABLE_AFTER_MS = 300;
+const WORD_HIGHLIGHT = 'definition-peek-word';
+
+// Until then the panel lets the pointer through, so moving onto it leaves the word.
+function useReachable(session: PeekSession): boolean {
+  const [heldAnchor, setHeldAnchor] = useState<PeekAnchor | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setHeldAnchor(session.anchor), REACHABLE_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [session.anchor]);
+  return session.pinned || heldAnchor === session.anchor;
+}
+
+function useWordHighlight(word: Range) {
+  useLayoutEffect(() => {
+    if (!('highlights' in CSS)) return;
+    CSS.highlights.set(WORD_HIGHLIGHT, new Highlight(word));
+    return () => void CSS.highlights.delete(WORD_HIGHLIGHT);
+  }, [word]);
 }
 
 function useDismiss(panel: React.RefObject<HTMLDivElement | null>, close: (() => void) | undefined, pinned: boolean) {

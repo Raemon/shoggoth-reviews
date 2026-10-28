@@ -176,6 +176,10 @@
   color: var(--shiki-light, inherit);
 }
 
+::highlight(definition-peek-word) {
+  background-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
 @utility row-shade {
   background-image: linear-gradient(rgb(0 0 0 / 0.05), rgb(0 0 0 / 0.05));
 }
