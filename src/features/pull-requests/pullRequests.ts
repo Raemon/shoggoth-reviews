@@ -9,6 +9,7 @@ import {
   githubSend,
   PAGE_SIZE,
 } from '@/features/codebases/githubRequest';
+import { withGithubMemoryBudget } from '@/features/codebases/githubMemoryBudget';
 import { requireGithubUser } from '@/features/github-auth/requireGithubUser';
 import { imageTypeOf } from './imageFiles';
 import type { PullState } from './pullPaths';
@@ -191,6 +192,8 @@ const API = 'https://api.github.com';
 const MAX_FILE_PAGES = 10;
 export const MAX_BLOB_BYTES = 6 * 1024 * 1024;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+const BLOB_MEMORY_BYTES = 48 * 1024 * 1024;
+const TEXT_MEMORY_BYTES = 16 * 1024 * 1024;
 export const MAX_SCANNED_REPOS = 60;
 const SCAN_WORKERS = 6;
 const COMMIT_STAT_WORKERS = 12;
@@ -463,11 +466,28 @@ export async function describeCommit(owner: string, name: string, sha: string): 
 }
 
 export async function readFileBlob(owner: string, name: string, ref: string, path: string): Promise<FileBlob> {
-  return fileBlobOf(path, await readRawFile(owner, name, ref, path));
+  return withGithubMemoryBudget(BLOB_MEMORY_BYTES, async () => {
+    const file = await readRawFile(owner, name, ref, path, MAX_BLOB_BYTES);
+    return file.bytes ? fileBlobOf(path, file.bytes) : { dataUrl: null, byteSize: file.byteSize };
+  });
 }
 
-export async function readFileText(owner: string, name: string, ref: string, path: string): Promise<FileText> {
-  return fileTextOf(await readRawFile(owner, name, ref, path));
+export async function readFileText(
+  owner: string,
+  name: string,
+  ref: string,
+  path: string,
+  maxBytes: number | null = null,
+): Promise<FileText> {
+  const limit = textByteLimit(maxBytes);
+  return withGithubMemoryBudget(TEXT_MEMORY_BYTES, async () => {
+    const file = await readRawFile(owner, name, ref, path, limit);
+    return file.bytes ? fileTextOf(file.bytes, limit) : { text: null, byteSize: file.byteSize };
+  });
+}
+
+export function textByteLimit(asked: number | null): number {
+  return asked === null ? MAX_TEXT_BYTES : Math.min(asked, MAX_TEXT_BYTES);
 }
 
 export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
@@ -479,16 +499,18 @@ export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
   };
 }
 
-export function fileTextOf(bytes: Uint8Array): FileText {
-  if (bytes.byteLength > MAX_TEXT_BYTES) return { text: null, byteSize: bytes.byteLength };
+export function fileTextOf(bytes: Uint8Array, maxBytes = MAX_TEXT_BYTES): FileText {
+  if (bytes.byteLength > maxBytes) return { text: null, byteSize: bytes.byteLength };
   return { text: new TextDecoder().decode(bytes), byteSize: bytes.byteLength };
 }
 
-function readRawFile(owner: string, name: string, ref: string, path: string): Promise<Uint8Array> {
+function readRawFile(owner: string, name: string, ref: string, path: string, maxBytes: number) {
   const encoded = path.split('/').map(encodeURIComponent).join('/');
   return githubBytes(
     `${API}/repos/${owner}/${name}/contents/${encoded}?ref=${encodeURIComponent(ref)}`,
     'application/vnd.github.raw',
+    maxBytes,
+    { captureReserved: true },
   );
 }
 

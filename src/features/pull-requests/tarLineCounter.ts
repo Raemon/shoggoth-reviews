@@ -4,12 +4,16 @@ import { createGunzip } from 'node:zlib';
 
 const BLOCK = 512;
 const MAX_UNPACKED_BYTES = 512 * 1024 * 1024;
+const MAX_METADATA_BYTES = 1024 * 1024;
+const MAX_COUNTED_FILES = 100_000;
+const MAX_SERIALIZED_LINES_BYTES = 15 * 1024 * 1024;
 const BINARY_PROBE_BYTES = 8000;
 const NEWLINE = 10;
 const REGULAR_FILE_FLAGS = ['0', '\0'];
 const PAX_HEADER_FLAG = 'x';
 const GNU_LONG_NAME_FLAG = 'L';
 const BASE_256_SIZE_BIT = 0x80;
+export const TAR_LINE_MEMORY_BYTES = 96 * 1024 * 1024;
 
 interface OpenEntry {
   name: string;
@@ -50,6 +54,8 @@ class TarLineCounter {
   private entry: OpenEntry | null = null;
   private longName: string | null = null;
   private unpacked = 0;
+  private countedFiles = 0;
+  private serializedBytes = 0;
   private tooLarge = false;
   ended = false;
 
@@ -65,8 +71,7 @@ class TarLineCounter {
   private guardSize(chunk: Buffer): void {
     this.unpacked += chunk.length;
     if (this.unpacked <= MAX_UNPACKED_BYTES) return;
-    this.tooLarge = true;
-    this.ended = true;
+    this.endAsTooLarge();
   }
 
   private feedFrom(chunk: Buffer, at: number): number {
@@ -97,14 +102,32 @@ class TarLineCounter {
   private closeEntry(entry: OpenEntry): void {
     this.entry = null;
     const nameAhead = longNameIn(entry);
-    if (countable(entry, nameAhead)) this.lines[withoutRoot(this.longName ?? entry.name)] = lineCount(entry);
+    if (countable(entry, nameAhead)) this.rememberLine(withoutRoot(this.longName ?? entry.name), lineCount(entry));
     this.longName = nameAhead;
   }
+
+  private rememberLine(path: string, lines: number): void {
+    this.countedFiles += 1;
+    this.serializedBytes += serializedLineBytes(path, lines);
+    if (this.countedFiles > MAX_COUNTED_FILES || this.serializedBytes > MAX_SERIALIZED_LINES_BYTES) {
+      return this.endAsTooLarge();
+    }
+    this.lines[path] = lines;
+  }
+
+  private endAsTooLarge(): void {
+    this.tooLarge = true;
+    this.ended = true;
+  }
+}
+
+function serializedLineBytes(path: string, lines: number): number {
+  return Buffer.byteLength(JSON.stringify(path)) + String(lines).length + 2;
 }
 
 function entryFromHeader(header: Buffer): OpenEntry {
   const head = headerFields(header);
-  return { ...head, contentLeft: head.size, blockLeft: Math.ceil(head.size / BLOCK) * BLOCK, ...blankCounts(head.flag) };
+  return { ...head, contentLeft: head.size, blockLeft: Math.ceil(head.size / BLOCK) * BLOCK, ...blankCounts(head) };
 }
 
 function headerFields(header: Buffer): { name: string; flag: string; size: number } {
@@ -114,8 +137,8 @@ function headerFields(header: Buffer): { name: string; flag: string; size: numbe
   return { name: prefix ? `${prefix}/${name}` : name, flag, size: parseInt(field(header, 124, 12), 8) || 0 };
 }
 
-function blankCounts(flag: string) {
-  const holdsText = flag === PAX_HEADER_FLAG || flag === GNU_LONG_NAME_FLAG;
+function blankCounts(entry: { flag: string; size: number }) {
+  const holdsText = (entry.flag === PAX_HEADER_FLAG || entry.flag === GNU_LONG_NAME_FLAG) && entry.size <= MAX_METADATA_BYTES;
   return { textChunks: holdsText ? [] : null, probedBytes: 0, binary: false, newlines: 0, lastByte: 0 };
 }
 

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { GithubAccessHint } from '@/features/sources/GithubAccessHint';
+import type { CachedJson } from '@/features/sources/useCachedJson';
 
 const LINE = 'px-2 py-1 text-[11px]';
 
@@ -10,6 +12,15 @@ export function ReviewLoadNotice({ label, error, reload }: { label: string; erro
     <p className={`${LINE} text-error-ink`}>
       {error} <RetryButton reload={reload} />
     </p>
+  );
+}
+
+export function GithubLoadNotice({ label, state }: { label: string; state: CachedJson<unknown> }) {
+  return (
+    <>
+      <ReviewLoadNotice label={label} error={state.error} reload={state.reload} />
+      <GithubAccessHint errorStatus={state.errorStatus} className="px-2 py-1" />
+    </>
   );
 }
 

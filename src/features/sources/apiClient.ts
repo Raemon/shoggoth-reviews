@@ -17,6 +17,10 @@ class ApiClientError extends Error {
   }
 }
 
+export function apiErrorStatus(error: unknown): number | null {
+  return error instanceof ApiClientError ? error.status : null;
+}
+
 export async function apiJson<T>(path: string, token: string | null, signal?: AbortSignal): Promise<T> {
   return send<T>(path, token, { signal });
 }

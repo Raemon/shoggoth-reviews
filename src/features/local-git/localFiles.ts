@@ -3,7 +3,7 @@ import { resolve, sep } from 'node:path';
 import { gitBytes, gitText, LocalGitError, nulSeparated } from './gitRun';
 import { INDEX_REF, WORKTREE_REF } from './localRefs';
 import { repositoryRoot } from './localRepo';
-import { fileBlobOf, fileTextOf, MAX_BLOB_BYTES, MAX_TEXT_BYTES, type FileBlob, type FileText } from '@/features/pull-requests/pullRequests';
+import { fileBlobOf, fileTextOf, MAX_BLOB_BYTES, textByteLimit, type FileBlob, type FileText } from '@/features/pull-requests/pullRequests';
 import type { RepoFileSet } from '@/features/pull-requests/repoFiles';
 import type { RepoLineCounts } from '@/features/pull-requests/repoLineCounts';
 
@@ -15,9 +15,10 @@ interface HeldBytes {
 const MAX_LISTED_FILES = 100_000;
 const GITLINK_MODE = '160000 ';
 
-export async function readLocalText(repo: string, ref: string, path: string): Promise<FileText> {
-  const { bytes, byteSize } = await readAtRef(await repositoryRoot(repo), ref, path, MAX_TEXT_BYTES);
-  return bytes === null ? { text: null, byteSize } : fileTextOf(bytes);
+export async function readLocalText(repo: string, ref: string, path: string, maxBytes: number | null = null): Promise<FileText> {
+  const limit = textByteLimit(maxBytes);
+  const { bytes, byteSize } = await readAtRef(await repositoryRoot(repo), ref, path, limit);
+  return bytes === null ? { text: null, byteSize } : fileTextOf(bytes, limit);
 }
 
 export async function readLocalBlob(repo: string, ref: string, path: string): Promise<FileBlob> {

@@ -42,6 +42,12 @@ export function originKey(origin: PeekOrigin): string {
   return `${origin.ref}\0${origin.path}\0${origin.line}\0${origin.column}\0${origin.word}`;
 }
 
+export function definedAt(frame: PeekFrame, origin: PeekOrigin): boolean {
+  const here = (site: DefinitionSite | null) =>
+    site?.ref === origin.ref && site.path === origin.path && site.nameLine === origin.line;
+  return here(frame.site) || frame.sites.some(here);
+}
+
 export function createFrameCache(files: TrimmableFiles, fileSet: { current: ChangedFileSet | null }): FrameCache {
   const sources = peekSources(files.readFile);
   const byOrigin = new Map<string, Promise<PeekFrame>>();

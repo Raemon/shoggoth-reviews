@@ -15,11 +15,13 @@ export interface CachedResponse {
 
 const DIRECTORY = process.env.REPOSCOPE_CACHE_DIR ?? join(tmpdir(), 'reposcope-github-cache');
 const MAX_MEMORY_ENTRIES = 512;
-const MAX_STORED_BYTES = 8_000_000;
+const MAX_MEMORY_BYTES = 64 * 1024 * 1024;
+const MAX_STORED_BYTES = 8 * 1024 * 1024;
 const MAX_DIRECTORY_BYTES = 256_000_000;
 const WRITES_BETWEEN_PRUNES = 50;
 
 const memory = new Map<string, CachedResponse>();
+let memoryBytes = 0;
 let writesSincePrune = 0;
 
 export function cacheKey(parts: readonly string[]): string {
@@ -40,8 +42,13 @@ export async function readCachedResponse(scope: string, key: string): Promise<Ca
 }
 
 export async function writeCachedResponse(scope: string, key: string, entry: CachedResponse): Promise<void> {
-  rememberInMemory(scope + key, entry);
-  if (entry.body.length > MAX_STORED_BYTES) return;
+  const heldKey = scope + key;
+  forgetInMemory(heldKey);
+  if (storedBytes(entry) > MAX_STORED_BYTES) {
+    await rm(entryPath(scope, key), { force: true }).catch(() => undefined);
+    return;
+  }
+  rememberInMemory(heldKey, entry);
   try {
     await mkdir(DIRECTORY, { recursive: true });
     await writeFile(entryPath(scope, key), gzipSync(JSON.stringify(entry)));
@@ -53,7 +60,7 @@ export async function writeCachedResponse(scope: string, key: string, entry: Cac
 
 export async function dropCachedScope(scope: string): Promise<void> {
   const prefix = scopeHash(scope);
-  for (const held of memory.keys()) if (held.startsWith(scope)) memory.delete(held);
+  for (const held of memory.keys()) if (held.startsWith(scope)) forgetInMemory(held);
   try {
     for (const name of await readdir(/*turbopackIgnore: true*/ DIRECTORY)) {
       if (name.startsWith(`${prefix}~`)) await rm(join(DIRECTORY, name), { force: true });
@@ -64,9 +71,27 @@ export async function dropCachedScope(scope: string): Promise<void> {
 }
 
 function rememberInMemory(key: string, entry: CachedResponse): void {
-  memory.delete(key);
+  forgetInMemory(key);
   memory.set(key, entry);
-  while (memory.size > MAX_MEMORY_ENTRIES) memory.delete(memory.keys().next().value as string);
+  memoryBytes += memorySize(entry);
+  while (memory.size > MAX_MEMORY_ENTRIES || memoryBytes > MAX_MEMORY_BYTES) {
+    forgetInMemory(memory.keys().next().value as string);
+  }
+}
+
+function forgetInMemory(key: string): void {
+  const held = memory.get(key);
+  if (!held) return;
+  memoryBytes -= memorySize(held);
+  memory.delete(key);
+}
+
+function storedBytes(entry: CachedResponse): number {
+  return Buffer.byteLength(entry.body, entry.encoding === 'base64' ? 'ascii' : 'utf8');
+}
+
+function memorySize(entry: CachedResponse): number {
+  return entry.body.length * 2 + 256;
 }
 
 function entryPath(scope: string, key: string): string {

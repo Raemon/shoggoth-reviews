@@ -7,10 +7,10 @@ import { PopoverMenu, type PopoverTrigger } from '@/features/surface-ui/PopoverM
 import { SortIcon } from './diffToolbarIcons';
 
 const CHOICES: { sort: DiffSort; label: string }[] = [
-  { sort: 'comments', label: 'inline comments' },
-  { sort: 'diff', label: 'line-diff, excluding imports' },
-  { sort: 'diffAll', label: 'line-diff, all lines' },
-  { sort: 'folder', label: 'alphabetical folder' },
+  { sort: 'folder', label: 'path' },
+  { sort: 'comments', label: 'inline comments, then path' },
+  { sort: 'diff', label: 'non-import lines changed' },
+  { sort: 'diffAll', label: 'all lines changed' },
 ];
 
 export function DiffSortMenu() {
@@ -26,7 +26,7 @@ function SortButton({ current, open, toggle }: PopoverTrigger & { current: DiffS
   const held = CHOICES.find((choice) => choice.sort === current) ?? CHOICES[0]!;
   const label = `Sort files by ${held.label}`;
   return (
-    <HoverCardTrigger label={label} focusable={false} tooltipStyle placement="top-end">
+    <HoverCardTrigger label={label} className="mr-1" focusable={false} tooltipStyle placement="top-end">
       <button
         type="button"
         aria-haspopup="menu"

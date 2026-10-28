@@ -80,8 +80,9 @@ export function repoLinesPath(owner: string, repo: string, ref: string): string 
   return `${readerPath(owner, repo, 'repo-lines')}&ref=${encodeURIComponent(ref)}`;
 }
 
-export function fileTextPath(owner: string, repo: string, ref: string, path: string): string {
-  return `${readerPath(owner, repo, 'file')}&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}`;
+export function fileTextPath(owner: string, repo: string, ref: string, path: string, maxBytes?: number): string {
+  const limit = maxBytes === undefined ? '' : `&max=${maxBytes}`;
+  return `${readerPath(owner, repo, 'file')}&ref=${encodeURIComponent(ref)}&path=${encodeURIComponent(path)}${limit}`;
 }
 
 export function fileBlobPath(owner: string, repo: string, ref: string, path: string): string {

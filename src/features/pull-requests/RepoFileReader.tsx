@@ -33,7 +33,7 @@ export function RepoFileReader({
   if (wantsText && data?.text === null) return <PaneStatusLine tone="dim" className="flex-1">File too large to show.</PaneStatusLine>;
   return (
     <ReviewThreadProvider owner={owner} repo={repo} number={null}>
-      <DiffPanes owner={owner} repo={repo} fileSet={fileSet} files={fileSet?.files ?? []} selected={path} sortable={false} />
+      <DiffPanes owner={owner} repo={repo} fileSet={fileSet} files={fileSet?.files ?? []} selected={path} />
     </ReviewThreadProvider>
   );
 }

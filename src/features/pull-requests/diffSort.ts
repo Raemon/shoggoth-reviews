@@ -18,16 +18,13 @@ export function sortChangedFiles(files: ChangedFile[], sort: DiffSort, comments:
   if (sort === 'folder') return base;
   if (sort === 'diffAll') return byDescending(base, allDiffCount);
   if (sort === 'diff') return byDescending(base, nonImportDiffCount);
-  return byDescending(base, (file) => comments.get(file.filename) ?? 0, nonImportDiffCount);
+  return byDescending(base, (file) => comments.get(file.filename) ?? 0);
 }
 
-function byDescending(
-  files: ChangedFile[],
-  primary: (file: ChangedFile) => number,
-  tiebreak: (file: ChangedFile) => number = () => 0,
-): ChangedFile[] {
-  const scored = files.map((file) => ({ file, primary: primary(file), tiebreak: tiebreak(file) }));
-  scored.sort((a, b) => b.primary - a.primary || b.tiebreak - a.tiebreak);
+// The sort is stable, so equal scores keep the path order of `files`.
+function byDescending(files: ChangedFile[], score: (file: ChangedFile) => number): ChangedFile[] {
+  const scored = files.map((file) => ({ file, score: score(file) }));
+  scored.sort((a, b) => b.score - a.score);
   return scored.map((entry) => entry.file);
 }
 

@@ -6,6 +6,7 @@ import { memoPromise } from './promiseMemo';
 import { fileTextPath, repoFilesAtRefPath } from './pullPaths';
 import type { FileText } from './pullRequests';
 import type { RepoFileSet } from './repoFiles';
+import { LARGE_FILE_BYTES } from './sizeLimits';
 import { parseSource } from './treeSitter';
 import { apiJson } from '@/features/sources/apiClient';
 import { useGithubToken } from '@/features/sources/sourceStore';
@@ -20,6 +21,7 @@ interface RefListing {
 export interface TrimmableFiles extends ResolverFiles {
   tracked<T>(work: Promise<T>): Promise<T>;
   trimParsed(): void;
+  preloadable(ref: string, path: string): Promise<boolean>;
 }
 
 export function useResolverFiles(owner: string, repo: string): TrimmableFiles {
@@ -31,11 +33,13 @@ export function useResolverFiles(owner: string, repo: string): TrimmableFiles {
 
 function makeResolverFiles(owner: string, repo: string, token: { current: string | null }): TrimmableFiles {
   const texts = new Map<string, Promise<string | null>>();
+  const smallTexts = new Map<string, Promise<boolean | null>>();
   const listings = new Map<string, Promise<RefListing | null>>();
-  const readFile = (ref: string, path: string) =>
-    once(texts, `${ref}\0${path}`, () =>
-      apiJson<FileText>(fileTextPath(owner, repo, ref, path), token.current).then((got) => got.text),
-    );
+  const fetchText = (ref: string, path: string, maxBytes?: number) =>
+    apiJson<FileText>(fileTextPath(owner, repo, ref, path, maxBytes), token.current);
+  const readFile = (ref: string, path: string) => once(texts, `${ref}\0${path}`, () => fetchText(ref, path).then((got) => got.text));
+  const preloadable = (ref: string, path: string) =>
+    fitsPreload(texts, smallTexts, `${ref}\0${path}`, () => fetchText(ref, path, LARGE_FILE_BYTES));
   const listFiles = (ref: string) =>
     once(listings, ref, () =>
       apiJson<RepoFileSet>(repoFilesAtRefPath(owner, repo, ref), token.current).then((got) => ({
@@ -49,7 +53,28 @@ function makeResolverFiles(owner: string, repo: string, token: { current: string
     if (listing && !listing.truncated) return false;
     return (await readFile(ref, path)) !== null;
   };
-  return { readFile, hasFile, ...parsedFiles(readFile) };
+  return { readFile, hasFile, preloadable, ...parsedFiles(readFile) };
+}
+
+// Capped, so preloading never downloads a big file; a small one seeds the text cache.
+async function fitsPreload(
+  texts: Map<string, Promise<string | null>>,
+  smallTexts: Map<string, Promise<boolean | null>>,
+  key: string,
+  readCapped: () => Promise<FileText>,
+): Promise<boolean> {
+  const held = texts.get(key);
+  if (held) return isSmallText(await held);
+  const small = await once(smallTexts, key, async () => {
+    const got = await readCapped();
+    if (got.text !== null && !texts.has(key)) texts.set(key, Promise.resolve(got.text));
+    return got.text !== null;
+  });
+  return small === true;
+}
+
+function isSmallText(text: string | null): boolean {
+  return text !== null && text.length <= LARGE_FILE_BYTES;
 }
 
 function parsedFiles(readFile: (ref: string, path: string) => Promise<string | null>) {

@@ -19,7 +19,7 @@ export interface ClickedIdentifier {
 }
 
 export interface PointedIdentifier extends ClickedIdentifier {
-  rect: DOMRect;
+  range: Range;
 }
 
 export function identifierAtPoint(event: { clientX: number; clientY: number }, code: HTMLElement): PointedIdentifier | null {
@@ -30,8 +30,13 @@ export function identifierAtPoint(event: { clientX: number; clientY: number }, c
   const offset = offsetWithin(code, caret);
   const found = offset === null ? null : identifierAround(code.textContent ?? '', offset);
   if (!found) return null;
-  const rect = wordRect(code, found.column, found.column + found.word.length);
-  return { ...found, rect };
+  const range = wordRange(code, found.column, found.column + found.word.length);
+  return spansX(range, event.clientX) ? { ...found, range } : null;
+}
+
+// The caret snaps to the nearest word, even from past the end of the line.
+function spansX(range: Range, x: number): boolean {
+  return Array.from(range.getClientRects()).some((rect) => x >= rect.left && x <= rect.right);
 }
 
 export function identifiersIn(text: string): ClickedIdentifier[] {
@@ -75,7 +80,7 @@ function offsetWithin(code: HTMLElement, caret: Caret): number | null {
   return null;
 }
 
-function wordRect(code: HTMLElement, start: number, end: number): DOMRect {
+function wordRange(code: HTMLElement, start: number, end: number): Range {
   const range = document.createRange();
   for (const span of textSpans(code)) {
     if (start >= span.from && start < span.to) range.setStart(span.node, start - span.from);
@@ -84,7 +89,7 @@ function wordRect(code: HTMLElement, start: number, end: number): DOMRect {
       break;
     }
   }
-  return range.getBoundingClientRect();
+  return range;
 }
 
 interface TextSpan {

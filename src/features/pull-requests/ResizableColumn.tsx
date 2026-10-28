@@ -12,7 +12,7 @@ import { ColumnBoundary } from '@/features/surface-ui/ColumnBoundary';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
 const HEADER_ROW = 'flex min-w-0 shrink-0 items-center gap-1.5 border-panel-edge px-1.5 text-left';
-// 'column' matches the 28px diff toolbar, which the sort menu's popover wrapper sets.
+// 'column' matches the diff toolbar's padding, so both rows come out 29px tall.
 const HEADER_PAD = { column: 'py-[6px]', section: 'py-[1px]' };
 
 type HeaderDensity = keyof typeof HEADER_PAD;

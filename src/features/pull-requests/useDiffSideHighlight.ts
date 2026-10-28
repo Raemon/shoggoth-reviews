@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { EXPAND_MS } from './diffMetrics';
 import { langForPath, tokenizeCode, type ThemedToken } from './diffHighlight';
 import { intralineRanges, type IntralineRanges } from './intralineDiff';
+import { LARGE_FILE_BYTES } from './sizeLimits';
 import { type DiffCell, type DiffRow } from './splitDiff';
 
 export interface SideTokens {
@@ -28,12 +29,14 @@ export function useDiffTokens(rows: DiffRow[], filename: string): SideTokens | n
     setTokens(null);
     const lang = langForPath(filename);
     if (!lang) return;
+    const left = joinedCellText(rows.map((row) => row.left));
+    const right = joinedCellText(rows.map((row) => row.right));
+    // Highlighting one side of a split diff but not the other reads as a rendering bug.
+    if (Math.max(left.length, right.length) > LARGE_FILE_BYTES) return;
     let cancelled = false;
+    const stopped = () => cancelled;
     const highlight = () =>
-      Promise.all([
-        tokenizeCode(joinedCellText(rows.map((row) => row.left)), lang),
-        tokenizeCode(joinedCellText(rows.map((row) => row.right)), lang),
-      ]).then(([leftLines, rightLines]) => {
+      Promise.all([tokenizeCode(left, lang, stopped), tokenizeCode(right, lang, stopped)]).then(([leftLines, rightLines]) => {
         if (cancelled || (!leftLines && !rightLines)) return;
         setTokens(alignTokensToRows(rows, leftLines, rightLines));
       });

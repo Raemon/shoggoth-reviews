@@ -6,20 +6,22 @@ import { ColumnPreview } from './ColumnPreview';
 import { DiffPanes, type DiffPanesHandle } from './DiffPanes';
 import { filterChangedFiles } from './changedFileFilter';
 import { NO_COMMENTS, sortChangedFiles } from './diffSort';
+import { DiffSortMenu } from './DiffSortMenu';
 import { useDiffSort } from './diffSortStore';
 import { PullFilesColumn, fileTokens } from './PullFilesColumn';
 import { shortSha } from './pullPaths';
 import type { ChangedFile, CommitDetail } from './pullRequests';
 import { ResizableColumn, useCollapsibleColumn, type ColumnSize } from './ResizableColumn';
-import { ReviewLoadNotice } from './ReviewLoadNotice';
+import { GithubLoadNotice } from './ReviewLoadNotice';
 import { ReviewThreadProvider } from './reviewThreadStore';
 import { useRegisterColumn } from './registerColumn';
 import { useStickyColumn } from './stickyColumns';
 import { useCommitDetail } from './useCommitDetail';
 
 export function CommitView({ owner, repo, sha }: { owner: string; repo: string; sha: string }) {
-  const { data: commit, error, reload } = useCommitDetail(owner, repo, sha);
-  if (!commit) return <ReviewLoadNotice label={shortSha(sha)} error={error} reload={reload} />;
+  const commitState = useCommitDetail(owner, repo, sha);
+  const commit = commitState.data;
+  if (!commit) return <GithubLoadNotice label={shortSha(sha)} state={commitState} />;
   return (
     <ReviewThreadProvider owner={owner} repo={repo} number={null}>
       <div className="flex h-full min-h-0 flex-col">
@@ -53,6 +55,7 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
         preview={<ColumnPreview column="files" tokens={fileTokens(shownFiles, path)} />}
         size={fileSize}
         onSize={setFileSize}
+        action={<DiffSortMenu />}
       >
         <PullFilesColumn
           files={shownFiles}

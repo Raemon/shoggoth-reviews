@@ -12,10 +12,11 @@
   },
   "scripts": {
     "dev": "next dev --port 2111",
-    "build": "npm run check:caching && next build",
+    "build": "npm run check:caching && npm run check:security && next build",
     "start": "next start --port 2111",
     "typecheck": "tsc --noEmit",
     "check:caching": "node scripts/checkGithubCaching.mjs",
+    "check:security": "node --import tsx scripts/checkSecurity.mjs",
     "predev": "node scripts/copyTreeSitterWasm.mjs",
     "prebuild": "node scripts/copyTreeSitterWasm.mjs",
     "check:folds": "tsx scripts/checkFolds.mjs",

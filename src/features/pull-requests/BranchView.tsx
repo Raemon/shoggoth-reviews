@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { RepoPullsColumn } from './PullListColumn';
-import { ReviewLoadNotice } from './ReviewLoadNotice';
+import { GithubLoadNotice } from './ReviewLoadNotice';
 import { ReviewWorkspace } from './ReviewWorkspace';
 import { setCurrentBranch } from './currentPullStore';
 import { headCommit } from './headCommit';
@@ -17,10 +17,10 @@ export function BranchView({ owner, repo, branch }: { owner: string; repo: strin
 
   useEffect(() => () => setCurrentBranch(null), []);
   useEffect(() => {
-    setCurrentBranch(change && { owner, repo, branch, head: headCommit(change) });
+    setCurrentBranch(change && { owner, repo, branch, head: headCommit(change), pull: change.pull });
   }, [change, owner, repo, branch]);
 
-  if (!change) return <ReviewLoadNotice label={branch} error={branchState.error} reload={branchState.reload} />;
+  if (!change) return <GithubLoadNotice label={branch} state={branchState} />;
 
   return (
     <ReviewWorkspace
