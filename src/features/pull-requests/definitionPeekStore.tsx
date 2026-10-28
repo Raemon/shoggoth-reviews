@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { createFrameCache, loadingFrame, originKey, type FrameCache, type PeekFrame, type PeekOrigin } from './definitionFrames';
+import { createFrameCache, definedAt, loadingFrame, originKey, type FrameCache, type PeekFrame, type PeekOrigin } from './definitionFrames';
 import { patchOrigins, preloadDefinitions } from './definitionPreload';
 import type { DefinitionSite } from './definitionResolver';
 import type { ChangedFileSet } from './pullRequests';
@@ -191,7 +191,8 @@ function hoverActions(frames: FrameCache, state: HoverState, session: SessionCon
     state.hideTimer = setTimeout(session.hide);
   };
   const reveal = (origin: PeekOrigin, anchor: PeekAnchor, key: string) => {
-    const present = (frame: PeekFrame) => frame.view && session.show(key, anchor, frame);
+    // Hovering a definition's own name would only repeat the lines around the pointer.
+    const present = (frame: PeekFrame) => frame.view && !definedAt(frame, origin) && session.show(key, anchor, frame);
     const known = frames.settled(origin);
     if (known) return present(known);
     void frames.frameFor(origin).then((frame) => state.hovering === key && !state.pinned && present(frame));
