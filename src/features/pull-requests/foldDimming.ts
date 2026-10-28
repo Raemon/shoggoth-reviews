@@ -59,9 +59,9 @@ function sliceOf(explanation: Explanation[], from: number, length: number): Gram
 }
 
 // The prefix is clipped only when its full words overflow the pane's prefix column.
-export function collapsedSegments(segments: CodeSegment[], layout: FoldLayout | null, column: number): DimmedSegment[] {
+export function collapsedSegments(segments: CodeSegment[], layout: FoldLayout | null, column: number | null): DimmedSegment[] {
   if (!layout) return segments;
-  return roledSegments(segments, layout, wordsToClip(layout.prefix, column));
+  return roledSegments(segments, layout, column === null ? new Set() : wordsToClip(layout.prefix, column));
 }
 
 function roledSegments(segments: CodeSegment[], layout: FoldLayout, clip: ReadonlySet<string>): DimmedSegment[] {

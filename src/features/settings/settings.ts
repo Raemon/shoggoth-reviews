@@ -13,12 +13,13 @@ export interface Settings {
   theme: ThemeSetting;
   blankLines: BlankLineSetting;
   semiblankLines: boolean;
+  alignFoldIdentifiers: boolean;
 }
 
 // Only chosen values are saved, so changed defaults still reach everyone else.
 export type SavedSettings = Partial<Settings>;
 
-export const DEFAULT_SETTINGS: Settings = { theme: 'system', blankLines: 'half', semiblankLines: true };
+export const DEFAULT_SETTINGS: Settings = { theme: 'system', blankLines: 'half', semiblankLines: true, alignFoldIdentifiers: false };
 
 export function parseSettings(stored: unknown): SavedSettings {
   const record = asRecord(stored);
@@ -26,6 +27,7 @@ export function parseSettings(stored: unknown): SavedSettings {
     ...choice(record, 'theme', THEME_SETTINGS),
     ...choice(record, 'blankLines', BLANK_LINE_SETTINGS),
     ...choice(record, 'semiblankLines', ON_OFF),
+    ...choice(record, 'alignFoldIdentifiers', ON_OFF),
   };
 }
 

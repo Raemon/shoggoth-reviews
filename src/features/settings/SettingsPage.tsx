@@ -47,6 +47,7 @@ export function SettingsPage() {
       <SettingChoices name="blankLines" legend="Blank lines in diffs" labels={BLANK_LINE_LABELS} />
       <SettingToggle name="semiblankLines" legend="Semiblank lines in diffs" label="Draw lines of only brackets or comment marks at half height, and comment margins to match" />
       <DiffLinesPreview />
+      <SettingToggle name="alignFoldIdentifiers" legend="Align fold identifiers" label="Shorten keywords and pad folded lines so their declared names start in one column" />
     </section>
   );
 }
