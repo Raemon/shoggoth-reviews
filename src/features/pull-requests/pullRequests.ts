@@ -472,11 +472,22 @@ export async function readFileBlob(owner: string, name: string, ref: string, pat
   });
 }
 
-export async function readFileText(owner: string, name: string, ref: string, path: string): Promise<FileText> {
+export async function readFileText(
+  owner: string,
+  name: string,
+  ref: string,
+  path: string,
+  maxBytes: number | null = null,
+): Promise<FileText> {
+  const limit = textByteLimit(maxBytes);
   return withGithubMemoryBudget(TEXT_MEMORY_BYTES, async () => {
-    const file = await readRawFile(owner, name, ref, path, MAX_TEXT_BYTES);
-    return file.bytes ? fileTextOf(file.bytes) : { text: null, byteSize: file.byteSize };
+    const file = await readRawFile(owner, name, ref, path, limit);
+    return file.bytes ? fileTextOf(file.bytes, limit) : { text: null, byteSize: file.byteSize };
   });
+}
+
+export function textByteLimit(asked: number | null): number {
+  return asked === null ? MAX_TEXT_BYTES : Math.min(asked, MAX_TEXT_BYTES);
 }
 
 export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
@@ -488,8 +499,8 @@ export function fileBlobOf(path: string, bytes: Uint8Array): FileBlob {
   };
 }
 
-export function fileTextOf(bytes: Uint8Array): FileText {
-  if (bytes.byteLength > MAX_TEXT_BYTES) return { text: null, byteSize: bytes.byteLength };
+export function fileTextOf(bytes: Uint8Array, maxBytes = MAX_TEXT_BYTES): FileText {
+  if (bytes.byteLength > maxBytes) return { text: null, byteSize: bytes.byteLength };
   return { text: new TextDecoder().decode(bytes), byteSize: bytes.byteLength };
 }
 

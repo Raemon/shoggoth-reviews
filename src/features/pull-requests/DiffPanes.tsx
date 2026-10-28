@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref, type RefObject } from 'react';
+import { Fragment, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 import { NearViewportProvider } from './nearViewportStore';
 import { DefinitionPeek } from './DefinitionPeek';
@@ -14,6 +14,7 @@ import { EditTarget } from './editTarget';
 import { ImageThumbnailStrip } from './ImageThumbnailStrip';
 import { imageFilesOf, isImagePath } from './imageFiles';
 import type { ChangedFile, ChangedFileSet, PullRequestSummary } from './pullRequests';
+import { largeDiffPaths } from './sizeLimits';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 const SCROLL_MS = 100;
@@ -58,16 +59,17 @@ export function DiffPanes({
   const realigning = useRef<(() => void) | null>(null);
   useEffect(() => () => realigning.current?.(), []);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const withheld = useMemo(() => largeDiffPaths(files), [files]);
   const toggleFile = useCallback(
     (path: string) => {
       // The header is sticky: mid-file it, not the section top, is what the eye tracks.
       const header = headerOf(sections.current.get(path));
-      holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path) })));
+      holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path, withheld) })));
     },
-    [scroller],
+    [scroller, withheld],
   );
 
-  const filesOpen = files.some((file) => openFile(toggled, file.filename));
+  const filesOpen = files.some((file) => openFile(toggled, file.filename, withheld));
   const setAllFiles = useCallback(
     (open: boolean) => {
       const anchor = topVisibleHeader(scroller, files, sections.current);
@@ -115,7 +117,8 @@ export function DiffPanes({
                       baseRef={fileSet.baseRef}
                       headRef={fileSet.headRef}
                       selected={file.filename === selected}
-                      open={openFile(toggled, file.filename)}
+                      open={openFile(toggled, file.filename, withheld)}
+                      withheld={toggled[file.filename] === undefined && withheld.has(file.filename)}
                       onToggle={() => toggleFile(file.filename)}
                       sectionRef={holdSection(file.filename)}
                     />
@@ -151,8 +154,8 @@ function headerOf(section: HTMLElement | undefined): Element | null {
   return section?.firstElementChild ?? null;
 }
 
-function openFile(toggled: Record<string, boolean>, path: string): boolean {
-  return toggled[path] ?? !isImagePath(path);
+function openFile(toggled: Record<string, boolean>, path: string, withheld: ReadonlySet<string>): boolean {
+  return toggled[path] ?? (!isImagePath(path) && !withheld.has(path));
 }
 
 function ImageStrip({

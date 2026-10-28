@@ -31,7 +31,7 @@ import { useDefinitionPointer } from './useDefinitionPointer';
 import { useDiffTokens, useIntralineEmphasis } from './useDiffSideHighlight';
 import { useHeightTransition } from './useHeightTransition';
 import { useHunkEdit, type HunkEdit, type HunkEditControls } from './useHunkEdit';
-import { hunkHint, useWholeFile, type WholeFile } from './useWholeFile';
+import { hunkHint, useWholeFile, type WholeFile, type WholeFileWish } from './useWholeFile';
 import type { ChangedFile, PullRequestSummary } from './pullRequests';
 import { WHOLE_FILE_STATUS } from './wholeFileEntry';
 import type { BlankLineSetting } from '@/features/settings/settings';
@@ -61,9 +61,9 @@ export function FileDiff({
   const startDrag = useDragWidth(removedSize, setDiffPaneWidth);
   const wrap = useDiffWrap();
   const measured = useMeasuredSides();
-  const [wantWholeFile, setWantWholeFile] = useState(wholeFileWanted);
+  const [wholeFileWish, setWholeFileWish] = useState(initialWholeFileWish);
   const [threadOverflow, setThreadOverflow] = useState(0);
-  const wholeFile = useWholeFile(owner, repo, file, baseRef, headRef, wantWholeFile);
+  const wholeFile = useWholeFile(owner, repo, file, baseRef, headRef, wholeFileWish);
   const patchRows = useMemo(() => splitDiff(file.patch ?? ''), [file.patch]);
   const rows = useMemo(() => rowsForDisplay(patchRows, wholeFile.lines, entireFile), [patchRows, wholeFile.lines, entireFile]);
   const showingWholeFile = rows !== patchRows;
@@ -80,7 +80,7 @@ export function FileDiff({
     token,
     onCommitted: target?.onCommitted,
   });
-  useFoldCommandWholeFile(hunkEdit, setWantWholeFile);
+  useFoldCommandWholeFile(hunkEdit, setWholeFileWish);
   const editBlock = hunkEdit.edit?.block ?? null;
   const fileThreads = useFileThreads(file.filename);
   const draftAnchor = useDraftAnchor();
@@ -102,7 +102,7 @@ export function FileDiff({
   const semiblanks = useSetting('semiblankLines');
   const [mainLines, leftLines] = useSemiblanks(semiblanks, shownMain, shownLeft, collapse.anchors, editBlock);
   const growing = useHeightTransition(rows, undrawn, rowHeights);
-  const expand = expandControl(wholeFile, showingWholeFile, hunkEdit, setWantWholeFile);
+  const expand = expandControl(wholeFile, showingWholeFile, hunkEdit, setWholeFileWish);
   const pointer = useDefinitionPointer(file, baseRef, headRef);
   const draftable = useMemo(() => (showingWholeFile ? patchLineKeys(patchRows) : null), [showingWholeFile, patchRows]);
   const draftThreadAt = draftThreadStarter(draftBase(owner, repo, pull, headRef, file.filename, token), draftable);
@@ -227,13 +227,17 @@ function useRowHeights(wrapped: WrappedHeights, blankLines: BlankLineSetting): R
   return useMemo(() => ({ wrapped, blank: blankRowHeight(blankLines) }), [wrapped, blankLines]);
 }
 
-function useFoldCommandWholeFile(hunkEdit: HunkEditControls, setWantWholeFile: (next: boolean) => void) {
+function initialWholeFileWish(): WholeFileWish {
+  return wholeFileWanted() ? 'auto' : 'none';
+}
+
+function useFoldCommandWholeFile(hunkEdit: HunkEditControls, setWholeFileWish: (next: WholeFileWish) => void) {
   const command = useFoldCommand();
   const applied = useRef(command.epoch);
   const apply = useRef<(mode: FoldMode) => void>(() => {});
   apply.current = (mode) => {
     const want = wholeFileFor(mode);
-    if (want !== null && leaveEdit(hunkEdit)) setWantWholeFile(want);
+    if (want !== null && leaveEdit(hunkEdit)) setWholeFileWish(want ? 'auto' : 'none');
   };
   useEffect(() => {
     if (applied.current === command.epoch) return;
@@ -346,17 +350,22 @@ function expandControl(
   wholeFile: WholeFile,
   showingWholeFile: boolean,
   hunkEdit: HunkEditControls,
-  setWantWholeFile: (update: (was: boolean) => boolean) => void,
+  setWholeFileWish: (update: (was: WholeFileWish) => WholeFileWish) => void,
 ): HunkControl {
   return {
     expanded: showingWholeFile,
     hint: hunkHint(wholeFile, showingWholeFile),
-    onToggle: wholeFile.available ? () => toggleWholeFile(hunkEdit, setWantWholeFile) : null,
+    onToggle: wholeFile.available ? () => toggleWholeFile(hunkEdit, wholeFile.large, setWholeFileWish) : null,
   };
 }
 
-function toggleWholeFile(hunkEdit: HunkEditControls, setWantWholeFile: (update: (was: boolean) => boolean) => void) {
-  if (leaveEdit(hunkEdit)) setWantWholeFile((was) => !was);
+// A file too large to open by itself opens on this click rather than closing.
+function toggleWholeFile(
+  hunkEdit: HunkEditControls,
+  large: boolean,
+  setWholeFileWish: (update: (was: WholeFileWish) => WholeFileWish) => void,
+) {
+  if (leaveEdit(hunkEdit)) setWholeFileWish((was) => (was === 'none' || large ? 'full' : 'none'));
 }
 
 function leaveEdit(hunkEdit: HunkEditControls): boolean {

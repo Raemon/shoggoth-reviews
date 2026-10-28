@@ -11,9 +11,12 @@ import { imageSides } from './imageView';
 import { useNearViewport } from './nearViewportStore';
 import { githubUrl } from './pullPaths';
 import type { ChangedFile } from './pullRequests';
+import { patchLineCount } from './sizeLimits';
+import { smallChoiceClass } from '@/features/surface-ui/buttonStyles';
 import { CopyButton } from '@/features/surface-ui/CopyButton';
 import { OpenOnGithubLink } from '@/features/surface-ui/OpenOnGithubLink';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
+import { plural } from '@/features/surface-ui/plural';
 import { rowStateClass, type RowState } from '@/features/surface-ui/rowState';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
 
@@ -28,6 +31,7 @@ export function DiffFileSection({
   headRef,
   selected,
   open,
+  withheld,
   onToggle,
   sectionRef,
 }: {
@@ -38,6 +42,7 @@ export function DiffFileSection({
   headRef: string;
   selected: boolean;
   open: boolean;
+  withheld: boolean;
   onToggle: () => void;
   sectionRef: (node: HTMLElement | null) => void;
 }) {
@@ -80,6 +85,7 @@ export function DiffFileSection({
         </SelectableRow>
         <HeaderActions path={file.filename} href={githubUrl(owner, repo, `blob/${headRef}/${file.filename}`)} />
       </div>
+      {!open && withheld && <LargeDiffNotice patch={file.patch ?? ''} onLoad={onToggle} />}
       {open &&
         (near ? (
           <FileBody owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} />
@@ -88,6 +94,21 @@ export function DiffFileSection({
         ))}
     </section>
   );
+}
+
+function LargeDiffNotice({ patch, onLoad }: { patch: string; onLoad: () => void }) {
+  return (
+    <PaneStatusLine tone="dim">
+      Large diff not shown by default ({patchSize(patch)}).
+      <button type="button" onClick={onLoad} className={smallChoiceClass('ml-2')}>
+        load diff
+      </button>
+    </PaneStatusLine>
+  );
+}
+
+function patchSize(patch: string): string {
+  return `${plural(patchLineCount(patch), 'line')}, ${Math.ceil(patch.length / 1024)} KB`;
 }
 
 function HeaderActions({ path, href }: { path: string; href: string | null }) {

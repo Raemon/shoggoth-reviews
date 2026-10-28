@@ -103,8 +103,15 @@ function useHeldFrameCache(files: TrimmableFiles, refs: string | null, fileSetRe
 function usePreload(frames: FrameCache, files: TrimmableFiles, refs: string | null, fileSetRef: FileSetRef) {
   useEffect(() => {
     if (!fileSetRef.current || refs === null) return;
-    return preloadDefinitions(patchOrigins(fileSetRef.current), frames.warm, files.trimParsed);
+    return preloadDefinitions(patchOrigins(fileSetRef.current), warmUnlessLarge(frames, files), files.trimParsed);
   }, [frames, files, refs, fileSetRef]);
+}
+
+// Parsing a large file stalls the page: too high a price for a guess at what's hovered.
+function warmUnlessLarge(frames: FrameCache, files: TrimmableFiles) {
+  return async (origin: PeekOrigin) => {
+    if (await files.preloadable(origin.ref, origin.path)) await frames.warm(origin);
+  };
 }
 
 type SessionUpdate = (held: PeekSession | null) => PeekSession | null;
