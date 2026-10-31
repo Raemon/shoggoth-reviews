@@ -3,7 +3,7 @@ const URL_ATTRIBUTES = new Set(['href', 'src', 'srcset']);
 const SAFE_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 const DROPPED_ELEMENTS = /<(script|style|iframe|object|embed|form)\b[\s\S]*?(?:<\/\1\s*>|$)/gi;
 const COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
-const TAG = /<\/?([A-Za-z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)\/?>/g;
+const TAG_OR_STRAY_ANGLE = /<\/?([A-Za-z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)\/?>|</g;
 const ATTRIBUTE = /([\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
 
 const SHARED_ATTRIBUTES = ['align', 'title'];
@@ -24,13 +24,20 @@ function plain(tag: string): [string, string[]] {
   return [tag, []];
 }
 
-export interface UrlBases {
-  href: string;
-  src: string;
+export interface UrlBase {
+  file: string;
+  root: string;
 }
 
-export function safeUrl(href: string, base: string): string | null {
-  return urlWithProtocol(href, SAFE_PROTOCOLS, base);
+export interface UrlBases {
+  href?: UrlBase;
+  src?: UrlBase;
+}
+
+export function safeUrl(href: string, base?: UrlBase): string | null {
+  const url = href.trim();
+  const rooted = url.startsWith('/') && !url.startsWith('//');
+  return rooted ? urlWithProtocol(url.slice(1), SAFE_PROTOCOLS, base?.root) : urlWithProtocol(url, SAFE_PROTOCOLS, base?.file);
 }
 
 export function urlWithProtocol(href: string, allowed: Set<string>, base?: string): string | null {
@@ -42,13 +49,18 @@ export function urlWithProtocol(href: string, allowed: Set<string>, base?: strin
   }
 }
 
+// A `<` left as is would borrow the next tag's `>`, and keep the attributes after it.
 export function sanitizeHtml(html: string, bases: UrlBases): string {
-  return html.replace(COMMENT, '').replace(DROPPED_ELEMENTS, '').replace(TAG, (tag, rawName: string, rawAttributes: string) => {
-    const name = rawName.toLowerCase();
-    const allowed = ALLOWED_TAGS.get(name);
-    if (!allowed) return '';
-    return tag.startsWith('</') ? `</${name}>` : openTag(name, rawAttributes, allowed, bases);
+  return html.replace(COMMENT, '').replace(DROPPED_ELEMENTS, '').replace(TAG_OR_STRAY_ANGLE, (tag, rawName: string | undefined, rawAttributes: string) => {
+    return rawName === undefined ? '&lt;' : sanitizedTag(tag, rawName, rawAttributes, bases);
   });
+}
+
+function sanitizedTag(tag: string, rawName: string, rawAttributes: string, bases: UrlBases): string {
+  const name = rawName.toLowerCase();
+  const allowed = ALLOWED_TAGS.get(name);
+  if (!allowed) return '';
+  return tag.startsWith('</') ? `</${name}>` : openTag(name, rawAttributes, allowed, bases);
 }
 
 function openTag(name: string, rawAttributes: string, allowed: string[], bases: UrlBases): string {
@@ -75,12 +87,12 @@ function attributeValue(name: string, value: string, bases: UrlBases): string | 
   return resolved === null ? null : escapeAttribute(resolved);
 }
 
-function safeSrcset(value: string, base: string): string | null {
+function safeSrcset(value: string, base?: UrlBase): string | null {
   const candidates = value.split(',').map((candidate) => safeCandidate(candidate.trim(), base));
   return candidates.every((candidate) => candidate !== null) ? candidates.join(', ') : null;
 }
 
-function safeCandidate(candidate: string, base: string): string | null {
+function safeCandidate(candidate: string, base?: UrlBase): string | null {
   const [url, ...descriptor] = candidate.split(/\s+/);
   const resolved = url ? safeUrl(url, base) : null;
   return resolved && [resolved, ...descriptor].join(' ');

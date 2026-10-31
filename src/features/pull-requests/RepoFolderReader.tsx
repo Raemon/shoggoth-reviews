@@ -4,12 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DiffPanes } from './DiffPanes';
 import { headingsBefore, isFileItem, type FolderHeading, type ReadingItem } from './fileTreeNodes';
 import { isImagePath } from './imageFiles';
-import { fileTextPath } from './pullPaths';
-import type { ChangedFile, FileText } from './pullRequests';
+import type { ChangedFile } from './pullRequests';
 import { ReviewThreadProvider } from './reviewThreadStore';
+import { useFileText } from './useFileText';
 import { wholeFileEntry, wholeFileSetOf } from './wholeFileEntry';
-import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
-import { useCachedJson } from '@/features/sources/useCachedJson';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 const AT_ONCE = 80;
@@ -102,9 +100,7 @@ function FileTextLoader({
   path: string;
   onText: (path: string, text: string | null) => void;
 }) {
-  const ready = useStoreReady();
-  const token = useGithubToken();
-  const { data, error } = useCachedJson<FileText>(fileTextPath(owner, repo, refName, path), token, ready);
+  const { data, error } = useFileText(owner, repo, refName, path);
   const text = data?.text ?? null;
   useEffect(() => {
     if (data || error) onText(path, text);
