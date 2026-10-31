@@ -26,10 +26,16 @@ const KIND_BY_EXTENSION: Record<string, string> = {
   mk: 'shell',
 };
 
+const MARKDOWN_EXTENSIONS = new Set(['md', 'mdx', 'markdown']);
+
 export function extensionOf(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1);
   const dot = name.lastIndexOf('.');
   return dot <= 0 ? '' : name.slice(dot + 1).toLowerCase();
+}
+
+export function isMarkdownPath(path: string): boolean {
+  return MARKDOWN_EXTENSIONS.has(extensionOf(path));
 }
 
 export function splitExtension(name: string): [string, string] {

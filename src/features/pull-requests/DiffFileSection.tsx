@@ -1,13 +1,15 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { ChangeCounts } from './ChangeCounts';
 import { useColumnNav } from './columnNav';
 import { ROW_HEIGHT } from './diffMetrics';
 import { FileDiff } from './FileDiff';
+import { isMarkdownPath } from './fileKind';
 import { ImageDiff } from './ImageDiff';
 import { isImagePath } from './imageFiles';
-import { imageSides } from './imageView';
+import { imageSides, previewSource } from './imageView';
+import { MarkdownPreview } from './MarkdownPreview';
 import { useNearViewport } from './nearViewportStore';
 import { githubUrl } from './pullPaths';
 import type { ChangedFile } from './pullRequests';
@@ -48,6 +50,7 @@ export function DiffFileSection({
 }) {
   const row = useColumnNav('diff').row(file.filename, selected);
   const [watchNear, near] = useNearViewport();
+  const [previewing, togglePreview] = useMarkdownPreview(open, onToggle);
   // React takes this cleanup instead of calling the ref with null: let go of both here.
   const holdSection = useCallback(
     (element: HTMLElement | null) => {
@@ -83,16 +86,36 @@ export function DiffFileSection({
           <span className="shrink-0 text-[9px] uppercase tracking-[0.18em] text-ink-dim">{file.status}</span>
           <ChangeCounts additions={file.additions} deletions={file.deletions} />
         </SelectableRow>
+        {isMarkdownPath(file.filename) && <PreviewToggle active={previewing} onToggle={togglePreview} />}
         <HeaderActions path={file.filename} href={githubUrl(owner, repo, `blob/${headRef}/${file.filename}`)} />
       </div>
       {!open && withheld && <LargeDiffNotice patch={file.patch ?? ''} onLoad={onToggle} />}
       {open &&
         (near ? (
-          <FileBody owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} />
+          <FileBody owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} previewing={previewing} />
         ) : (
           <div style={{ height: unreadHeight(file) }} />
         ))}
     </section>
+  );
+}
+
+// A click on a closed file opens it onto the preview.
+function useMarkdownPreview(open: boolean, onToggle: () => void): [boolean, () => void] {
+  const [wanted, setWanted] = useState(false);
+  const previewing = open && wanted;
+  const toggle = () => {
+    setWanted(!previewing);
+    if (!open) onToggle();
+  };
+  return [previewing, toggle];
+}
+
+function PreviewToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" onClick={onToggle} aria-pressed={active} className={smallChoiceClass('shrink-0 aria-pressed:text-accent')}>
+      preview
+    </button>
   );
 }
 
@@ -141,13 +164,16 @@ function FileBody({
   file,
   baseRef,
   headRef,
+  previewing,
 }: {
   owner: string;
   repo: string;
   file: ChangedFile;
   baseRef: string;
   headRef: string;
+  previewing: boolean;
 }) {
+  if (previewing) return <MarkdownPreview owner={owner} repo={repo} file={previewSource(file, baseRef, headRef)} />;
   const diff = file.patch ? <FileDiff owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} /> : null;
   if (isImagePath(file.filename)) {
     const { before, after } = imageSides(file, baseRef, headRef);

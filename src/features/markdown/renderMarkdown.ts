@@ -6,17 +6,26 @@ export interface RepoRef {
   repo: string;
 }
 
+export interface MarkdownFile {
+  ref: string;
+  path: string;
+}
+
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (character) => ESCAPES[character] ?? character);
 }
 
-function urlBases({ owner, repo }: RepoRef): UrlBases {
+function urlBases({ owner, repo }: RepoRef, location: string): UrlBases {
   return {
-    href: `https://github.com/${owner}/${repo}/blob/HEAD/`,
-    src: `https://github.com/${owner}/${repo}/raw/HEAD/`,
+    href: `https://github.com/${owner}/${repo}/blob/${location}`,
+    src: `https://github.com/${owner}/${repo}/raw/${location}`,
   };
+}
+
+function fileLocation({ ref, path }: MarkdownFile): string {
+  return `${ref}/${path}`.split('/').map(encodeURIComponent).join('/');
 }
 
 function hovercardAttribute(title: string | null | undefined): string {
@@ -33,9 +42,8 @@ function renderImage(src: string | null, title: string | null | undefined, alt: 
   return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${hovercardAttribute(title)} loading="lazy" />`;
 }
 
-function createMarked(repo: RepoRef): Marked {
-  const bases = urlBases(repo);
-  const marked = new Marked({ gfm: true, breaks: true });
+function createMarked(bases: UrlBases, breaks: boolean): Marked {
+  const marked = new Marked({ gfm: true, breaks });
   marked.use({
     renderer: {
       html: ({ text }: Tokens.HTML | Tokens.Tag) => sanitizeHtml(text, bases),
@@ -52,11 +60,16 @@ const markedByRepo = new Map<string, Marked>();
 
 function markedFor(repo: RepoRef): Marked {
   const key = `${repo.owner}/${repo.repo}`;
-  const existing = markedByRepo.get(key) ?? createMarked(repo);
+  const existing = markedByRepo.get(key) ?? createMarked(urlBases(repo, 'HEAD/'), true);
   markedByRepo.set(key, existing);
   return existing;
 }
 
 export function renderMarkdown(body: string, repo: RepoRef): string {
   return markedFor(repo).parse(body, { async: false });
+}
+
+// Files are often hard-wrapped, so unlike comments their newlines are not line breaks.
+export function renderMarkdownFile(text: string, repo: RepoRef, file: MarkdownFile): string {
+  return createMarked(urlBases(repo, fileLocation(file)), false).parse(text, { async: false });
 }
