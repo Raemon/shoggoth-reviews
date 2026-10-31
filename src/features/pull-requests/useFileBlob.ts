@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { ImageSource } from './imageView';
+import type { FileSource } from './imageView';
 import { fileBlobPath } from './pullPaths';
 import type { FileBlob } from './pullRequests';
 import { apiJson } from '@/features/sources/apiClient';
@@ -11,7 +11,7 @@ import { errorMessage } from '@/features/sources/errorMessage';
 const blobs = new Map<string, FileBlob>();
 const loading = new Map<string, Promise<FileBlob>>();
 
-export function useFileBlob(owner: string, repo: string, source: ImageSource | null) {
+export function useFileBlob(owner: string, repo: string, source: FileSource | null) {
   const token = useGithubToken();
   const path = source ? fileBlobPath(owner, repo, source.ref, source.path) : null;
   return useHeldBlob(path, token);

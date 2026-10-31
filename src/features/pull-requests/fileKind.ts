@@ -1,3 +1,4 @@
+import { MARKDOWN_EXTENSIONS } from './foldDialects';
 import { isImagePath } from './imageFiles';
 
 const KIND_BY_EXTENSION: Record<string, string> = {
@@ -25,8 +26,6 @@ const KIND_BY_EXTENSION: Record<string, string> = {
   bash: 'shell',
   mk: 'shell',
 };
-
-const MARKDOWN_EXTENSIONS = new Set(['md', 'mdx', 'markdown']);
 
 export function extensionOf(path: string): string {
   const name = path.slice(path.lastIndexOf('/') + 1);

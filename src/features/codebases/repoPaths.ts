@@ -1,5 +1,9 @@
 import { parseRepoLink, type RepoRef } from '@/features/sources/parseRepoLink';
 
+export function encodePath(path: string): string {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
 export function repoRoute(owner: string, repo: string): string {
   return `/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 }

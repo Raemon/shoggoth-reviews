@@ -21,6 +21,7 @@ import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 import { plural } from '@/features/surface-ui/plural';
 import { rowStateClass, type RowState } from '@/features/surface-ui/rowState';
 import { SelectableRow } from '@/features/surface-ui/SelectableRow';
+import { SmallChoiceButton } from '@/features/surface-ui/SmallChoiceButton';
 
 const ACTION = 'rounded px-1 leading-4 hover:bg-btn-hover hover:text-ink';
 const ACTION_BAR = 'flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100';
@@ -100,7 +101,6 @@ export function DiffFileSection({
   );
 }
 
-// A click on a closed file opens it onto the preview.
 function useMarkdownPreview(open: boolean, onToggle: () => void): [boolean, () => void] {
   const [wanted, setWanted] = useState(false);
   const previewing = open && wanted;
@@ -113,9 +113,9 @@ function useMarkdownPreview(open: boolean, onToggle: () => void): [boolean, () =
 
 function PreviewToggle({ active, onToggle }: { active: boolean; onToggle: () => void }) {
   return (
-    <button type="button" onClick={onToggle} aria-pressed={active} className={smallChoiceClass('shrink-0 aria-pressed:text-accent')}>
+    <SmallChoiceButton onClick={onToggle} aria-pressed={active} className="shrink-0 aria-pressed:text-accent">
       preview
-    </button>
+    </SmallChoiceButton>
   );
 }
 
@@ -173,7 +173,9 @@ function FileBody({
   headRef: string;
   previewing: boolean;
 }) {
-  if (previewing) return <MarkdownPreview owner={owner} repo={repo} file={previewSource(file, baseRef, headRef)} />;
+  if (previewing) {
+    return <MarkdownPreview owner={owner} repo={repo} source={previewSource(file, baseRef, headRef)} revision={file.patch} />;
+  }
   const diff = file.patch ? <FileDiff owner={owner} repo={repo} file={file} baseRef={baseRef} headRef={headRef} /> : null;
   if (isImagePath(file.filename)) {
     const { before, after } = imageSides(file, baseRef, headRef);

@@ -2,7 +2,7 @@
 
 import type { ReactEventHandler } from 'react';
 import type { ChangedFile } from './pullRequests';
-import type { ImageFileView, ImageGallery, ImageSource } from './imageView';
+import type { ImageFileView, ImageGallery, FileSource } from './imageView';
 import { previewSource } from './imageView';
 import { useFileBlob } from './useFileBlob';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
@@ -33,7 +33,7 @@ export function BlobImage({
 }: {
   owner: string;
   repo: string;
-  source: ImageSource;
+  source: FileSource;
   alt: string;
   className: string;
   compact?: boolean;

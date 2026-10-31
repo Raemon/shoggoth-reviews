@@ -5,7 +5,7 @@ import { useDiffAreaWidth } from './diffAreaWidth';
 import { setDiffPaneWidth, useDiffPaneWidth } from './diffPaneWidth';
 import { DragHandle, useDragWidth } from './ResizableColumn';
 import { CheckerImg } from './BlobImage';
-import { type ImageSource } from './imageView';
+import { type FileSource } from './imageView';
 import { openImageTab } from './openImageTab';
 import { useFileBlob } from './useFileBlob';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
@@ -19,8 +19,8 @@ export function ImageDiff({
 }: {
   owner: string;
   repo: string;
-  before: ImageSource | null;
-  after: ImageSource | null;
+  before: FileSource | null;
+  after: FileSource | null;
 }) {
   const beforeSize = { width: useDiffPaneWidth(useDiffAreaWidth()), open: true };
   const startDrag = useDragWidth(beforeSize, setDiffPaneWidth);
@@ -49,7 +49,7 @@ function ImagePane({
   owner: string;
   repo: string;
   label: string;
-  source: ImageSource | null;
+  source: FileSource | null;
 }) {
   const blob = useFileBlob(owner, repo, source);
   const [shape, setShape] = useState<string | null>(null);

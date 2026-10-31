@@ -10,6 +10,7 @@ import {
   PAGE_SIZE,
 } from '@/features/codebases/githubRequest';
 import { withGithubMemoryBudget } from '@/features/codebases/githubMemoryBudget';
+import { encodePath } from '@/features/codebases/repoPaths';
 import { requireGithubUser } from '@/features/github-auth/requireGithubUser';
 import { imageTypeOf } from './imageFiles';
 import type { PullState } from './pullPaths';
@@ -438,10 +439,6 @@ function staleMessage(path: string): string {
   return `${path} has changed on the branch since this diff loaded; reload before continuing`;
 }
 
-function encodePath(path: string): string {
-  return path.split('/').map(encodeURIComponent).join('/');
-}
-
 export async function listPullComments(owner: string, name: string, number: number): Promise<PullComment[]> {
   const [conversation, review] = await Promise.all([
     githubJson<GithubComment[]>(`${API}/repos/${owner}/${name}/issues/${number}/comments?per_page=100`),
@@ -505,9 +502,8 @@ export function fileTextOf(bytes: Uint8Array, maxBytes = MAX_TEXT_BYTES): FileTe
 }
 
 function readRawFile(owner: string, name: string, ref: string, path: string, maxBytes: number) {
-  const encoded = path.split('/').map(encodeURIComponent).join('/');
   return githubBytes(
-    `${API}/repos/${owner}/${name}/contents/${encoded}?ref=${encodeURIComponent(ref)}`,
+    `${API}/repos/${owner}/${name}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`,
     'application/vnd.github.raw',
     maxBytes,
     { captureReserved: true },

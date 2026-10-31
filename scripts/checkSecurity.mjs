@@ -23,6 +23,7 @@ try {
   await checkCredentials();
   await checkOauthOrigins();
   await checkSvgIsolation();
+  await checkMarkdownSanitizing();
   await checkBoundedDownloads();
   await checkConcurrentTextDownloads();
   await checkMemoryBudget();
@@ -99,6 +100,17 @@ async function checkSvgIsolation() {
   assert.ok(html.includes(`<img src="data:image/svg+xml;base64,${payload}"`));
   assert.equal(html.match(/data:image\/svg\+xml/g)?.length, 1);
   assert.equal(imageTabBlob(`data:image/png;base64,${btoa('png')}`).type, 'image/png');
+}
+
+async function checkMarkdownSanitizing() {
+  const { renderMarkdown, renderMarkdownFile } = await import('../src/features/markdown/renderMarkdown.ts');
+  const repo = { owner: 'o', repo: 'r' };
+  for (const unclosed of ['<details ontoggle=alert(1) open \n\nfoo', '<img src=x onerror=alert(1) \n\nfoo', '<div title="x onclick=alert(1) \n\n<b>foo</b>']) {
+    assert.doesNotMatch(renderMarkdown(unclosed, repo), /<(details|img|div)\b/);
+  }
+  assert.match(renderMarkdown('<details>\n\nfoo\n\n</details>', repo), /<details>/);
+  const local = renderMarkdownFile('![a](b.png) [c](d.md)', { owner: '~local', repo: '/Users/me/project' }, ':worktree', 'README.md');
+  assert.doesNotMatch(local, /github\.com|Users/);
 }
 
 async function checkBoundedDownloads() {

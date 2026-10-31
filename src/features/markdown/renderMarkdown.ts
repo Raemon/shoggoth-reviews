@@ -1,15 +1,14 @@
 import { Marked, type Tokens } from 'marked';
-import { safeUrl, sanitizeHtml, type UrlBases } from './sanitizeHtml';
+import { safeUrl, sanitizeHtml, type UrlBase, type UrlBases } from './sanitizeHtml';
+import { encodePath } from '@/features/codebases/repoPaths';
+import { isLocalRepo } from '@/features/local-git/localRefs';
 
 export interface RepoRef {
   owner: string;
   repo: string;
 }
 
-export interface MarkdownFile {
-  ref: string;
-  path: string;
-}
+const GITHUB = 'https://github.com';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
 
@@ -17,15 +16,14 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (character) => ESCAPES[character] ?? character);
 }
 
-function urlBases({ owner, repo }: RepoRef, location: string): UrlBases {
-  return {
-    href: `https://github.com/${owner}/${repo}/blob/${location}`,
-    src: `https://github.com/${owner}/${repo}/raw/${location}`,
+// An empty path means a comment, where GitHub reads a leading slash as the site root.
+function urlBases({ owner, repo }: RepoRef, ref: string, path: string): UrlBases {
+  if (isLocalRepo(owner)) return {};
+  const at = (view: string): UrlBase => {
+    const tree = `${GITHUB}/${owner}/${repo}/${view}/${encodePath(ref)}/`;
+    return { file: tree + encodePath(path), root: path ? tree : `${GITHUB}/` };
   };
-}
-
-function fileLocation({ ref, path }: MarkdownFile): string {
-  return `${ref}/${path}`.split('/').map(encodeURIComponent).join('/');
+  return { href: at('blob'), src: at('raw') };
 }
 
 function hovercardAttribute(title: string | null | undefined): string {
@@ -42,8 +40,8 @@ function renderImage(src: string | null, title: string | null | undefined, alt: 
   return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${hovercardAttribute(title)} loading="lazy" />`;
 }
 
-function createMarked(bases: UrlBases, breaks: boolean): Marked {
-  const marked = new Marked({ gfm: true, breaks });
+function createMarked(bases: UrlBases, options: { breaks: boolean }): Marked {
+  const marked = new Marked({ gfm: true, ...options });
   marked.use({
     renderer: {
       html: ({ text }: Tokens.HTML | Tokens.Tag) => sanitizeHtml(text, bases),
@@ -60,7 +58,7 @@ const markedByRepo = new Map<string, Marked>();
 
 function markedFor(repo: RepoRef): Marked {
   const key = `${repo.owner}/${repo.repo}`;
-  const existing = markedByRepo.get(key) ?? createMarked(urlBases(repo, 'HEAD/'), true);
+  const existing = markedByRepo.get(key) ?? createMarked(urlBases(repo, 'HEAD', ''), { breaks: true });
   markedByRepo.set(key, existing);
   return existing;
 }
@@ -70,6 +68,6 @@ export function renderMarkdown(body: string, repo: RepoRef): string {
 }
 
 // Files are often hard-wrapped, so unlike comments their newlines are not line breaks.
-export function renderMarkdownFile(text: string, repo: RepoRef, file: MarkdownFile): string {
-  return createMarked(urlBases(repo, fileLocation(file)), false).parse(text, { async: false });
+export function renderMarkdownFile(text: string, repo: RepoRef, ref: string, path: string): string {
+  return createMarked(urlBases(repo, ref, path), { breaks: false }).parse(text, { async: false });
 }
