@@ -90,6 +90,6 @@ function lineOf(row: DiffRow, index: number, side: 'left' | 'right'): DiffLine {
 }
 
 // Judged per row, not per side, so both columns of a split diff stay aligned.
-function blankRow(row: DiffRow): boolean {
+export function blankRow(row: DiffRow): boolean {
   return row.kind !== 'hunk' && (row.left?.text ?? '') === '' && (row.right?.text ?? '') === '';
 }

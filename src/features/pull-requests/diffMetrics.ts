@@ -18,18 +18,29 @@ export type WrappedHeights = Map<number, RowHeight> | null;
 export interface RowHeights {
   wrapped: WrappedHeights;
   blank: number;
+  openBlank: number;
+  openRows: ReadonlySet<number>;
 }
 
 const BLANK_ROW_HEIGHTS: Record<BlankLineSetting, number> = { full: ROW_HEIGHT, half: HALF_ROW_HEIGHT, 'extra-small': 2 };
+const OPEN_BLANK_ROW_HEIGHTS: Record<BlankLineSetting, number> = { full: ROW_HEIGHT, half: 11, 'extra-small': 6 };
 
 export function blankRowHeight(setting: BlankLineSetting): number {
   return BLANK_ROW_HEIGHTS[setting];
 }
 
+export function openBlankRowHeight(setting: BlankLineSetting): number {
+  return OPEN_BLANK_ROW_HEIGHTS[setting];
+}
+
 export function lineHeight(line: DiffLine, heights: RowHeights): number {
-  if (line.blank) return heights.blank;
+  if (line.blank) return blankHeight(line, heights);
   if (line.semiblank) return HALF_ROW_HEIGHT;
   return heights.wrapped?.get(line.row)?.[line.side] ?? ROW_HEIGHT;
+}
+
+function blankHeight(line: DiffLine, heights: RowHeights): number {
+  return heights.openRows.has(line.row) ? heights.openBlank : heights.blank;
 }
 
 export function collapsedRowGap(
