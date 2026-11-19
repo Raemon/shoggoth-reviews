@@ -9,8 +9,9 @@ import { withDraftThread, type DraftAnchor } from './draftThread';
 import { startDraftThread, useDraftAnchor } from './draftThreadStore';
 import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, type DiffLine } from './diffLines';
 import { langForPath } from './diffHighlight';
-import { blankRowHeight, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
+import { blankRowHeights, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { useDiffWrap } from './diffWrapStore';
+import { openBlankRows } from './openBlankRows';
 import { evenedRowHeights } from './rowHeights';
 import { EditTarget } from './editTarget';
 import { blockHasRow, type EditableBlock } from './editableBlocks';
@@ -94,7 +95,8 @@ export function FileDiff({
   const [truncation, untruncate] = useRowTruncation(rows, collapse.hidden, alwaysDrawn, showingWholeFile);
   const undrawn = useMemo(() => undrawnRows(collapse.hidden, truncation), [collapse.hidden, truncation]);
   const blankLines = useSetting('blankLines');
-  const rowHeights = useRowHeights(singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right), blankLines);
+  const openBlanks = useMemo(() => openBlankRows(rows, collapse.anchors, undrawn), [rows, collapse.anchors, undrawn]);
+  const rowHeights = useRowHeights(singleColumn ? measured.right : evenedRowHeights(measured.left, measured.right), blankLines, openBlanks);
   const resultView = layout === 'result' && !entireFile && anyLineSurvives(rows);
   const drawn = { hidden: collapse.hidden, commentedRows, truncation, blankLines };
   const shownMain = useShownLines(rows, mainColumn(singleColumn, resultView), drawn);
@@ -223,8 +225,11 @@ function useMeasuredSides(): MeasuredSides {
   return { left, right, onLeft, onRight };
 }
 
-function useRowHeights(wrapped: WrappedHeights, blankLines: BlankLineSetting): RowHeights {
-  return useMemo(() => ({ wrapped, blank: blankRowHeight(blankLines) }), [wrapped, blankLines]);
+function useRowHeights(wrapped: WrappedHeights, blankLines: BlankLineSetting, openRows: ReadonlySet<number>): RowHeights {
+  return useMemo(
+    () => ({ wrapped, blank: blankRowHeights(blankLines), openRows }),
+    [wrapped, blankLines, openRows],
+  );
 }
 
 function initialWholeFileWish(): WholeFileWish {

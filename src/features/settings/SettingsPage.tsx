@@ -6,7 +6,7 @@ import { useDesktopBridge } from '@/features/desktop/desktopBridge';
 import { codeSegments, withMargins } from '@/features/pull-requests/codeSegments';
 import { commentMargins } from '@/features/pull-requests/commentMargins';
 import { useTokenized, type ThemedToken } from '@/features/pull-requests/diffHighlight';
-import { blankRowHeight, HALF_ROW_HEIGHT, ROW_HEIGHT } from '@/features/pull-requests/diffMetrics';
+import { blankRowHeights, HALF_ROW_HEIGHT, ROW_HEIGHT } from '@/features/pull-requests/diffMetrics';
 import { SegmentSpan } from '@/features/pull-requests/SegmentSpan';
 import { SEMIBLANK_CODE, semiblankKind, type SemiblankKind } from '@/features/pull-requests/semiblankLines';
 import { PageHeading, SECTION_LABEL } from '@/features/sources/PageHeading';
@@ -95,7 +95,7 @@ function SettingToggle({ name, legend, label }: { name: ToggleName; legend: stri
 }
 
 function DiffLinesPreview() {
-  const blank = blankRowHeight(useSetting('blankLines'));
+  const blank = blankRowHeights(useSetting('blankLines')).open;
   const semiblanks = useSetting('semiblankLines');
   const tokens = useTokenized(PREVIEW_TEXT, 'typescript');
   return (
