@@ -9,7 +9,7 @@ import { withDraftThread, type DraftAnchor } from './draftThread';
 import { startDraftThread, useDraftAnchor } from './draftThreadStore';
 import { asOrdinaryLines, columnLines, resultLines, shownLines, unifiedLines, type DiffLine } from './diffLines';
 import { langForPath } from './diffHighlight';
-import { blankRowHeight, linesHeight, openBlankRowHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
+import { blankRowHeights, linesHeight, ROW_HEIGHT, SAVE_BAR, type RowHeights, type WrappedHeights } from './diffMetrics';
 import { useDiffWrap } from './diffWrapStore';
 import { openBlankRows } from './openBlankRows';
 import { evenedRowHeights } from './rowHeights';
@@ -227,7 +227,7 @@ function useMeasuredSides(): MeasuredSides {
 
 function useRowHeights(wrapped: WrappedHeights, blankLines: BlankLineSetting, openRows: ReadonlySet<number>): RowHeights {
   return useMemo(
-    () => ({ wrapped, blank: blankRowHeight(blankLines), openBlank: openBlankRowHeight(blankLines), openRows }),
+    () => ({ wrapped, blank: blankRowHeights(blankLines), openRows }),
     [wrapped, blankLines, openRows],
   );
 }
