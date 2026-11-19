@@ -7,14 +7,14 @@ import type { DiffRow } from './splitDiff';
 export function useHeightTransition(rows: DiffRow[], hidden: Set<number>, heights: RowHeights) {
   const node = useRef<HTMLDivElement | null>(null);
   const measured = useRef<number | null>(null);
-  const wrapped = useRef(heights);
+  const sizing = useRef(heights);
 
   // Rewrapping restates the baseline silently; only folding should animate.
   useLayoutEffect(() => {
     const element = node.current;
     if (!element) return;
-    const rewrapped = wrapped.current !== heights;
-    wrapped.current = heights;
+    const rewrapped = resized(sizing.current, heights);
+    sizing.current = heights;
     const from = measured.current;
     measured.current = element.scrollHeight;
     if (rewrapped || from === null || from === measured.current) return;
@@ -22,6 +22,11 @@ export function useHeightTransition(rows: DiffRow[], hidden: Set<number>, height
   }, [rows, hidden, heights]);
 
   return node;
+}
+
+// openRows changes on every fold toggle, so only the wrap and blank sizes mark a rewrap.
+function resized(held: RowHeights, next: RowHeights): boolean {
+  return held.wrapped !== next.wrapped || held.blank !== next.blank;
 }
 
 function playGrow(element: HTMLElement, from: number, to: number) {
