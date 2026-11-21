@@ -257,7 +257,7 @@ export async function describePullRequest(
 
 export async function mergePullRequest(owner: string, name: string, number: number): Promise<MergeResult> {
   requireGithubUser('merging');
-  const pull = await githubJson<GithubPull>(`${API}/repos/${owner}/${name}/pulls/${number}`);
+  const pull = await githubJson<GithubPull>(`${API}/repos/${owner}/${name}/pulls/${number}`, true);
   if (pull.draft) await markReadyForReview(pull.node_id);
   const result = await githubSend<{ merged?: boolean; message?: string }>(
     `${API}/repos/${owner}/${name}/pulls/${number}/merge`,
