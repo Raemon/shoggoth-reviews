@@ -7,6 +7,7 @@ import { FileTreeRow } from './FileTreeRow';
 import { FolderGroupedRows } from './FolderGroupedRows';
 import type { ChangedFile } from './pullRequests';
 import { HoverCardTrigger } from '@/features/surface-ui/HoverCard';
+import { useKeptInView } from '@/features/surface-ui/useKeptInView';
 
 const DELETE_SLOT =
   'absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100';
@@ -33,10 +34,13 @@ function GroupedRows({ files, ...row }: RowProps & { files: ChangedFile[] }) {
 }
 
 function ChangedFileRow({ file, indented, selected, onSelect, onDelete }: RowProps & { file: ChangedFile; indented: boolean }) {
+  const current = file.filename === selected;
+  const rowRef = useKeptInView<HTMLButtonElement>(current);
   return (
     <FileTreeRow
       path={file.filename}
-      selected={file.filename === selected}
+      selected={current}
+      rowRef={rowRef}
       onSelect={() => onSelect(file.filename)}
       indented={indented}
       action={deleteIconFor(file, onDelete)}

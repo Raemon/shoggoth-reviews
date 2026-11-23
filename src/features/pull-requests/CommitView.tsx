@@ -69,7 +69,7 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
         />
       </ResizableColumn>
       <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
-        <DiffPanes ref={diffPanes} owner={owner} repo={repo} fileSet={commit} files={files} selected={path} />
+        <DiffPanes ref={diffPanes} owner={owner} repo={repo} fileSet={commit} files={files} selected={path} onTopFile={setPath} />
       </div>
     </div>
   );

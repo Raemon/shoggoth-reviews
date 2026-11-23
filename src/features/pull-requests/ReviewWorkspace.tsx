@@ -294,6 +294,7 @@ function Workspace({
                       selected={path}
                       editablePull={editableFiles}
                       onCommitted={reloadInPlace}
+                      onTopFile={setPath}
                     />
                   </div>
                 )}

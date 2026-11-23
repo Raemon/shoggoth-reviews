@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { useColumnNav } from './columnNav';
 import { fileKindColor, splitExtension } from './fileKind';
 import { baseName, folderOf } from './fileTree';
@@ -18,6 +18,7 @@ export function FileTreeRow({
   indented = false,
   indent,
   action = null,
+  rowRef,
   children,
 }: {
   path: string;
@@ -27,6 +28,7 @@ export function FileTreeRow({
   indented?: boolean;
   indent?: number;
   action?: ReactNode;
+  rowRef?: Ref<HTMLButtonElement>;
   children?: ReactNode;
 }) {
   const row = useColumnNav('files').row(navKey, selected);
@@ -34,6 +36,7 @@ export function FileTreeRow({
   const button = (
     <SelectableRow
       {...row.props}
+      ref={rowRef}
       onActivate={onSelect}
       style={inset.style}
       className={`${ROW} ${inset.className} ${action === null ? rowStateClass(row.state) : ''}`}
