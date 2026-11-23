@@ -16,6 +16,7 @@ import { GithubLoadNotice } from './ReviewLoadNotice';
 import { ReviewThreadProvider } from './reviewThreadStore';
 import { useRegisterColumn } from './registerColumn';
 import { useStickyColumn } from './stickyColumns';
+import { useTopFileSelection } from './useTopFileSelection';
 import { useCommitDetail } from './useCommitDetail';
 
 export function CommitView({ owner, repo, sha }: { owner: string; repo: string; sha: string }) {
@@ -37,6 +38,7 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
   const [query, setQuery] = useState('');
   const [path, setPath] = useState<string | null>(null);
   const diffPanes = useRef<DiffPanesHandle>(null);
+  const selectTopFile = useTopFileSelection(setPath);
   const sort = useDiffSort();
   const files = useMemo(() => sortChangedFiles(commit.files, sort, NO_COMMENTS), [commit.files, sort]);
   const shownFiles = useMemo(() => filterChangedFiles(files, query), [files, query]);
@@ -69,7 +71,7 @@ function CommitFiles({ owner, repo, commit }: { owner: string; repo: string; com
         />
       </ResizableColumn>
       <div className="flex min-w-0 flex-1 flex-col max-md:h-[80vh] max-md:flex-none">
-        <DiffPanes ref={diffPanes} owner={owner} repo={repo} fileSet={commit} files={files} selected={path} onTopFile={setPath} />
+        <DiffPanes ref={diffPanes} owner={owner} repo={repo} fileSet={commit} files={files} selected={path} onTopFile={selectTopFile} />
       </div>
     </div>
   );

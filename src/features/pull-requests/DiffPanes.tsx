@@ -10,7 +10,7 @@ import { DiffFileSection } from './DiffFileSection';
 import { DiffLayoutToggle } from './DiffLayoutToggle';
 import type { FolderHeading } from './fileTreeNodes';
 import { FolderHeadingBar } from './FolderHeading';
-import { EditTarget } from './editTarget';
+import { EditTarget, useEditTargetValue } from './editTarget';
 import { onHandInput } from './handInput';
 import { ImageThumbnailStrip } from './ImageThumbnailStrip';
 import { imageFilesOf, isImagePath } from './imageFiles';
@@ -59,7 +59,8 @@ export function DiffPanes({
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const sections = useRef(new Map<string, HTMLElement>());
   const holdSection = useSectionRegistry(sections);
-  const holdSelection = useTopFileReport({ scroller, files, sections, selected, onTopFile });
+  const pauseTopFileReport = useTopFileReport({ scroller, files, sections, selected, onTopFile });
+  const editTarget = useEditTargetValue(editablePull, fileSet?.headRef, onCommitted);
   const realigning = useRef<(() => void) | null>(null);
   useEffect(() => () => realigning.current?.(), []);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
@@ -68,25 +69,27 @@ export function DiffPanes({
     (path: string) => {
       // The header is sticky: mid-file it, not the section top, is what the eye tracks.
       const header = headerOf(sections.current.get(path));
+      pauseTopFileReport();
       holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path, withheld) })));
     },
-    [scroller, withheld],
+    [scroller, withheld, pauseTopFileReport],
   );
 
   const filesOpen = files.some((file) => openFile(toggled, file.filename, withheld));
   const setAllFiles = useCallback(
     (open: boolean) => {
       const anchor = topVisibleHeader(scroller, files, sections.current);
+      pauseTopFileReport();
       holdingInPlace(scroller, anchor, () => setToggled(everyFileSetTo(files, open)));
     },
-    [scroller, files],
+    [scroller, files, pauseTopFileReport],
   );
 
   useImperativeHandle(ref, () => ({
     scrollToFile(path: string, rootId?: number) {
       const section = sections.current.get(path);
       if (!scroller || !section) return;
-      holdSelection();
+      pauseTopFileReport();
       realigning.current?.();
       animateScrollTop(scroller, scrollerOffset(scroller, section));
       realigning.current = realignAfterDrawing(scroller, () => scrollTarget(sections.current.get(path), rootId));
@@ -97,7 +100,7 @@ export function DiffPanes({
   if (!fileSet) return <PaneStatusLine tone="dim" className="flex-1">Loading…</PaneStatusLine>;
   if (files.length === 0) return <PaneStatusLine tone="dim" className="flex-1">No files changed.</PaneStatusLine>;
   return (
-    <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
+    <EditTarget value={editTarget}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
           <DiffLayoutToggle filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />

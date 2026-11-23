@@ -15,10 +15,11 @@ export function useKeptInView<T extends HTMLElement>(wanted: boolean) {
 // scrollIntoView also scrolls the page, which would pull a stacked layout off the diff.
 function nudgeIntoScroller(node: HTMLElement) {
   const scroller = scrollParentOf(node);
-  if (scroller) scroller.scrollTop += overshoot(node.getBoundingClientRect(), scroller.getBoundingClientRect());
+  if (!scroller) return;
+  scroller.scrollTop += distanceToReveal(node.getBoundingClientRect(), scroller.getBoundingClientRect());
 }
 
-function overshoot(box: DOMRect, frame: DOMRect): number {
+function distanceToReveal(box: DOMRect, frame: DOMRect): number {
   const context = Math.min(CONTEXT_ROWS * box.height, (frame.height - box.height) / 2);
   if (box.top < frame.top) return box.top - context - frame.top;
   if (box.bottom > frame.bottom) return box.bottom + context - frame.bottom;
@@ -26,7 +27,9 @@ function overshoot(box: DOMRect, frame: DOMRect): number {
 }
 
 function scrollParentOf(node: HTMLElement): HTMLElement | null {
-  for (let at = node.parentElement; at; at = at.parentElement) if (scrollsVertically(at)) return at;
+  for (let at = node.parentElement; at; at = at.parentElement) {
+    if (scrollsVertically(at)) return at;
+  }
   return null;
 }
 

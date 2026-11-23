@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import { onHandInput } from './handInput';
 import type { ChangedFile } from './pullRequests';
 
 type Sections = Map<string, HTMLElement>;
 
-interface FileScroll {
+interface TopFileReport {
   scroller: HTMLElement | null;
   files: ChangedFile[];
   sections: RefObject<Sections>;
@@ -23,16 +23,20 @@ function reachesBelow(section: HTMLElement | undefined, edge: number): boolean {
   return !!section && section.getBoundingClientRect().bottom > edge;
 }
 
-export function useTopFileReport({ scroller, files, sections, selected, onTopFile }: FileScroll): () => void {
-  const [held, hold] = useHeldUntilHandInput();
+export function useTopFileReport({ scroller, files, sections, selected, onTopFile }: TopFileReport): () => void {
+  const [paused, pause] = usePausedUntilHandInput();
   useEffect(() => {
     if (!scroller || !onTopFile) return;
+    const topPath = () => topVisibleFile(scroller, files, sections.current)?.filename;
     return onScroll(scroller, () => {
-      const top = held.current ? undefined : topVisibleFile(scroller, files, sections.current);
-      if (top && top.filename !== selected) onTopFile(top.filename);
+      if (!paused.current) reportChange(topPath(), selected, onTopFile);
     });
-  }, [scroller, files, sections, selected, onTopFile, held]);
-  return hold;
+  }, [scroller, files, sections, selected, onTopFile, paused]);
+  return pause;
+}
+
+function reportChange(top: string | undefined, selected: string | null, onTopFile: (path: string) => void) {
+  if (top !== undefined && top !== selected) onTopFile(top);
 }
 
 function onScroll(scroller: HTMLElement, heard: () => void): () => void {
@@ -40,14 +44,15 @@ function onScroll(scroller: HTMLElement, heard: () => void): () => void {
   return () => scroller.removeEventListener('scroll', heard);
 }
 
-// A reveal scrolls past other files, and its file may stop short of the top edge.
-function useHeldUntilHandInput(): [RefObject<boolean>, () => void] {
-  const held = useRef(false);
-  useEffect(() => onHandInput(() => {
-    held.current = false;
-  }), []);
-  const hold = () => {
-    held.current = true;
+// Our own scrolling passes other files, and a picked file may stop short of the top edge.
+function usePausedUntilHandInput(): [RefObject<boolean>, () => void] {
+  const paused = useRef(false);
+  const resume = () => {
+    paused.current = false;
   };
-  return [held, hold];
+  useEffect(() => onHandInput(resume), []);
+  const pause = useCallback(() => {
+    paused.current = true;
+  }, []);
+  return [paused, pause];
 }

@@ -28,6 +28,7 @@ import { ReviewThreadProvider, useReviewTarget } from './reviewThreadStore';
 import { useStickyColumn, useStickyOpen } from './stickyColumns';
 import { useFileDeletion } from './useFileDeletion';
 import { useRepoFileTree } from './useRepoFileTree';
+import { useTopFileSelection } from './useTopFileSelection';
 import { InlineCommentsToggle } from './InlineCommentsToggle';
 import { usePageScrollFirst } from './usePageScrollFirst';
 import { useGithubToken, useStoreReady } from '@/features/sources/sourceStore';
@@ -120,9 +121,7 @@ function Workspace({
   }, [scrollWanted, browsed]);
 
   useEffect(() => {
-    if (!fileSet) return;
-    if (showingWhole) setDeleted((held) => held.filter((filename) => stillLivingIn(fileSet, filename)));
-    setPath((held) => (held && fileSet.files.some((file) => file.filename === held) ? held : fileSet.files[0]?.filename ?? null));
+    if (fileSet && showingWhole) setDeleted((held) => held.filter((filename) => stillLivingIn(fileSet, filename)));
   }, [fileSet, showingWhole]);
 
   const revealFile = useCallback((filename: string, rootId?: number) => {
@@ -130,6 +129,7 @@ function Workspace({
     setPath(filename);
     setScrollWanted({ path: filename, rootId });
   }, []);
+  const selectTopFile = useTopFileSelection(setPath);
   const browseTree = useRepoFileTree({
     repoFiles,
     query: fileQuery,
@@ -150,6 +150,9 @@ function Workspace({
     () => sortChangedFiles(remaining(fileSet?.files ?? [], showingWhole ? deleted : []), sort, commentCountsOf(threads)),
     [fileSet, deleted, showingWhole, sort, threads],
   );
+  useEffect(() => {
+    if (fileSet) setPath((held) => keptOrFirst(held, files));
+  }, [fileSet, files]);
   const browseItems = allFilesOpen ? browseTree.navItems : [];
   const loadedFiles = fileSet === null ? null : files;
   const shownFiles = useMemo(() => filterChangedFiles(files, changedQuery), [files, changedQuery]);
@@ -294,7 +297,7 @@ function Workspace({
                       selected={path}
                       editablePull={editableFiles}
                       onCommitted={reloadInPlace}
-                      onTopFile={setPath}
+                      onTopFile={selectTopFile}
                     />
                   </div>
                 )}
@@ -334,6 +337,10 @@ function filesNote(loaded: ChangedFile[] | null, shown: number, showingWhole: bo
 
 function remaining(files: ChangedFile[], deleted: string[]): ChangedFile[] {
   return deleted.length === 0 ? files : files.filter((file) => !deleted.includes(file.filename));
+}
+
+function keptOrFirst(held: string | null, files: ChangedFile[]): string | null {
+  return held && files.some((file) => file.filename === held) ? held : files[0]?.filename ?? null;
 }
 
 function neighborOf(files: ChangedFile[], filename: string): string | null {
