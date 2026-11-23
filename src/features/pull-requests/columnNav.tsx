@@ -22,6 +22,7 @@ interface NavValue {
   focus: (column: ColumnId) => void;
   toggle: (column: ColumnId) => void;
   activate: (column: ColumnId, item: string) => void;
+  dropCursors: (columns: ColumnId[]) => void;
   register: (id: ColumnId, column: NavColumn | null) => void;
   registerBody: (id: ColumnId, node: HTMLElement | null) => void;
 }
@@ -34,6 +35,7 @@ const INERT: NavValue = {
   focus: () => {},
   toggle: () => {},
   activate: () => {},
+  dropCursors: () => {},
   register: () => {},
   registerBody: () => {},
 };
@@ -51,6 +53,8 @@ export function ColumnNavProvider({ children }: { children: ReactNode }) {
   const setCursor = useCallback((id: ColumnId, item: string | null) => {
     setCursors((held) => ({ ...held, [id]: item ?? undefined }));
   }, []);
+
+  const dropCursors = useCallback((ids: ColumnId[]) => setCursors((held) => withoutCursors(held, ids)), []);
 
   const moveCursor = useCallback(
     (column: NavColumn, delta: number) => {
@@ -100,7 +104,7 @@ export function ColumnNavProvider({ children }: { children: ReactNode }) {
     scrollColumnIntoView(pendingReveal);
   }, [pendingReveal]);
 
-  const value = { focused, cursors, hover, setHover, focus: setFocused, toggle: setPendingToggle, activate, register, registerBody };
+  const value = { focused, cursors, hover, setHover, focus: setFocused, toggle: setPendingToggle, activate, dropCursors, register, registerBody };
   return <ColumnNavContext.Provider value={value}>{children}</ColumnNavContext.Provider>;
 }
 
@@ -144,9 +148,15 @@ export function useColumnNav(id: ColumnId) {
   };
 }
 
-export function useNavRegistry(): Pick<NavValue, 'register' | 'toggle'> {
-  const { register, toggle } = useContext(ColumnNavContext);
-  return { register, toggle };
+export function useNavRegistry(): Pick<NavValue, 'register' | 'toggle' | 'dropCursors'> {
+  const { register, toggle, dropCursors } = useContext(ColumnNavContext);
+  return { register, toggle, dropCursors };
+}
+
+// Handing back the same object lets React skip the render when nothing was held.
+function withoutCursors(cursors: Cursors, ids: ColumnId[]): Cursors {
+  if (ids.every((id) => cursors[id] === undefined)) return cursors;
+  return { ...cursors, ...Object.fromEntries(ids.map((id) => [id, undefined])) };
 }
 
 function stepToLiveColumn(columns: Map<ColumnId, NavColumn>, from: ColumnId, delta: number): ColumnId {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { ChangeCounts } from './ChangeCounts';
 import { useColumnNav } from './columnNav';
 import { ROW_HEIGHT } from './diffMetrics';
@@ -158,7 +158,8 @@ function sectionTone(state: RowState): string {
   return state === 'plain' ? 'bg-panel text-ink' : rowStateClass(state);
 }
 
-function FileBody({
+// Selecting a file re-renders every section; unmemoized, that redraws every diff line.
+const FileBody = memo(function FileBody({
   owner,
   repo,
   file,
@@ -192,4 +193,4 @@ function FileBody({
       {file.status} — no textual diff
     </PaneStatusLine>
   );
-}
+});

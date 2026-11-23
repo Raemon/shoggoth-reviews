@@ -10,17 +10,18 @@ import { DiffFileSection } from './DiffFileSection';
 import { DiffLayoutToggle } from './DiffLayoutToggle';
 import type { FolderHeading } from './fileTreeNodes';
 import { FolderHeadingBar } from './FolderHeading';
-import { EditTarget } from './editTarget';
+import { EditTarget, useEditTargetValue } from './editTarget';
+import { onHandInput } from './handInput';
 import { ImageThumbnailStrip } from './ImageThumbnailStrip';
 import { imageFilesOf, isImagePath } from './imageFiles';
 import type { ChangedFile, ChangedFileSet, PullRequestSummary } from './pullRequests';
 import { largeDiffPaths } from './sizeLimits';
+import { topVisibleFile, useTopFileReport } from './topFile';
 import { PaneStatusLine } from '@/features/surface-ui/PaneStatusLine';
 
 const SCROLL_MS = 100;
 const REALIGN_MS = 150;
 const REALIGN_TRIES = 12;
-const HAND_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
 
 interface ScrollTarget {
   node: HTMLElement;
@@ -41,6 +42,7 @@ export function DiffPanes({
   editablePull = null,
   headings,
   onCommitted,
+  onTopFile,
   ref,
 }: {
   owner: string;
@@ -51,11 +53,14 @@ export function DiffPanes({
   editablePull?: PullRequestSummary | null;
   headings?: ReadonlyMap<string, FolderHeading[]>;
   onCommitted?: () => void | Promise<void>;
+  onTopFile?: (path: string) => void;
   ref?: Ref<DiffPanesHandle>;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const sections = useRef(new Map<string, HTMLElement>());
   const holdSection = useSectionRegistry(sections);
+  const pauseTopFileReport = useTopFileReport({ scroller, files, sections, selected, onTopFile });
+  const editTarget = useEditTargetValue(editablePull, fileSet?.headRef, onCommitted);
   const realigning = useRef<(() => void) | null>(null);
   useEffect(() => () => realigning.current?.(), []);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
@@ -64,24 +69,27 @@ export function DiffPanes({
     (path: string) => {
       // The header is sticky: mid-file it, not the section top, is what the eye tracks.
       const header = headerOf(sections.current.get(path));
+      pauseTopFileReport();
       holdingInPlace(scroller, header, () => setToggled((held) => ({ ...held, [path]: !openFile(held, path, withheld) })));
     },
-    [scroller, withheld],
+    [scroller, withheld, pauseTopFileReport],
   );
 
   const filesOpen = files.some((file) => openFile(toggled, file.filename, withheld));
   const setAllFiles = useCallback(
     (open: boolean) => {
       const anchor = topVisibleHeader(scroller, files, sections.current);
+      pauseTopFileReport();
       holdingInPlace(scroller, anchor, () => setToggled(everyFileSetTo(files, open)));
     },
-    [scroller, files],
+    [scroller, files, pauseTopFileReport],
   );
 
   useImperativeHandle(ref, () => ({
     scrollToFile(path: string, rootId?: number) {
       const section = sections.current.get(path);
       if (!scroller || !section) return;
+      pauseTopFileReport();
       realigning.current?.();
       animateScrollTop(scroller, scrollerOffset(scroller, section));
       realigning.current = realignAfterDrawing(scroller, () => scrollTarget(sections.current.get(path), rootId));
@@ -92,7 +100,7 @@ export function DiffPanes({
   if (!fileSet) return <PaneStatusLine tone="dim" className="flex-1">Loading…</PaneStatusLine>;
   if (files.length === 0) return <PaneStatusLine tone="dim" className="flex-1">No files changed.</PaneStatusLine>;
   return (
-    <EditTarget value={editablePull && { pull: editablePull, headRef: fileSet.headRef, onCommitted }}>
+    <EditTarget value={editTarget}>
       <DefinitionPeekProvider owner={owner} repo={repo} fileSet={fileSet}>
         <div className="flex min-h-0 flex-1 flex-col">
           <DiffLayoutToggle filesOpen={filesOpen} onToggleAllFiles={() => setAllFiles(!filesOpen)} />
@@ -140,14 +148,8 @@ function everyFileSetTo(files: ChangedFile[], open: boolean): Record<string, boo
 
 // Collapsing every file at once would fling the reader elsewhere; hold the one they are on.
 function topVisibleHeader(container: HTMLElement | null, files: ChangedFile[], sections: Map<string, HTMLElement>): Element | null {
-  if (!container) return null;
-  const edge = container.getBoundingClientRect().top;
-  const top = files.find((file) => reachesBelow(sections.get(file.filename), edge));
+  const top = container && topVisibleFile(container, files, sections);
   return top ? headerOf(sections.get(top.filename)) : null;
-}
-
-function reachesBelow(section: HTMLElement | undefined, edge: number): boolean {
-  return !!section && section.getBoundingClientRect().bottom > edge;
 }
 
 function headerOf(section: HTMLElement | undefined): Element | null {
@@ -218,20 +220,15 @@ function realignAfterDrawing(container: HTMLElement, section: () => ScrollTarget
   let tries = 0;
   const stop = () => {
     clearInterval(settle);
-    handEvents((type) => window.removeEventListener(type, stop, true));
+    unhand();
   };
   const settle = setInterval(() => {
     const target = section();
     if (!target || (tries += 1) > REALIGN_TRIES) stop();
     else container.scrollTop = scrollerOffset(container, target.node) - target.gap;
   }, REALIGN_MS);
-  handEvents((type) => window.addEventListener(type, stop, true));
+  const unhand = onHandInput(stop);
   return stop;
-}
-
-// Scroll anchoring moves the scroller too, so only real input counts as taking over.
-function handEvents(each: (type: (typeof HAND_EVENTS)[number]) => void) {
-  for (const type of HAND_EVENTS) each(type);
 }
 
 function animateScrollTop(container: HTMLElement, target: number) {
